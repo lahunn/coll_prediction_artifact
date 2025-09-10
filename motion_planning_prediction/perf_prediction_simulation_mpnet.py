@@ -104,7 +104,6 @@ def csp_rearrange(edge, edgeyarr, groupsize=8):
 
 # distributing the dataset into two components X and Y
 
-
 # ====== 离散化相关参数：将连续 link 特征向量逐元素量化到固定 bins 以形成哈希键 ======
 binnumber = 16  # 每维分箱数量（定宽分箱），越大 → 哈希更稀疏
 intervalsize = 2 / binnumber
@@ -115,105 +114,99 @@ for i in range(0, binnumber):
     start += intervalsize
 
 # ====== 全局累积统计变量 ======
-all_csp = 0              # （未在最终输出使用，保留）
-all_prediction = 0       # 当前 bench 的预测策略查询累计（含权重）
-all_oracle = 0           # 当前 bench 的“oracle”理想最小参考成本
-globalcolldict = {}      # 跨 bench 可共享（此脚本中未复用）
-colldict = {}            # 预测历史表：key -> [collision_count, free_count]
-fall_serial = 0          # 预留：串行基线
-fall_parallel = 0        # 预留：并行基线
-fall_prediction = 0      # 跨 bench 累积预测成本
-fall_oracle = 0          # 跨 bench 累积 oracle 成本
+all_csp = 0  # （未在最终输出使用，保留）
+all_prediction = 0  # 当前 bench 的预测策略查询累计（含权重）
+all_oracle = 0  # 当前 bench 的“oracle”理想最小参考成本
+globalcolldict = {}  # 跨 bench 可共享（此脚本中未复用）
+colldict = {}  # 预测历史表：key -> [collision_count, free_count]
+fall_serial = 0  # 预留：串行基线
+fall_parallel = 0  # 预留：并行基线
+fall_prediction = 0  # 跨 bench 累积预测成本
+fall_oracle = 0  # 跨 bench 累积 oracle 成本
 
 # ====== 微架构/资源参数 ======
-qnoncoll_len = 56        # 低风险队列容量（批量缓冲）
-qcoll_len = 8            # 高风险队列容量（小而快）
-cycle_check = 40         # 统一固定 latency（所有任务同一执行时长）
-cycle_check_free = 30    # （未真正使用于执行时间区分，可能为未来扩展）
+qnoncoll_len = 56  # 低风险队列容量（批量缓冲）
+qcoll_len = 8  # 高风险队列容量（小而快）
+cycle_check = 40  # 统一固定 latency（所有任务同一执行时长）
+cycle_check_free = 30  # （未真正使用于执行时间区分，可能为未来扩展）
 
 # ====== 记录每条路径的周期/成本明细 ======
-cycle_count = []         # 每条路径消耗的周期集合（用于统计均值）
-comp_count = []          # 每条路径预测成本集合（加权）
-count_edges = 0          # 已处理路径数量
-obb_conv_count = 0       # OBB 转换/特征量化计数（近似前端准备开销）
-total_cycles = 0         # 全部路径周期总和
-for benchid in tqdm(
-    [
-        0,
-        13,
-        14,
-        15,
-        16,
-        17,
-        19,
-        1,
-        20,
-        21,
-        23,
-        24,
-        25,
-        27,
-        28,
-        29,
-        2,
-        30,
-        32,
-        34,
-        35,
-        36,
-        37,
-        39,
-        3,
-        44,
-        45,
-        46,
-        49,
-        4,
-        53,
-        55,
-        56,
-        57,
-        58,
-        59,
-        5,
-        63,
-        64,
-        65,
-        70,
-        71,
-        75,
-        7,
-        82,
-        83,
-        85,
-        87,
-        88,
-        8,
-        90,
-        91,
-        92,
-        93,
-        95,
-        96,
-        97,
-        98,
-    ]
-):
+cycle_count = []  # 每条路径消耗的周期集合（用于统计均值）
+comp_count = []  # 每条路径预测成本集合（加权）
+count_edges = 0  # 已处理路径数量
+obb_conv_count = 0  # OBB 转换/特征量化计数（近似前端准备开销）
+total_cycles = 0  # 全部路径周期总和
+for benchid in tqdm([
+    0,
+    13,
+    14,
+    15,
+    16,
+    17,
+    19,
+    1,
+    20,
+    21,
+    23,
+    24,
+    25,
+    27,
+    28,
+    29,
+    2,
+    30,
+    32,
+    34,
+    35,
+    36,
+    37,
+    39,
+    3,
+    44,
+    45,
+    46,
+    49,
+    4,
+    53,
+    55,
+    56,
+    57,
+    58,
+    59,
+    5,
+    63,
+    64,
+    65,
+    70,
+    71,
+    75,
+    7,
+    82,
+    83,
+    85,
+    87,
+    88,
+    8,
+    90,
+    91,
+    92,
+    93,
+    95,
+    96,
+    97,
+    98,
+]):
     # for benchid in tqdm([0,13,14]):
     # for benchid in (range(2000,2200)):
 
     cycle_count.append([])  # 为该 bench 累积其下所有路径的周期
-    comp_count.append([])   # 为该 bench 累积其下所有路径的预测成本
+    comp_count.append([])  # 为该 bench 累积其下所有路径的预测成本
     all_parallel = 0
     all_prediction = 0
     all_oracle = 0
     colldict = {}
     benchidstr = str(benchid)
-    filename = (
-        "../trace_files/motion_traces/logfiles_MPNET_7D/coord_bench_3_"
-        + str(benchid)
-        + ".pkl"
-    )
+    filename = ("../trace_files/motion_traces/logfiles_MPNET_7D/coord_bench_3_" + str(benchid) + ".pkl")
     try:
         f = open(filename, "rb")
     except:
@@ -238,8 +231,8 @@ for benchid in tqdm(
         first_two_checked = 0
         # 初始化并行执行槽位
         oocds = [[0, 0, 0, 0] for _ in range(int(sys.argv[3]))]
-        qcoll = []      # 高风险队列
-        qnoncoll = []   # 低风险队列
+        qcoll = []  # 高风险队列
+        qnoncoll = []  # 低风险队列
 
         if len(edge_coll) == 0:
             continue
@@ -281,10 +274,7 @@ for benchid in tqdm(
                     if oocd[0] not in colldict:
                         colldict[oocd[0]] = [0, 0]
                     if oocd[1] == 1:
-                        if (
-                            random.random() <= float(sys.argv[2])
-                            and colldict[oocd[0]][1] < 15
-                        ):
+                        if (random.random() <= float(sys.argv[2]) and colldict[oocd[0]][1] < 15):
                             colldict[oocd[0]][1] += 1
                     else:  # 碰撞
                         if colldict[oocd[0]][0] < 15:
@@ -298,10 +288,8 @@ for benchid in tqdm(
                             first_two_checked = cycle + cycle_check
                         task = qcoll.pop(0)
                         oocds[oocd_id] = [task[0], task[1], 1, cycle + cycle_check]
-                    elif (
-                        (len(qnoncoll) == qnoncoll_len or (links_remaining == 0 and len(qnoncoll) > 0))
-                        and first_two_checked < cycle
-                    ):
+                    elif ((len(qnoncoll) == qnoncoll_len or (links_remaining == 0 and len(qnoncoll) > 0))
+                          and first_two_checked < cycle):
                         task = qnoncoll.pop(0)
                         oocds[oocd_id] = [task[0], task[1], 1, cycle + cycle_check]
                     else:
@@ -315,9 +303,7 @@ for benchid in tqdm(
                 code_quant = np.digitize(link, bins, right=True)
                 keyy = reutrn_keyy(code_quant)
 
-                if keyy in colldict and colldict[keyy][0] > colldict[keyy][1] * float(
-                    sys.argv[1]
-                ):
+                if keyy in colldict and colldict[keyy][0] > colldict[keyy][1] * float(sys.argv[1]):
                     # 预测高风险
                     if len(qcoll) < qcoll_len:
                         qcoll.append([keyy, linkcoll])
@@ -378,7 +364,6 @@ for benchid in tqdm(
 # print(fall_prediction,fall_oracle,fall_prediction/count_edges,total_cycles/count_edges,obb_conv_count/count_edges)
 
 # print(fall_prediction,fall_oracle,fall_prediction/count_edges,total_cycles/count_edges,obb_conv_count/count_edges)
-
 
 print(
     sys.argv[3],  # 并行单元数量

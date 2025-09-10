@@ -378,6 +378,8 @@ def main():
             
         # ========== 采样可行的机器人配置 ==========
         attempts = 0
+        spheres = []
+        
         while attempts < 1000:  # 避免无限循环
             q = space.sample()  # 随机采样关节配置
             if space.isFeasible(q):  # 检查配置是否在关节限制内且无自碰撞
@@ -451,7 +453,7 @@ def main():
     print(f"Saved pose data to: {pose_filename}")
 
     # 可选：可视化调试
-    vis.debug(world)
+    # vis.debug(world)
 
 if __name__ == "__main__":
     main()
