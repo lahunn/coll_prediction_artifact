@@ -1,3 +1,5 @@
 trace_files/motion_traces/*
 trace_files/scene_benchmarks/*
 ./*.zip
+trace_generation/*
+

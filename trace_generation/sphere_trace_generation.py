@@ -285,14 +285,20 @@ def check_sphere_collision(sphere_center, sphere_radius, world, robot_index, num
     Returns:
         collision: 是否发生碰撞 (True=碰撞, False=自由)
     """
-    # 创建临时球体几何体进行碰撞检测
-    sphere_geom = Geometry3D()
-    sphere_geom.loadSphere(sphere_radius)
+    # 创建球体几何体
+    sphere_geom = primitives.sphere(sphere_radius)
     
-    # 设置球体位置
-    sphere_transform = np.eye(4)
-    sphere_transform[0:3, 3] = sphere_center.flatten()
-    sphere_geom.setCurrentTransform(*sphere_transform.flatten())
+    # 设置球体变换矩阵 - Klampt 使用 SO3 + 平移向量格式
+    # SO3 旋转矩阵 (单位矩阵，因为球体无方向)
+    rotation = [1, 0, 0,  # 第一行
+                0, 1, 0,  # 第二行  
+                0, 0, 1]  # 第三行
+    
+    # 平移向量
+    translation = sphere_center.flatten().tolist()
+    
+    # 设置变换
+    sphere_geom.setCurrentTransform(rotation, translation)
     
     # 检查与所有障碍物的碰撞
     for obstacle_id in range(num_obstacles):
@@ -304,7 +310,7 @@ def check_sphere_collision(sphere_center, sphere_radius, world, robot_index, num
             return True  # 发现碰撞
     
     return False  # 无碰撞
-
+        
 # ========== 主程序：球体数据生成流程 ==========
 
 def main():
