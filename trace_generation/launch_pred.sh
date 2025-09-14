@@ -8,7 +8,7 @@ python scene_generator.py
 
 # 生成 OBB 和球体数据
 echo "Step 2: Generating collision detection data..."
-for i in {0..99}
+for i in {0..10}
 do
     echo "Processing environment ${i}/99..."
     for j in dens3 dens6 dens9 dens12

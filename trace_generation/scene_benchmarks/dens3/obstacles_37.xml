@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<world>
+	<robot name="jaco" file="../data/robots/jaco_mod.rob" translation="0.0 0.0 0" scale="1 1 1"/>
+		<terrain file="../data/terrains/cube.off" scale="0.334924 0.499964 0.378336" translation="0.818705 -0.167005 0.099627">
+			<display color="0.2 0.2 0.0" opacity="0.2"/>
+		</terrain>
+		<terrain file="../data/terrains/cube.off" scale="0.529052 0.406458 0.558970" translation="0.667880 0.703433 -0.545303">
+			<display color="0.5 0.5 0.0" opacity="0.2"/>
+		</terrain>
+		<terrain file="../data/terrains/cube.off" scale="0.112764 0.431386 0.272762" translation="0.552794 0.031996 -0.215616">
+			<display color="0.8 0.8 0.0" opacity="0.2"/>
+		</terrain>
+		<terrain file="../data/terrains/cube.off" scale="0.494310 0.327375 0.476639" translation="0.663559 -1.030133 -0.093064">
+			<display color="0.2 0.2 0.0" opacity="0.2"/>
+		</terrain>
+</world>

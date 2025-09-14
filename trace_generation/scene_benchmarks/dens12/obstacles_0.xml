@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<world>
+	<robot name="jaco" file="../data/robots/jaco_mod.rob" translation="0.0 0.0 0" scale="1 1 1"/>
+		<terrain file="../data/terrains/cube.off" scale="0.153036 0.557817 0.184241" translation="0.932721 -0.123725 -0.206648">
+			<display color="0.2 0.2 0.0" opacity="0.2"/>
+		</terrain>
+		<terrain file="../data/terrains/cube.off" scale="0.291334 0.104011 0.039803" translation="-1.117435 -1.104779 0.344662">
+			<display color="0.5 0.5 0.0" opacity="0.2"/>
+		</terrain>
+		<terrain file="../data/terrains/cube.off" scale="0.411620 0.058230 0.348468" translation="0.188068 -0.506696 -0.392792">
+			<display color="0.8 0.8 0.0" opacity="0.2"/>
+		</terrain>
+		<terrain file="../data/terrains/cube.off" scale="0.050921 0.085537 0.056521" translation="0.306923 -0.308744 0.979440">
+			<display color="0.2 0.2 0.0" opacity="0.2"/>
+		</terrain>
+		<terrain file="../data/terrains/cube.off" scale="0.339484 0.535166 0.530174" translation="0.266787 0.320654 0.229276">
+			<display color="0.5 0.5 0.0" opacity="0.2"/>
+		</terrain>
+		<terrain file="../data/terrains/cube.off" scale="0.472887 0.125004 0.515489" translation="0.999623 0.816987 -0.839240">
+			<display color="0.8 0.8 0.0" opacity="0.2"/>
+		</terrain>
+		<terrain file="../data/terrains/cube.off" scale="0.065376 0.266932 0.199916" translation="-0.807098 -0.232899 0.733785">
+			<display color="0.2 0.2 0.0" opacity="0.2"/>
+		</terrain>
+		<terrain file="../data/terrains/cube.off" scale="0.053755 0.000679 0.445212" translation="0.487469 0.489443 -0.527735">
+			<display color="0.5 0.5 0.0" opacity="0.2"/>
+		</terrain>
+		<terrain file="../data/terrains/cube.off" scale="0.099566 0.450963 0.013027" translation="0.949103 -0.051744 -0.789525">
+			<display color="0.8 0.8 0.0" opacity="0.2"/>
+		</terrain>
+		<terrain file="../data/terrains/cube.off" scale="0.226344 0.163379 0.368962" translation="0.504890 0.975010 -0.987956">
+			<display color="0.2 0.2 0.0" opacity="0.2"/>
+		</terrain>
+		<terrain file="../data/terrains/cube.off" scale="0.557031 0.487865 0.412540" translation="-0.459772 0.576648 -0.406403">
+			<display color="0.5 0.5 0.0" opacity="0.2"/>
+		</terrain>
+		<terrain file="../data/terrains/cube.off" scale="0.520032 0.374796 0.501881" translation="-0.766057 1.059003 -0.725543">
+			<display color="0.8 0.8 0.0" opacity="0.2"/>
+		</terrain>
+</world>

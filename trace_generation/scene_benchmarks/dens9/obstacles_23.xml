@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<world>
+	<robot name="jaco" file="../data/robots/jaco_mod.rob" translation="0.0 0.0 0" scale="1 1 1"/>
+		<terrain file="../data/terrains/cube.off" scale="0.138524 0.483590 0.546895" translation="0.666171 -0.959825 -0.666629">
+			<display color="0.2 0.2 0.0" opacity="0.2"/>
+		</terrain>
+		<terrain file="../data/terrains/cube.off" scale="0.244721 0.482075 0.527821" translation="0.586527 -0.399907 -0.157595">
+			<display color="0.5 0.5 0.0" opacity="0.2"/>
+		</terrain>
+		<terrain file="../data/terrains/cube.off" scale="0.047265 0.538027 0.198170" translation="-0.711791 -0.591943 0.725641">
+			<display color="0.8 0.8 0.0" opacity="0.2"/>
+		</terrain>
+		<terrain file="../data/terrains/cube.off" scale="0.320735 0.454406 0.253630" translation="1.032768 -0.745324 0.611224">
+			<display color="0.2 0.2 0.0" opacity="0.2"/>
+		</terrain>
+		<terrain file="../data/terrains/cube.off" scale="0.420577 0.015779 0.170899" translation="1.071659 -0.551573 -0.888591">
+			<display color="0.5 0.5 0.0" opacity="0.2"/>
+		</terrain>
+		<terrain file="../data/terrains/cube.off" scale="0.502220 0.259164 0.015958" translation="-0.666240 -0.616610 0.624915">
+			<display color="0.8 0.8 0.0" opacity="0.2"/>
+		</terrain>
+		<terrain file="../data/terrains/cube.off" scale="0.468925 0.252945 0.242154" translation="-0.077455 0.314667 -0.269718">
+			<display color="0.2 0.2 0.0" opacity="0.2"/>
+		</terrain>
+		<terrain file="../data/terrains/cube.off" scale="0.532366 0.493104 0.222102" translation="-0.924812 0.362278 -0.886245">
+			<display color="0.5 0.5 0.0" opacity="0.2"/>
+		</terrain>
+		<terrain file="../data/terrains/cube.off" scale="0.473077 0.197742 0.272703" translation="0.598356 -0.232441 0.967706">
+			<display color="0.8 0.8 0.0" opacity="0.2"/>
+		</terrain>
+</world>
