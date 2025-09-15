@@ -166,348 +166,282 @@ def analyze_mesh_complexity(mesh, verbose=True):
     return analysis
 
 
+def _create_filename_handler(urdf_dir):
+    """创建自定义文件名处理器"""
+
+    def handler(filename):
+        if filename.startswith("package://"):
+            return str(urdf_dir / filename.replace("package://", ""))
+        elif not filename.startswith("/"):
+            return str(urdf_dir / filename)
+        else:
+            return filename
+
+    return handler
+
+
+def _create_zero_obb(link_name):
+    """为虚拟连杆创建零大小的OBB"""
+    zero_center = np.array([0.0, 0.0, 0.0])
+    identity_rotation = np.eye(3)
+    zero_extents = np.array([0.0, 0.0, 0.0])
+    zero_transform = np.eye(4)
+    zero_transform[:3, :3] = identity_rotation
+    zero_transform[:3, 3] = zero_center
+
+    return {
+        "link_name": link_name,
+        "position": zero_center,
+        "rotation_matrix": identity_rotation,
+        "extents": zero_extents,
+        "transform": zero_transform,
+        "volume": 0.0,
+    }
+
+
+def _load_mesh_from_collision(collision, verbose=False):
+    """从碰撞几何体加载网格"""
+    if not (hasattr(collision.geometry, "mesh") and collision.geometry.mesh):
+        return None
+
+    mesh_path = collision.geometry.mesh.filename
+    if not Path(mesh_path).exists():
+        return None
+
+    try:
+        loaded_object = trimesh.load(str(mesh_path))
+
+        # 处理不同的返回类型
+        if isinstance(loaded_object, trimesh.Scene):
+            if not loaded_object.geometry:
+                return None
+            if len(loaded_object.geometry) == 1:
+                mesh = list(loaded_object.geometry.values())[0]
+            else:
+                meshes_to_combine = [
+                    geom
+                    for geom in loaded_object.geometry.values()
+                    if isinstance(geom, trimesh.Trimesh)
+                ]
+                if meshes_to_combine:
+                    mesh = trimesh.util.concatenate(meshes_to_combine)
+                else:
+                    return None
+        elif isinstance(loaded_object, trimesh.Trimesh):
+            mesh = loaded_object
+        else:
+            return None
+
+        # 应用变换
+        if hasattr(collision, "origin") and collision.origin is not None:
+            mesh.apply_transform(collision.origin)
+
+        return mesh
+    except Exception as e:
+        if verbose:
+            print(f"  Failed to load mesh {mesh_path}: {e}")
+        return None
+
+
+def _perform_convex_decomposition(mesh, coacd_params, verbose=False):
+    """执行凸分解"""
+    mesh_analysis = analyze_mesh_complexity(mesh, verbose=verbose)
+    convexity_ratio = mesh_analysis.get("convexity_ratio", 1.0)
+
+    if convexity_ratio <= 0.7:
+        if verbose:
+            print(f"  执行凸分解 (凸性比率: {convexity_ratio:.3f})")
+
+        vertices = np.array(mesh.vertices, dtype=np.float64)
+        faces = np.array(mesh.faces, dtype=np.int32)
+
+        try:
+            coacd_mesh = coacd.Mesh(vertices, faces)
+            convex_hulls = coacd.run_coacd(coacd_mesh, **coacd_params)
+            if verbose:
+                print(f"  CoACD generated {len(convex_hulls)} convex hulls")
+            return convex_hulls
+        except Exception as e:
+            if verbose:
+                print(f"  CoACD failed: {e}, falling back to single convex hull")
+    else:
+        if verbose:
+            print(f"  跳过凸分解，直接使用凸包 (凸性比率: {convexity_ratio:.3f})")
+
+    # 回退到单个凸包
+    convex_hull = mesh.convex_hull
+    return [(convex_hull.vertices, convex_hull.faces)]
+
+
+def _compute_best_obb_from_hulls(convex_hulls, verbose=False):
+    """从凸包列表中计算最佳OBB"""
+    best_obb = None
+    min_volume = float("inf")
+
+    for i, (conv_vertices, conv_faces) in enumerate(convex_hulls):
+        try:
+            o3d_mesh = o3d.geometry.TriangleMesh()
+            o3d_mesh.vertices = o3d.utility.Vector3dVector(conv_vertices)
+            o3d_mesh.triangles = o3d.utility.Vector3iVector(conv_faces)
+
+            if len(o3d_mesh.vertices) < 4:
+                continue
+
+            obb_o3d = o3d_mesh.get_minimal_oriented_bounding_box()
+            volume = np.prod(obb_o3d.extent)
+
+            if verbose:
+                print(f"    Convex hull {i}: volume={volume:.6f}")
+
+            if volume < min_volume and volume > 1e-12:
+                min_volume = volume
+                best_obb = obb_o3d
+        except Exception as e:
+            if verbose:
+                print(f"    Failed to compute OBB for convex hull {i}: {e}")
+
+    return best_obb, min_volume
+
+
+def _compute_obb_from_mesh(mesh, verbose=False):
+    """直接从网格计算OBB（备用方案）"""
+    try:
+        o3d_mesh = o3d.geometry.TriangleMesh()
+        o3d_mesh.vertices = o3d.utility.Vector3dVector(mesh.vertices)
+        o3d_mesh.triangles = o3d.utility.Vector3iVector(mesh.faces)
+
+        obb_o3d = o3d_mesh.get_minimal_oriented_bounding_box()
+        volume = np.prod(obb_o3d.extent)
+        return obb_o3d, volume
+    except Exception as e:
+        if verbose:
+            print(f"  Failed to compute OBB from mesh: {e}")
+        return None, 0
+
+
+def _create_obb_dict(link_name, obb_o3d, volume):
+    """创建OBB结果字典"""
+    center = np.array(obb_o3d.center)
+    rotation_matrix = np.array(obb_o3d.R)
+    extent = np.array(obb_o3d.extent)
+
+    transform = np.eye(4)
+    transform[:3, :3] = rotation_matrix
+    transform[:3, 3] = center
+
+    return {
+        "link_name": link_name,
+        "position": center,
+        "rotation_matrix": rotation_matrix,
+        "extents": extent,
+        "transform": transform,
+        "volume": volume,
+    }
+
+
+def _process_single_link(link_name, link, coacd_params, verbose=False):
+    """处理单个连杆的OBB计算"""
+    # 处理虚拟连杆
+    if not link.collisions:
+        if verbose:
+            print(f"Processing virtual link '{link_name}' (no collision geometry)...")
+        return _create_zero_obb(link_name)
+
+    if verbose:
+        print(f"Processing link '{link_name}'...")
+
+    # 加载所有碰撞网格
+    meshes = []
+    for collision in link.collisions:
+        mesh = _load_mesh_from_collision(collision, verbose)
+        if mesh is not None:
+            meshes.append(mesh)
+
+    if not meshes:
+        return None
+
+    # 合并网格
+    combined_mesh = trimesh.util.concatenate(meshes) if len(meshes) > 1 else meshes[0]
+    if combined_mesh.is_empty:
+        return None
+
+    if verbose:
+        print(
+            f"  Combined mesh: {len(combined_mesh.vertices)} vertices, {len(combined_mesh.faces)} faces"
+        )
+
+    # 执行凸分解
+    convex_hulls = _perform_convex_decomposition(combined_mesh, coacd_params, verbose)
+
+    # 计算最佳OBB
+    best_obb, min_volume = _compute_best_obb_from_hulls(convex_hulls, verbose)
+
+    # 如果失败，使用备用方案
+    if best_obb is None:
+        if verbose:
+            print("  No valid convex hull OBB found, using combined mesh")
+        best_obb, min_volume = _compute_obb_from_mesh(combined_mesh, verbose)
+
+    if best_obb is not None:
+        if verbose:
+            print(f"  Final OBB volume: {min_volume:.6f}")
+        return _create_obb_dict(link_name, best_obb, min_volume)
+
+    return None
+
+
 def calculate_link_obbs(robot_urdf_path, coacd_params=None, verbose=True):
     """
-    Calculate Oriented Bounding Boxes (OBB) for each link in the robot using CoACD and Open3D.
-
-    This function:
-    1. Loads robot URDF and extracts collision meshes for each link
-    2. Uses CoACD to decompose each mesh into convex components
-    3. Uses Open3D to calculate minimal OBB for each convex component
-    4. Returns the best (smallest volume) OBB for each link
+    计算机器人所有连杆的OBB
 
     Args:
-        robot_urdf_path (str): Path to the robot URDF file
-        coacd_params (dict, optional): CoACD参数配置，如果None则使用默认值
-        verbose (bool): 是否输出详细日志信息
+        robot_urdf_path (str): URDF文件路径
+        coacd_params (dict, optional): CoACD参数配置
+        verbose (bool): 是否输出详细信息
 
     Returns:
-        List[dict]: 包含每个连杆OBB信息的字典列表，每个字典包含:
-            - link_name (str): 连杆名称
-            - position (np.ndarray): OBB中心位置 [x, y, z]
-            - rotation_matrix (np.ndarray): 3x3旋转矩阵
-            - extents (np.ndarray): OBB尺寸 [长, 宽, 高]
-            - transform (np.ndarray): 4x4变换矩阵
-            - volume (float): OBB体积
+        List[dict]: OBB信息列表
     """
-    # 检查依赖库
     if not HAS_ALL_LIBS:
         if verbose:
             print(f"Warning: Missing required libraries: {', '.join(MISSING_LIBS)}")
-            print("Please install: pip install " + " ".join(MISSING_LIBS))
         return []
 
-    # 使用默认参数如果没有提供
     if coacd_params is None:
         coacd_params = get_default_coacd_params()
 
     try:
         urdf_dir = Path(robot_urdf_path).parent
+        filename_handler = _create_filename_handler(urdf_dir)
 
-        # 读取并修改URDF内容以替换package://路径
-        with open(robot_urdf_path, "r") as f:
-            urdf_content = f.read()
+        # 加载URDF
+        robot = yourdfpy.URDF.load(
+            robot_urdf_path,
+            filename_handler=filename_handler,
+            load_meshes=True,
+            load_collision_meshes=True,
+            mesh_dir=str(urdf_dir),
+        )
 
-        # 替换package://路径为绝对路径
-        modified_content = urdf_content.replace("package://", str(urdf_dir) + "/")
+        if verbose:
+            print(f"  Successfully loaded URDF with {len(robot.link_map)} links")
 
-        # 写入临时文件
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".urdf", delete=False
-        ) as tmp_file:
-            tmp_file.write(modified_content)
-            temp_urdf_path = tmp_file.name
-
-        try:
-            # 使用yourdfpy库加载并解析URDF文件
-            robot = yourdfpy.URDF.load(temp_urdf_path)
-
-            # 初始化OBB结果列表
-            obbs = []
-
-            # 遍历机器人模型中的所有连杆
-            for link_name, link in robot.link_map.items():
-                # 检查当前连杆是否包含碰撞几何信息
-                if not link.collisions:
-                    # 为虚拟连杆（无碰撞几何）创建零大小的OBB
+        # 处理所有连杆
+        obbs = []
+        for link_name, link in robot.link_map.items():
+            try:
+                obb_result = _process_single_link(
+                    link_name, link, coacd_params, verbose
+                )
+                if obb_result is not None:
+                    obbs.append(obb_result)
                     if verbose:
-                        print(f"Processing virtual link '{link_name}' (no collision geometry)...")
-                    
-                    # 创建零大小的OBB
-                    zero_center = np.array([0.0, 0.0, 0.0])
-                    identity_rotation = np.eye(3)
-                    zero_extents = np.array([0.0, 0.0, 0.0])
-                    
-                    # 构建4x4变换矩阵
-                    zero_transform = np.eye(4)
-                    zero_transform[:3, :3] = identity_rotation
-                    zero_transform[:3, 3] = zero_center
-                    
-                    # 添加零大小的OBB到结果列表
-                    obbs.append(
-                        {
-                            "link_name": link_name,  # 连杆名称
-                            "position": zero_center,  # OBB中心位置
-                            "rotation_matrix": identity_rotation,  # 3x3旋转矩阵
-                            "extents": zero_extents,  # OBB尺寸
-                            "transform": zero_transform,  # 完整的4x4变换矩阵
-                            "volume": 0.0,  # OBB体积
-                        }
-                    )
-                    
-                    if verbose:
-                        print(f"  Created zero-size OBB for virtual link {link_name}")
-                    continue
-
+                        print(f"  Successfully computed OBB for {link_name}")
+            except Exception as e:
                 if verbose:
-                    print(f"Processing link '{link_name}'...")
+                    print(f"  OBB calculation failed for {link_name}: {e}")
 
-                # 初始化网格列表，用于收集该连杆的所有碰撞网格
-                meshes = []
-
-                # 遍历当前连杆的所有碰撞几何体
-                for collision in link.collisions:
-                    # 检查碰撞几何是否为网格类型
-                    if hasattr(collision.geometry, "mesh") and collision.geometry.mesh:
-                        # 获取网格文件的路径
-                        mesh_path = collision.geometry.mesh.filename
-
-                        # 验证网格文件是否存在
-                        if Path(mesh_path).exists():
-                            try:
-                                # 使用trimesh库加载3D网格文件
-                                loaded_object = trimesh.load(str(mesh_path))
-
-                                # 处理不同的返回类型
-                                if isinstance(loaded_object, trimesh.Scene):
-                                    # 如果返回Scene对象，需要提取其中的网格
-                                    if loaded_object.geometry:
-                                        # 如果Scene中只有一个几何体，直接使用
-                                        if len(loaded_object.geometry) == 1:
-                                            mesh = list(
-                                                loaded_object.geometry.values()
-                                            )[0]
-                                        else:
-                                            # 如果有多个几何体，尝试合并为单一网格
-                                            meshes_to_combine = [
-                                                geom
-                                                for geom in loaded_object.geometry.values()
-                                                if isinstance(geom, trimesh.Trimesh)
-                                            ]
-                                            if meshes_to_combine:
-                                                mesh = trimesh.util.concatenate(
-                                                    meshes_to_combine
-                                                )
-                                            else:
-                                                if verbose:
-                                                    print(
-                                                        f"  Scene中没有可用的网格几何体"
-                                                    )
-                                                continue
-                                    else:
-                                        if verbose:
-                                            print(f"  Scene对象为空")
-                                        continue
-                                elif isinstance(loaded_object, trimesh.Trimesh):
-                                    # 如果返回Trimesh对象，直接使用
-                                    mesh = loaded_object
-                                else:
-                                    if verbose:
-                                        print(
-                                            f"  不支持的网格类型: {type(loaded_object)}"
-                                        )
-                                    continue
-
-                                # 检查是否需要应用坐标变换
-                                if (
-                                    hasattr(collision, "origin")
-                                    and collision.origin is not None
-                                ):
-                                    # 应用4x4变换矩阵到网格的所有顶点
-                                    mesh.apply_transform(collision.origin)
-
-                                # 将处理好的网格添加到列表中
-                                meshes.append(mesh)
-                            except Exception as e:
-                                if verbose:
-                                    print(f"  Failed to load mesh {mesh_path}: {e}")
-                                continue
-
-                # 如果该连杆没有有效的网格数据，跳过OBB计算
-                if not meshes:
-                    continue
-
-                try:
-                    # 处理多网格合并：一个连杆可能由多个网格组成
-                    if len(meshes) > 1:
-                        # 使用trimesh的concatenate函数合并多个网格为单一网格
-                        combined_mesh = trimesh.util.concatenate(meshes)
-                    else:
-                        # 如果只有一个网格，直接使用
-                        combined_mesh = meshes[0]
-
-                    # 检查合并后的网格是否为空
-                    if combined_mesh.is_empty:
-                        continue
-
-                    if verbose:
-                        print(
-                            f"  Combined mesh: {len(combined_mesh.vertices)} vertices, {len(combined_mesh.faces)} faces"
-                        )
-
-                    # === 分析网格复杂度 ===
-                    mesh_analysis = analyze_mesh_complexity(
-                        combined_mesh, verbose=verbose
-                    )
-
-                    # 只对凸性比率 <= 0.95 的网格执行凸分解
-                    convexity_ratio = mesh_analysis.get("convexity_ratio", 1.0)
-                    # if convexity_ratio <= 0.95:
-                    if convexity_ratio <= 0.7:
-                        # === Step 1: 使用CoACD进行凸分解 ===
-                        if verbose:
-                            print(f"  执行凸分解 (凸性比率: {convexity_ratio:.3f})")
-
-                        # 准备CoACD输入数据
-                        vertices = np.array(combined_mesh.vertices, dtype=np.float64)
-                        faces = np.array(combined_mesh.faces, dtype=np.int32)
-
-                        # 执行凸分解
-                        try:
-                            # 创建CoACD Mesh对象
-                            coacd_mesh = coacd.Mesh(vertices, faces)
-                            convex_hulls = coacd.run_coacd(coacd_mesh, **coacd_params)
-                            if verbose:
-                                print(
-                                    f"  CoACD generated {len(convex_hulls)} convex hulls"
-                                )
-                        except Exception as e:
-                            if verbose:
-                                print(
-                                    f"  CoACD failed: {e}, falling back to single convex hull"
-                                )
-                            # 如果CoACD失败，使用原始网格的凸包
-                            convex_hull = combined_mesh.convex_hull
-                            convex_hulls = [(convex_hull.vertices, convex_hull.faces)]
-                    else:
-                        # 凸性比率 > 0.95，直接使用原始网格的凸包
-                        if verbose:
-                            print(
-                                f"  跳过凸分解，直接使用凸包 (凸性比率: {convexity_ratio:.3f})"
-                            )
-                        convex_hull = combined_mesh.convex_hull
-                        convex_hulls = [(convex_hull.vertices, convex_hull.faces)]
-
-                    # === Step 2: 为每个凸包计算OBB并选择最优的 ===
-                    best_obb = None
-                    min_volume = float("inf")
-
-                    for i, (conv_vertices, conv_faces) in enumerate(convex_hulls):
-                        try:
-                            # 将凸包转换为Open3D网格
-                            o3d_mesh = o3d.geometry.TriangleMesh()
-                            o3d_mesh.vertices = o3d.utility.Vector3dVector(
-                                conv_vertices
-                            )
-                            o3d_mesh.triangles = o3d.utility.Vector3iVector(conv_faces)
-
-                            # 确保网格有效性
-                            if len(o3d_mesh.vertices) < 4:  # 至少需要4个顶点形成四面体
-                                continue
-
-                            # 使用Open3D计算最小OBB
-                            obb_o3d = o3d_mesh.get_minimal_oriented_bounding_box()
-
-                            # 计算OBB体积
-                            extent = obb_o3d.extent
-                            volume = extent[0] * extent[1] * extent[2]
-
-                            if verbose:
-                                print(
-                                    f"    Convex hull {i}: volume={volume:.6f}, extent={extent}"
-                                )
-
-                            # 选择体积最小的OBB
-                            if volume < min_volume and volume > 1e-12:  # 避免退化情况
-                                min_volume = volume
-                                best_obb = obb_o3d
-
-                        except Exception as e:
-                            if verbose:
-                                print(
-                                    f"    Failed to compute OBB for convex hull {i}: {e}"
-                                )
-                            continue
-
-                    # 如果没有找到有效的OBB，尝试使用整个合并网格
-                    if best_obb is None:
-                        if verbose:
-                            print(
-                                f"  No valid convex hull OBB found, using combined mesh"
-                            )
-                        try:
-                            # 转换为Open3D网格
-                            o3d_mesh = o3d.geometry.TriangleMesh()
-                            o3d_mesh.vertices = o3d.utility.Vector3dVector(
-                                combined_mesh.vertices
-                            )
-                            o3d_mesh.triangles = o3d.utility.Vector3iVector(
-                                combined_mesh.faces
-                            )
-
-                            # 计算OBB
-                            best_obb = o3d_mesh.get_minimal_oriented_bounding_box()
-                            min_volume = np.prod(best_obb.extent)
-                        except Exception as e:
-                            if verbose:
-                                print(f"  Failed to compute OBB for combined mesh: {e}")
-                            continue
-
-                    if best_obb is not None:
-                        if verbose:
-                            print(f"  Final OBB volume: {min_volume:.6f}")
-
-                        # 提取OBB参数
-                        center = np.array(best_obb.center)
-                        rotation_matrix = np.array(best_obb.R)
-                        extent = np.array(best_obb.extent)
-
-                        # 构建4x4变换矩阵
-                        transform = np.eye(4)
-                        transform[:3, :3] = rotation_matrix
-                        transform[:3, 3] = center
-
-                        # 将计算结果存储为字典并添加到结果列表
-                        obbs.append(
-                            {
-                                "link_name": link_name,  # 连杆名称
-                                "position": center,  # OBB中心位置
-                                "rotation_matrix": rotation_matrix,  # 3x3旋转矩阵
-                                "extents": extent,  # OBB尺寸
-                                "transform": transform,  # 完整的4x4变换矩阵
-                                "volume": min_volume,  # OBB体积
-                            }
-                        )
-
-                        if verbose:
-                            print(f"  Successfully computed OBB for {link_name}")
-                    else:
-                        if verbose:
-                            print(f"  Failed to compute any valid OBB for {link_name}")
-
-                except Exception as e:
-                    # 如果OBB计算过程中出现任何异常，跳过该连杆
-                    if verbose:
-                        print(f"  OBB calculation failed for {link_name}: {e}")
-                    continue
-
-            # 返回所有成功计算的OBB信息列表
-            return obbs
-
-        finally:
-            # 清理临时文件
-            if os.path.exists(temp_urdf_path):
-                os.unlink(temp_urdf_path)
+        return obbs
 
     except Exception as e:
         if verbose:

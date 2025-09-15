@@ -17,7 +17,7 @@ do
         
         # 生成 OBB 数据 (原有功能)
         echo "    Generating OBB data..."
-        python pred_trace_generation.py 1000 scene_benchmarks_abs/${j} ${i}
+        python pred_trace_generation.py 1000 scene_benchmarks_urdf/${j} ${i}
         
         # # 生成球体数据 (新增功能)
         # echo "    Generating sphere data..."
