@@ -167,68 +167,87 @@ def inverse(R):
 # ========== 核心 OBB 计算函数 ==========
 
 
-def get_obbs(world, qbase, robot_urdf):
+def get_obbs(world, qbase, robot_urdf_path=None):
     """
-    计算给定关节配置下所有 links 的 OBB (Oriented Bounding Box) 信息
-    通用版本：支持任意机器人模型，通过 obb_calculator 模块自动计算 OBB
-    
-    Args:
-        world: Klampt 世界模型
-        qbase: 关节角配置 (DOF 数量根据机器人而定)
-    
-    Returns:
-        dump_list: 包含所有 links OBB 信息的列表
-                  每个元素为 [link_id, 中心坐标, 尺寸, 旋转矩阵, 方向编码]
+    计算给定关节配置下所有 links 的 OBB 信息
+    优先使用精确的 obb_calculator，回退到几何包围盒方法
     """
-
-    # 获取机器人对象
     robot = world.robot(0)
-    robot.setConfig(qbase)  # 设置当前关节配置
-
-    # 获取机器人的 DOF 数量和 link 数量
+    robot.setConfig(qbase)
     num_links = robot.numLinks()
 
-    # 尝试使用 obb_calculator 计算精确的 OBB
-    # 检查 obb_calculator 的依赖库是否可用
-    deps_available, missing_libs = obb_calculator.check_dependencies()
-
-    if deps_available:
-        # 使用精确的 OBB 计算
-        print(f"  Using precise OBB calculation for {num_links} links...")
-
-        # 获取机器人的 URDF 路径 (如果可用)
-        # 注意：Klampt 中可能没有直接获取 URDF 路径的方法
-        # 这里我们回退到几何包围盒方法
-        use_precise_obb = False
-        robot_urdf_path = None
-
-        # 尝试从机器人文件名推断 URDF 路径
-        if hasattr(robot, 'getFilename'):
-            robot_file = robot.getFilename()
-            if robot_file and robot_file.endswith('.urdf'):
-                robot_urdf_path = robot_file
-                use_precise_obb = True
-
-        if use_precise_obb and robot_urdf_path:
-            # 使用精确的 CoACD + Open3D OBB 计算
+    # 1. 尝试使用精确的 OBB 计算
+    if robot_urdf_path and obb_calculator.check_dependencies()[0]:
+        try:
+            print(f"  Using precise OBB calculation with {robot_urdf_path}")
             link_obbs = obb_calculator.calculate_link_obbs(robot_urdf_path, verbose=False)
 
-            if link_obbs:
-                print(f"  Successfully computed precise OBBs for {len(link_obbs)} links")
-
+            if link_obbs and len(link_obbs) == num_links:
                 dump_list = []
                 for i, obb_info in enumerate(link_obbs):
-                    # 提取 OBB 参数
-                    obbc = obb_info['position']  # 中心位置
-                    obbr = obb_info['rotation_matrix']  # 旋转矩阵
-                    obbe = obb_info['extents']  # 尺寸
-
-                    # 计算方向编码
+                    obbc = obb_info['position']
+                    obbr = obb_info['rotation_matrix']
+                    obbe = obb_info['extents']
                     dirstring = calculate_direction_encoding(obbe, obbr, obbc)
-
                     dump_list.append([i, obbc, obbe, obbr, dirstring])
-
                 return dump_list
+
+        except Exception as e:
+            print(f"  Warning: Precise OBB calculation failed: {e}")
+
+    # 2. 回退到基于 Klampt 几何的方法（这里需要实现基础的几何包围盒计算）
+    print(f"  Using Klampt geometry-based OBB calculation for {num_links} links")
+    return calculate_obbs_from_klampt_geometry(world, robot, num_links)
+
+
+def calculate_obbs_from_klampt_geometry(world, robot, num_links):
+    """
+    基于 Klampt 几何体计算 OBB 的回退方法
+    """
+    dump_list = []
+    for lid in range(num_links):
+        try:
+            # 获取 link 的几何体
+            link = robot.link(lid)
+            link_geom = link.geometry()
+
+            if link_geom.empty():
+                # 如果没有几何体，使用默认值
+                obbc = np.array([0.0, 0.0, 0.0])
+                obbe = np.array([0.1, 0.1, 0.1])  # 默认尺寸
+                obbr = np.eye(3)  # 单位旋转矩阵
+            else:
+                # 获取包围盒
+                bbox = link_geom.getBB()
+                bmin, bmax = bbox
+
+                # 计算中心和尺寸
+                obbc = np.array([(bmin[0] + bmax[0]) / 2, (bmin[1] + bmax[1]) / 2, (bmin[2] + bmax[2]) / 2])
+                obbe = np.array([bmax[0] - bmin[0], bmax[1] - bmin[1], bmax[2] - bmin[2]]) / 2.0
+
+                # 获取 link 的当前变换
+                T = link.getTransform()
+                R, t = T
+                # 重构旋转矩阵
+                obbr = np.array([[R[0], R[3], R[6]], [R[1], R[4], R[7]], [R[2], R[5], R[8]]])
+
+                # 应用变换到中心位置
+                obbc = np.dot(obbr, obbc) + np.array(t)
+
+            # 计算方向编码
+            dirstring = calculate_direction_encoding(obbe, obbr, obbc)
+            dump_list.append([lid, obbc, obbe, obbr, dirstring])
+
+        except Exception as e:
+            print(f"    Warning: Failed to compute OBB for link {lid}: {e}")
+            # 使用默认值
+            obbc = np.array([0.0, 0.0, 0.0])
+            obbe = np.array([0.1, 0.1, 0.1])
+            obbr = np.eye(3)
+            dirstring = "00"
+            dump_list.append([lid, obbc, obbe, obbr, dirstring])
+
+    return dump_list
 
 
 def calculate_direction_encoding(obbe, obbr, obbc):
@@ -268,6 +287,7 @@ foldername = sys.argv[2]  # 环境文件夹路径
 filenumber = sys.argv[3]  # 环境文件编号
 
 # ========== 环境和机器人初始化 ==========
+robot_urdf_path = "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/jaco_7/jaco_7s.urdf"
 # 加载包含障碍物的环境
 world = klampt.WorldModel()
 world.readFile(foldername + "/obstacles_" + filenumber + ".xml")
@@ -275,7 +295,7 @@ print(foldername + "/obstacles_" + filenumber + ".xml")
 
 # 加载无障碍物的机器人模型 (用于可行性检查)
 world1 = klampt.WorldModel()
-world1.readFile("jaco_collision.xml")
+world1.readFile(robot_urdf_path)
 
 # 初始化碰撞检测器
 collider_w = collide.WorldCollider(world)
@@ -295,12 +315,13 @@ space = robotplanning.makeSpace(world1, robot1, edgeCheckResolution=0.005)
 # ========== 数据存储数组初始化 ==========
 numqueries = int(sys.argv[1])  # 需要采样的姿态数量
 
-# 获取机器人的 link 数量
+# 获取机器人的结构信息
 robot = world.robot(0)
 num_links = robot.numLinks()
-num_dofs = robot.numLinks()  # 假设 DOF 数量等于 link 数量，可根据需要调整
+num_dofs = len(robot.getConfig())  # DOF 数量 = 配置向量长度
 
 print(f"Robot has {num_links} links and {num_dofs} DOFs")
+print(f"Robot config vector length: {num_dofs}")
 
 # link 级数据数组 (总共 num_links*numqueries 行)
 qarr = np.zeros((num_links * numqueries, 3))  # OBB 中心坐标: [x, y, z]
@@ -342,7 +363,7 @@ while counter < numqueries:
         if space.isFeasible(q):  # 检查配置是否在关节限制内且无自碰撞
             feasible = 1
             robot.setConfig(q)  # 设置机器人到采样配置
-            obbs = get_obbs(world, q)  # 计算所有 links 的 OBB 信息
+            obbs = get_obbs(world, q, robot_urdf_path=robot_urdf_path)  # 计算所有 links 的 OBB 信息
 
             # ========== 逐 link 碰撞检测 ==========
             for lid in range(0, num_links):
@@ -371,10 +392,9 @@ while counter < numqueries:
                     break
 
             # ========== 存储姿态级数据 ==========
-            # 注意：这里移除了原来针对特定机器人的关节角偏移调整
-            # 如果需要特定的预处理，可以在这里添加
-
-            qarr_pose[counter] = q  # 存储关节配置
+            # 使用实际的关节配置
+            current_config = robot.getConfig()
+            qarr_pose[counter] = current_config  # 存储关节配置
             yarr_pose[counter] = ans  # 存储整体碰撞标签
             counter += 1  # 成功处理一个姿态
 
