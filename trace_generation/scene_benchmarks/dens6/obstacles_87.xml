@@ -1,25 +1,41 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<world>
-	<robot name="jaco" file="../data/robots/jaco_mod.rob" translation="0.0 0.0 0" scale="1 1 1"/>
-		<terrain file="../data/terrains/cube.off" scale="0.231415 0.335349 0.435468" translation="0.100645 0.916610 0.075747">
-			<display color="0.2 0.2 0.0" opacity="0.2"/>
-		</terrain>
-		<terrain file="../data/terrains/cube.off" scale="0.016048 0.114606 0.246375" translation="-0.051278 -0.898478 0.295043">
-			<display color="0.5 0.5 0.0" opacity="0.2"/>
-		</terrain>
-		<terrain file="../data/terrains/cube.off" scale="0.521735 0.308902 0.250609" translation="-0.013349 0.573166 0.401262">
-			<display color="0.8 0.8 0.0" opacity="0.2"/>
-		</terrain>
-		<terrain file="../data/terrains/cube.off" scale="0.107817 0.364924 0.338666" translation="0.571788 0.303614 0.843068">
-			<display color="0.2 0.2 0.0" opacity="0.2"/>
-		</terrain>
-		<terrain file="../data/terrains/cube.off" scale="0.004213 0.373925 0.450746" translation="0.699293 -0.254413 0.011583">
-			<display color="0.5 0.5 0.0" opacity="0.2"/>
-		</terrain>
-		<terrain file="../data/terrains/cube.off" scale="0.153408 0.429996 0.253251" translation="0.147619 0.132129 -0.268011">
-			<display color="0.8 0.8 0.0" opacity="0.2"/>
-		</terrain>
-		<terrain file="../data/terrains/cube.off" scale="0.221092 0.033850 0.407218" translation="-0.996389 -0.327628 -0.090317">
-			<display color="0.2 0.2 0.0" opacity="0.2"/>
-		</terrain>
-</world>
+<?xml version="1.0"?>
+<mujoco model="obstacle_scene">
+  <compiler angle="radian" coordinate="local"/>
+  <option timestep="0.001" gravity="0 0 -9.81"/>
+
+  <asset>
+    <material name="obstacle_mat" rgba="0.8 0.8 0.0 0.8"/>
+    <material name="ground_mat" rgba="0.5 0.5 0.5 1"/>
+  </asset>
+
+  <worldbody>
+    <!-- Ground plane -->
+    <geom name="ground" type="plane" size="3 3 0.1" material="ground_mat"/>
+
+    <!-- Robot -->
+    <body name="robot" file="/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/panda/panda.urdf"/>
+
+    <!-- Obstacles -->
+    <body name="obstacle_0" pos="0.100645 0.916610 0.075747">
+      <geom name="obs_0" type="box" size="0.115708 0.167674 0.217734" rgba="0.2 0.2 0.0 0.8"/>
+    </body>
+    <body name="obstacle_1" pos="-0.051278 -0.898478 0.295043">
+      <geom name="obs_1" type="box" size="0.008024 0.057303 0.123188" rgba="0.5 0.5 0.0 0.8"/>
+    </body>
+    <body name="obstacle_2" pos="-0.013349 0.573166 0.401262">
+      <geom name="obs_2" type="box" size="0.260867 0.154451 0.125305" rgba="0.8 0.8 0.0 0.8"/>
+    </body>
+    <body name="obstacle_3" pos="0.571788 0.303614 0.843068">
+      <geom name="obs_3" type="box" size="0.053908 0.182462 0.169333" rgba="0.2 0.2 0.0 0.8"/>
+    </body>
+    <body name="obstacle_4" pos="0.699293 -0.254413 0.011583">
+      <geom name="obs_4" type="box" size="0.002106 0.186962 0.225373" rgba="0.5 0.5 0.0 0.8"/>
+    </body>
+    <body name="obstacle_5" pos="0.147619 0.132129 -0.268011">
+      <geom name="obs_5" type="box" size="0.076704 0.214998 0.126626" rgba="0.8 0.8 0.0 0.8"/>
+    </body>
+    <body name="obstacle_6" pos="-0.996389 -0.327628 -0.090317">
+      <geom name="obs_6" type="box" size="0.110546 0.016925 0.203609" rgba="0.2 0.2 0.0 0.8"/>
+    </body>
+  </worldbody>
+</mujoco>

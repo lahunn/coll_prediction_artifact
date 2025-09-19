@@ -1,34 +1,50 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<world>
-	<robot name="jaco" file="../data/robots/jaco_mod.rob" translation="0.0 0.0 0" scale="1 1 1"/>
-		<terrain file="../data/terrains/cube.off" scale="0.134320 0.243245 0.386499" translation="0.016082 -0.395343 -1.108903">
-			<display color="0.2 0.2 0.0" opacity="0.2"/>
-		</terrain>
-		<terrain file="../data/terrains/cube.off" scale="0.314107 0.189743 0.090299" translation="0.246023 0.502176 -0.612844">
-			<display color="0.5 0.5 0.0" opacity="0.2"/>
-		</terrain>
-		<terrain file="../data/terrains/cube.off" scale="0.279445 0.024905 0.007836" translation="-0.240679 0.117147 -0.794502">
-			<display color="0.8 0.8 0.0" opacity="0.2"/>
-		</terrain>
-		<terrain file="../data/terrains/cube.off" scale="0.404319 0.000806 0.544935" translation="0.283862 -0.033811 -0.804989">
-			<display color="0.2 0.2 0.0" opacity="0.2"/>
-		</terrain>
-		<terrain file="../data/terrains/cube.off" scale="0.401962 0.275894 0.039357" translation="-0.415355 1.053811 -0.328045">
-			<display color="0.5 0.5 0.0" opacity="0.2"/>
-		</terrain>
-		<terrain file="../data/terrains/cube.off" scale="0.468479 0.349862 0.068364" translation="-0.945137 0.868869 0.855273">
-			<display color="0.8 0.8 0.0" opacity="0.2"/>
-		</terrain>
-		<terrain file="../data/terrains/cube.off" scale="0.477550 0.074852 0.241186" translation="1.079611 -0.257147 -0.045328">
-			<display color="0.2 0.2 0.0" opacity="0.2"/>
-		</terrain>
-		<terrain file="../data/terrains/cube.off" scale="0.349461 0.239837 0.461881" translation="0.257987 1.113199 0.385434">
-			<display color="0.5 0.5 0.0" opacity="0.2"/>
-		</terrain>
-		<terrain file="../data/terrains/cube.off" scale="0.014364 0.152783 0.175982" translation="-0.340400 -0.187113 -0.745261">
-			<display color="0.8 0.8 0.0" opacity="0.2"/>
-		</terrain>
-		<terrain file="../data/terrains/cube.off" scale="0.131716 0.070394 0.079652" translation="0.209820 -0.769310 -0.619027">
-			<display color="0.2 0.2 0.0" opacity="0.2"/>
-		</terrain>
-</world>
+<?xml version="1.0"?>
+<mujoco model="obstacle_scene">
+  <compiler angle="radian" coordinate="local"/>
+  <option timestep="0.001" gravity="0 0 -9.81"/>
+
+  <asset>
+    <material name="obstacle_mat" rgba="0.8 0.8 0.0 0.8"/>
+    <material name="ground_mat" rgba="0.5 0.5 0.5 1"/>
+  </asset>
+
+  <worldbody>
+    <!-- Ground plane -->
+    <geom name="ground" type="plane" size="3 3 0.1" material="ground_mat"/>
+
+    <!-- Robot -->
+    <body name="robot" file="/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/panda/panda.urdf"/>
+
+    <!-- Obstacles -->
+    <body name="obstacle_0" pos="0.016082 -0.395343 -1.108903">
+      <geom name="obs_0" type="box" size="0.067160 0.121622 0.193249" rgba="0.2 0.2 0.0 0.8"/>
+    </body>
+    <body name="obstacle_1" pos="0.246023 0.502176 -0.612844">
+      <geom name="obs_1" type="box" size="0.157053 0.094871 0.045149" rgba="0.5 0.5 0.0 0.8"/>
+    </body>
+    <body name="obstacle_2" pos="-0.240679 0.117147 -0.794502">
+      <geom name="obs_2" type="box" size="0.139722 0.012452 0.003918" rgba="0.8 0.8 0.0 0.8"/>
+    </body>
+    <body name="obstacle_3" pos="0.283862 -0.033811 -0.804989">
+      <geom name="obs_3" type="box" size="0.202159 0.000403 0.272467" rgba="0.2 0.2 0.0 0.8"/>
+    </body>
+    <body name="obstacle_4" pos="-0.415355 1.053811 -0.328045">
+      <geom name="obs_4" type="box" size="0.200981 0.137947 0.019679" rgba="0.5 0.5 0.0 0.8"/>
+    </body>
+    <body name="obstacle_5" pos="-0.945137 0.868869 0.855273">
+      <geom name="obs_5" type="box" size="0.234240 0.174931 0.034182" rgba="0.8 0.8 0.0 0.8"/>
+    </body>
+    <body name="obstacle_6" pos="1.079611 -0.257147 -0.045328">
+      <geom name="obs_6" type="box" size="0.238775 0.037426 0.120593" rgba="0.2 0.2 0.0 0.8"/>
+    </body>
+    <body name="obstacle_7" pos="0.257987 1.113199 0.385434">
+      <geom name="obs_7" type="box" size="0.174731 0.119918 0.230940" rgba="0.5 0.5 0.0 0.8"/>
+    </body>
+    <body name="obstacle_8" pos="-0.340400 -0.187113 -0.745261">
+      <geom name="obs_8" type="box" size="0.007182 0.076392 0.087991" rgba="0.8 0.8 0.0 0.8"/>
+    </body>
+    <body name="obstacle_9" pos="0.209820 -0.769310 -0.619027">
+      <geom name="obs_9" type="box" size="0.065858 0.035197 0.039826" rgba="0.2 0.2 0.0 0.8"/>
+    </body>
+  </worldbody>
+</mujoco>

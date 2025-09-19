@@ -1,25 +1,41 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<world>
-	<robot name="jaco" file="../data/robots/jaco_mod.rob" translation="0.0 0.0 0" scale="1 1 1"/>
-		<terrain file="../data/terrains/cube.off" scale="0.201803 0.158805 0.352291" translation="-0.561426 0.859209 0.693082">
-			<display color="0.2 0.2 0.0" opacity="0.2"/>
-		</terrain>
-		<terrain file="../data/terrains/cube.off" scale="0.069747 0.227671 0.076479" translation="-0.745030 -0.080821 -0.678869">
-			<display color="0.5 0.5 0.0" opacity="0.2"/>
-		</terrain>
-		<terrain file="../data/terrains/cube.off" scale="0.044444 0.086208 0.168817" translation="-0.957131 -0.573659 0.227983">
-			<display color="0.8 0.8 0.0" opacity="0.2"/>
-		</terrain>
-		<terrain file="../data/terrains/cube.off" scale="0.559348 0.268223 0.060831" translation="0.164546 -0.254602 0.358205">
-			<display color="0.2 0.2 0.0" opacity="0.2"/>
-		</terrain>
-		<terrain file="../data/terrains/cube.off" scale="0.254401 0.221027 0.186756" translation="0.356554 -0.644387 -0.783337">
-			<display color="0.5 0.5 0.0" opacity="0.2"/>
-		</terrain>
-		<terrain file="../data/terrains/cube.off" scale="0.150328 0.109690 0.518468" translation="1.013346 0.219432 -0.218553">
-			<display color="0.8 0.8 0.0" opacity="0.2"/>
-		</terrain>
-		<terrain file="../data/terrains/cube.off" scale="0.180286 0.074250 0.263416" translation="-0.879334 0.959153 -0.392994">
-			<display color="0.2 0.2 0.0" opacity="0.2"/>
-		</terrain>
-</world>
+<?xml version="1.0"?>
+<mujoco model="obstacle_scene">
+  <compiler angle="radian" coordinate="local"/>
+  <option timestep="0.001" gravity="0 0 -9.81"/>
+
+  <asset>
+    <material name="obstacle_mat" rgba="0.8 0.8 0.0 0.8"/>
+    <material name="ground_mat" rgba="0.5 0.5 0.5 1"/>
+  </asset>
+
+  <worldbody>
+    <!-- Ground plane -->
+    <geom name="ground" type="plane" size="3 3 0.1" material="ground_mat"/>
+
+    <!-- Robot -->
+    <body name="robot" file="/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/panda/panda.urdf"/>
+
+    <!-- Obstacles -->
+    <body name="obstacle_0" pos="-0.561426 0.859209 0.693082">
+      <geom name="obs_0" type="box" size="0.100901 0.079403 0.176146" rgba="0.2 0.2 0.0 0.8"/>
+    </body>
+    <body name="obstacle_1" pos="-0.745030 -0.080821 -0.678869">
+      <geom name="obs_1" type="box" size="0.034874 0.113836 0.038240" rgba="0.5 0.5 0.0 0.8"/>
+    </body>
+    <body name="obstacle_2" pos="-0.957131 -0.573659 0.227983">
+      <geom name="obs_2" type="box" size="0.022222 0.043104 0.084409" rgba="0.8 0.8 0.0 0.8"/>
+    </body>
+    <body name="obstacle_3" pos="0.164546 -0.254602 0.358205">
+      <geom name="obs_3" type="box" size="0.279674 0.134111 0.030415" rgba="0.2 0.2 0.0 0.8"/>
+    </body>
+    <body name="obstacle_4" pos="0.356554 -0.644387 -0.783337">
+      <geom name="obs_4" type="box" size="0.127201 0.110513 0.093378" rgba="0.5 0.5 0.0 0.8"/>
+    </body>
+    <body name="obstacle_5" pos="1.013346 0.219432 -0.218553">
+      <geom name="obs_5" type="box" size="0.075164 0.054845 0.259234" rgba="0.8 0.8 0.0 0.8"/>
+    </body>
+    <body name="obstacle_6" pos="-0.879334 0.959153 -0.392994">
+      <geom name="obs_6" type="box" size="0.090143 0.037125 0.131708" rgba="0.2 0.2 0.0 0.8"/>
+    </body>
+  </worldbody>
+</mujoco>
