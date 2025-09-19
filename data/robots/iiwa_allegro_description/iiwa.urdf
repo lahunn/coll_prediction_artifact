@@ -44,7 +44,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="meshes/iiwa7/visual/link_0.obj"/>
+        <mesh filename="meshes/iiwa7/collision/link_0.obj"/>
       </geometry>
       <material name="Grey"/>
     </visual>
@@ -81,7 +81,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0.0075"/>
       <geometry>
-        <mesh filename="meshes/iiwa7/visual/link_1.obj"/>
+        <mesh filename="meshes/iiwa7/collision/link_1.obj"/>
       </geometry>
       <material name="Orange"/>
     </visual>
@@ -111,7 +111,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="meshes/iiwa7/visual/link_2.obj"/>
+        <mesh filename="meshes/iiwa7/collision/link_2.obj"/>
       </geometry>
       <material name="Orange"/>
     </visual>
@@ -141,7 +141,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 -0.026"/>
       <geometry>
-        <mesh filename="meshes/iiwa7/visual/link_3.obj"/>
+        <mesh filename="meshes/iiwa7/collision/link_3.obj"/>
       </geometry>
       <material name="Orange"/>
     </visual>
@@ -171,7 +171,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="meshes/iiwa7/visual/link_4.obj"/>
+        <mesh filename="meshes/iiwa7/collision/link_4.obj"/>
       </geometry>
       <material name="Orange"/>
     </visual>
@@ -201,7 +201,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 -0.026"/>
       <geometry>
-        <mesh filename="meshes/iiwa7/visual/link_5.obj"/>
+        <mesh filename="meshes/iiwa7/collision/link_5.obj"/>
       </geometry>
       <material name="Orange"/>
     </visual>
@@ -231,7 +231,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="meshes/iiwa7/visual/link_6.obj"/>
+        <mesh filename="meshes/iiwa7/collision/link_6.obj"/>
       </geometry>
       <material name="Orange"/>
     </visual>
@@ -261,7 +261,7 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 -0.0005"/>
       <geometry>
-        <mesh filename="meshes/iiwa7/visual/link_7.obj"/>
+        <mesh filename="meshes/iiwa7/collision/link_7.obj"/>
       </geometry>
       <material name="Grey"/>
     </visual>
