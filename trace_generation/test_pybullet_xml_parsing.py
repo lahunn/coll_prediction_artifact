@@ -32,8 +32,8 @@ def test_pybullet_xml_parsing():
         print(f"❌ Failed to connect PyBullet: {e}")
         return False
 
-    # 设置重力
-    p.setGravity(0, 0, -9.81)
+    # 设置为零重力
+    p.setGravity(0, 0, 0)
 
     success = True
 
@@ -43,6 +43,14 @@ def test_pybullet_xml_parsing():
         objects = p.loadMJCF(xml_file)
         print(f"✅ Successfully loaded XML! Objects: {objects}")
         print(f"   Ground + {len(objects) - 1} obstacles loaded")
+
+        # 确保所有障碍物完全固定，无法拖拽
+        for obj_id in objects:
+            # 将质量设为0，使物体变为静态
+            p.changeDynamics(obj_id, -1, mass=0)
+            # 禁用线性和角速度阻尼以确保完全静止
+            p.changeDynamics(obj_id, -1, linearDamping=0, angularDamping=0)
+        print("   🔒 All obstacles set to static (mass=0, cannot be moved)")
     except Exception as e:
         print(f"❌ Failed to load XML directly: {e}")
         success = False
@@ -52,8 +60,9 @@ def test_pybullet_xml_parsing():
     try:
         print("\n🔄 Loading robot URDF separately...")
         if os.path.exists(robot_urdf):
-            robot_id = p.loadURDF(robot_urdf, basePosition=[0, 0, 0])
+            robot_id = p.loadURDF(robot_urdf, basePosition=[0, 0, 0], useFixedBase=True)
             print(f"✅ Robot loaded with ID: {robot_id}")
+            print("   🔒 Robot base fixed at origin")
 
             # 获取机器人信息
             num_joints = p.getNumJoints(robot_id)
@@ -75,7 +84,8 @@ def test_pybullet_xml_parsing():
     if success:
         print("\n✅ Running simulation for 5 seconds...")
         print("   💡 You should see obstacles and robot in the GUI")
-        for i in range(1200):  # 5秒，240Hz
+        print("   🔒 All objects should remain fixed in position")
+        for i in range(120000):  # 500秒，240Hz
             p.stepSimulation()
             time.sleep(1.0 / 240.0)
     else:

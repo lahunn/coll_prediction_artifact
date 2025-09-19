@@ -192,7 +192,7 @@ def _load_robot_from_urdf(robot_urdf_path, verbose=True):
     """
     import re
 
-    urdf_dir = Path(robot_urdf_path).parent
+    urdf_dir = Path(robot_urdf_path).resolve().parent
 
     # 读取并修改URDF内容以替换各种路径
     with open(robot_urdf_path, "r") as f:

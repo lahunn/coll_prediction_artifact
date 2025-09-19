@@ -34,6 +34,7 @@ import pybullet_data
 sys.path.append(str(Path(__file__).parent))
 
 from obb_calculator import calculate_link_obbs, check_dependencies
+from obb_forward_kinematics import OBBForwardKinematics
 
 # 检查依赖库状态
 HAS_OBB_LIBS, missing_libs = check_dependencies()
@@ -42,39 +43,6 @@ if not HAS_OBB_LIBS:
         f"Warning: Some libraries not available for OBB calculation: {', '.join(missing_libs)}"
     )
     print("For full functionality, install: pip install " + " ".join(missing_libs))
-
-
-def rotation_matrix_to_quaternion(R):
-    """Convert a 3x3 rotation matrix to a quaternion (w, x, y, z)"""
-    trace = np.trace(R)
-
-    if trace > 0:
-        s = np.sqrt(trace + 1.0) * 2  # s = 4 * qw
-        w = 0.25 * s
-        x = (R[2, 1] - R[1, 2]) / s
-        y = (R[0, 2] - R[2, 0]) / s
-        z = (R[1, 0] - R[0, 1]) / s
-    elif R[0, 0] > R[1, 1] and R[0, 0] > R[2, 2]:
-        s = np.sqrt(1.0 + R[0, 0] - R[1, 1] - R[2, 2]) * 2  # s = 4 * qx
-        w = (R[2, 1] - R[1, 2]) / s
-        x = 0.25 * s
-        y = (R[0, 1] + R[1, 0]) / s
-        z = (R[0, 2] + R[2, 0]) / s
-    elif R[1, 1] > R[2, 2]:
-        s = np.sqrt(1.0 + R[1, 1] - R[0, 0] - R[2, 2]) * 2  # s = 4 * qy
-        w = (R[0, 2] - R[2, 0]) / s
-        x = (R[0, 1] + R[1, 0]) / s
-        y = 0.25 * s
-        z = (R[1, 2] + R[2, 1]) / s
-    else:
-        s = np.sqrt(1.0 + R[2, 2] - R[0, 0] - R[1, 1]) * 2  # s = 4 * qz
-        w = (R[1, 0] - R[0, 1]) / s
-        x = (R[0, 2] + R[2, 0]) / s
-        y = (R[1, 2] + R[2, 1]) / s
-        z = 0.25 * s
-
-    # Return as (x, y, z, w) for PyBullet
-    return [x, y, z, w]
 
 
 def list_robot_links(urdf_path):
@@ -140,9 +108,9 @@ class RobotVisualizer:
 
     def _load_robot(self):
         """加载机器人URDF模型"""
-        self.robot_id = p.loadURDF(str(self.urdf_path), [0, 0, 0])
+        self.robot_id = p.loadURDF(str(self.urdf_path), [0, 0, 0], useFixedBase=True)
         self.num_joints = p.getNumJoints(self.robot_id)
-        print(f"加载机器人: {self.urdf_path}")
+        print(f"加载机器人: {self.urdf_path} (基座固定)")
 
     def _get_link_info(self):
         """获取并存储连杆信息"""
@@ -246,11 +214,16 @@ class OBBVisualizer:
 
     def __init__(self):
         self.obb_bodies = []
+        self.obb_fk = None  # OBB正向运动学计算器
+
+    def initialize_obb_forward_kinematics(self, robot_id):
+        """初始化OBB正向运动学计算器"""
+        self.obb_fk = OBBForwardKinematics(robot_id)
 
     def draw_obbs(
         self, robot_visualizer, obbs_data, visible_links=None, show_all_obbs=True
     ):
-        """在场景中绘制OBB"""
+        """在场景中绘制OBB - 基于机器人实时关节配置动态计算位姿"""
         obb_colors = [
             [1.0, 0.0, 0.0, 0.3],
             [0.0, 1.0, 0.0, 0.3],
@@ -289,8 +262,20 @@ class OBBVisualizer:
         else:
             visible_link_names = set(visible_links)
 
-        for obb in obbs_data:
-            link_name = obb["link_name"]
+        # 获取机器人当前关节配置
+        current_joint_config = self._get_current_joint_configuration(robot_visualizer)
+        print(
+            f"  当前关节配置: {[f'{angle:.3f}' for angle in current_joint_config[:7]]}"
+        )
+
+        # 使用obb_forward_kinematics模块计算所有OBB位姿
+        if self.obb_fk is None:
+            self.initialize_obb_forward_kinematics(robot_visualizer.robot_id)
+
+        obb_poses = self.obb_fk.compute_obb_poses(obbs_data)
+
+        for obb_pose in obb_poses:
+            link_name = obb_pose["link_name"]
             if link_name not in visible_link_names:
                 print(f"  隐藏 OBB: {link_name}")
                 continue
@@ -300,16 +285,14 @@ class OBBVisualizer:
                 obb_colors[color_index] if color_index != -1 else [0.5, 0.5, 0.5, 0.3]
             )
 
-            link_world_transform = robot_visualizer.get_link_world_transform(link_name)
-            obb_world_transform = link_world_transform @ obb["transform"]
-
-            final_position = obb_world_transform[:3, 3]
-            final_rotation_matrix = obb_world_transform[:3, :3]
-            final_quaternion = rotation_matrix_to_quaternion(final_rotation_matrix)
+            # 直接使用计算好的位姿信息
+            final_position = obb_pose["position"]
+            final_quaternion = obb_pose["quaternion"]
+            extents = obb_pose["extents"]
 
             visual_shape_id = p.createVisualShape(
                 shapeType=p.GEOM_BOX,
-                halfExtents=obb["extents"] / 2.0,
+                halfExtents=extents / 2.0,
                 rgbaColor=obb_color,
             )
             body_id = p.createMultiBody(
@@ -326,49 +309,27 @@ class OBBVisualizer:
                 else "默认"
             )
             print(
-                f"  添加 OBB: {link_name} ({color_name}色, 尺寸: {np.array2string(obb['extents'], precision=3)})"
+                f"  添加 OBB: {link_name} ({color_name}色, 位置: {np.array2string(final_position, precision=3)}, 尺寸: {np.array2string(extents, precision=3)})"
             )
 
-    def draw_world_obbs(self, obbs_data, robot_visualizer):
-        """在场景中直接绘制世界坐标系下的OBB"""
+    def _get_current_joint_configuration(self, robot_visualizer):
+        """获取机器人当前的关节配置"""
+        joint_config = []
+        for i in range(robot_visualizer.num_joints):
+            joint_state = p.getJointState(robot_visualizer.robot_id, i)
+            joint_angle = joint_state[0]  # 关节角度
+            joint_config.append(joint_angle)
+        return joint_config
+
+    def update_obbs(
+        self, robot_visualizer, obbs_data, visible_links=None, show_all_obbs=True
+    ):
+        """更新OBB位姿 - 用于实时动画"""
+        # 清除旧的OBB
         self.clear_obbs()
 
-        obb_colors = [
-            [1.0, 0.0, 0.0, 0.4],
-            [0.0, 1.0, 0.0, 0.4],
-            [0.0, 0.0, 1.0, 0.4],
-            [1.0, 1.0, 0.0, 0.4],
-            [1.0, 0.0, 1.0, 0.4],
-            [0.0, 1.0, 1.0, 0.4],
-            [1.0, 0.5, 0.0, 0.4],
-            [0.5, 0.0, 1.0, 0.4],
-            [0.8, 0.4, 0.2, 0.4],
-            [0.2, 0.8, 0.4, 0.4],
-            [0.4, 0.2, 0.8, 0.4],
-        ]
-
-        for i, obb in enumerate(obbs_data):
-            link_name = obb["link_name"]
-            center = obb["center"]
-            rotation_matrix = obb["rotation_matrix"]
-            extents = obb["extents"]
-            quaternion = rotation_matrix_to_quaternion(rotation_matrix)
-
-            color_index = robot_visualizer.link_color_mapping.get(link_name, i)
-            color = obb_colors[color_index % len(obb_colors)]
-
-            visual_shape_id = p.createVisualShape(
-                shapeType=p.GEOM_BOX,
-                halfExtents=extents / 2.0,
-                rgbaColor=color,
-            )
-            body_id = p.createMultiBody(
-                baseMass=0,
-                baseVisualShapeIndex=visual_shape_id,
-                basePosition=center,
-                baseOrientation=quaternion,
-            )
-            self.obb_bodies.append(body_id)
+        # 重新绘制基于当前关节配置的OBB
+        self.draw_obbs(robot_visualizer, obbs_data, visible_links, show_all_obbs)
 
     def clear_obbs(self):
         """清除所有OBB"""
@@ -397,25 +358,62 @@ def main_visualization(
             obb_vis = OBBVisualizer()
             obb_vis.draw_obbs(robot_vis, obbs_data, visible_links, show_all_obbs)
         else:
-            print("\nOBB 计算库不可用, 跳过OBB可视化")
+            obbs_data = []  # 没有OBB数据时初始化为空列表
 
-        # 4. 设置相机和GUI
+        # 4. 设置相机和GUI控制
         p.resetDebugVisualizerCamera(
             cameraDistance=2.0,
             cameraYaw=45,
             cameraPitch=-30,
             cameraTargetPosition=[0, 0, 0.5],
         )
+
+        # 相机控制滑块
         dist_slider = p.addUserDebugParameter("距离", 0.5, 5.0, 2.0)
         yaw_slider = p.addUserDebugParameter("水平角", -180, 180, 45)
         pitch_slider = p.addUserDebugParameter("俯仰角", -89, 89, -30)
 
+        # 关节控制滑块
+        joint_sliders = []
+        for i in range(min(robot_vis.num_joints, 7)):  # 最多显示7个关节
+            joint_info = p.getJointInfo(robot_vis.robot_id, i)
+            joint_name = joint_info[1].decode("utf-8")
+            joint_lower_limit = joint_info[8]
+            joint_upper_limit = joint_info[9]
+
+            # 如果关节限制无效，使用默认范围
+            if joint_lower_limit >= joint_upper_limit:
+                joint_lower_limit = -3.14
+                joint_upper_limit = 3.14
+
+            slider = p.addUserDebugParameter(
+                f"关节{i}({joint_name})", joint_lower_limit, joint_upper_limit, 0.0
+            )
+            joint_sliders.append(slider)
+
+        # OBB更新控制
+        obb_update_slider = p.addUserDebugParameter("OBB更新频率", 1, 60, 10)
+
         print("\n=== 可视化完成, 关闭窗口或按Ctrl+C退出... ===")
+        print("提示: 使用关节滑块控制机器人姿态，OBB会实时更新")
 
         # 5. 运行仿真循环
+        frame_count = 0
         while True:
+            # 读取关节控制滑块值并设置关节角度
+            for i, slider in enumerate(joint_sliders):
+                joint_angle = p.readUserDebugParameter(slider)
+                p.resetJointState(robot_vis.robot_id, i, joint_angle)
+
+            # 根据更新频率更新OBB
+            obb_update_freq = int(p.readUserDebugParameter(obb_update_slider))
+            if HAS_OBB_LIBS and frame_count % (60 // obb_update_freq) == 0:
+                obb_vis.update_obbs(robot_vis, obbs_data, visible_links, show_all_obbs)
+
             p.stepSimulation()
             time.sleep(1.0 / 60.0)
+            frame_count += 1
+
             # 更新相机
             p.resetDebugVisualizerCamera(
                 p.readUserDebugParameter(dist_slider),
