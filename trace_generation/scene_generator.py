@@ -3,6 +3,16 @@ import os.path
 import tqdm
 import sys
 
+# 配置参数
+random.seed(1)
+
+# 根据命令行参数确定机器人URDF路径
+ROBOT_URDF_PATH = "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/jaco_7/jaco_7s.urdf"  # 默认Jaco机器人
+if len(sys.argv) > 1:
+    ROBOT_URDF_PATH = sys.argv[1]  # 允许通过命令行指定URDF路径
+
+print(f"使用机器人: {ROBOT_URDF_PATH}")
+
 
 def get_robot_workspace_bounds(robot_urdf_path):
     """
@@ -48,16 +58,6 @@ def get_robot_workspace_bounds(robot_urdf_path):
 
     return workspace_bounds
 
-
-# 配置参数
-random.seed(1)
-
-# 根据命令行参数确定机器人URDF路径
-ROBOT_URDF_PATH = "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/jaco_7/jaco_7s.urdf"  # 默认Jaco机器人
-if len(sys.argv) > 1:
-    ROBOT_URDF_PATH = sys.argv[1]  # 允许通过命令行指定URDF路径
-
-print(f"使用机器人: {ROBOT_URDF_PATH}")
 
 # 获取机器人工作空间边界
 workspace_bounds = get_robot_workspace_bounds(ROBOT_URDF_PATH)

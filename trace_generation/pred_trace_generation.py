@@ -19,12 +19,13 @@
 """
 
 import pybullet as p
-import sys
 import pickle
 import numpy as np
 import math
-import obb_calculator
 import random
+import time
+import obb_calculator
+from obb_forward_kinematics import OBBForwardKinematics
 
 # ========== PyBullet机器人仿真类 ==========
 
@@ -32,9 +33,9 @@ import random
 class PyBulletRobotSimulator:
     """PyBullet机器人仿真器，替换Klampt功能"""
 
-    def __init__(self):
-        self.physics_client = p.connect(p.DIRECT)  # 无GUI模式
-        p.setGravity(0, 0, -9.81)
+    def __init__(self, use_gui=False):
+        self.physics_client = p.connect(p.GUI if use_gui else p.DIRECT)
+        p.setGravity(0, 0, 0)  # 无重力
         self.robot_id = None
         self.obstacle_ids = []
         self.joint_limits = []
@@ -47,7 +48,16 @@ class PyBulletRobotSimulator:
             if scene_objects:
                 # 假设第一个是地面，其余是障碍物
                 self.obstacle_ids = scene_objects[2:] if len(scene_objects) > 2 else []
-                print(f"Loaded scene with {len(self.obstacle_ids)} obstacles")
+
+                # 将所有场景物体设置为静态（质量为0）并禁用碰撞响应
+                for body_id in scene_objects:
+                    p.changeDynamics(body_id, -1, mass=0)
+                    # 禁用碰撞响应，允许穿透
+                    p.setCollisionFilterGroupMask(body_id, -1, 0, 0)
+
+                print(
+                    f"Loaded scene with {len(self.obstacle_ids)} static obstacles (penetration allowed)"
+                )
             return scene_objects
         except Exception as e:
             print(f"Failed to load scene: {e}")
@@ -56,7 +66,7 @@ class PyBulletRobotSimulator:
     def load_robot(self, robot_urdf):
         """加载机器人URDF"""
         try:
-            self.robot_id = p.loadURDF(robot_urdf)
+            self.robot_id = p.loadURDF(robot_urdf, useFixedBase=True)  # 固定基座
             self._setup_joint_info()
             return self.robot_id
         except Exception as e:
@@ -203,100 +213,213 @@ class PyBulletRobotSimulator:
         p.disconnect()
 
 
+# ========== 可视化管理类 ==========
+
+
+class VisualizationManager:
+    """管理可视化界面和交互的类"""
+
+    def __init__(self, sim, robot_urdf_path):
+        self.sim = sim
+        self.robot_urdf_path = robot_urdf_path
+        self.obb_bodies = []
+        self.obb_fk = None
+        self.obb_templates = None
+        self.valid_collision_links = []
+        self.show_obbs = True
+        self.last_distance_check = time.time()
+
+        # 相机控制参数
+        self.camera_distance = 2.0
+        self.camera_yaw = 45
+        self.camera_pitch = -30
+        self.camera_target = [0, 0, 0.5]
+
+        # 创建相机控制滑块
+        self.distance_slider = p.addUserDebugParameter(
+            "Camera Distance", 0.5, 10.0, self.camera_distance
+        )
+        self.yaw_slider = p.addUserDebugParameter(
+            "Camera Yaw", -180, 180, self.camera_yaw
+        )
+        self.pitch_slider = p.addUserDebugParameter(
+            "Camera Pitch", -89, 89, self.camera_pitch
+        )
+
+        # 设置初始相机位置
+        self.update_camera()
+
+    def update_camera(self):
+        """根据滑块值更新相机位置"""
+        # 读取滑块值
+        new_distance = p.readUserDebugParameter(self.distance_slider)
+        new_yaw = p.readUserDebugParameter(self.yaw_slider)
+        new_pitch = p.readUserDebugParameter(self.pitch_slider)
+
+        # 只有值发生变化时才更新相机
+        if (
+            abs(new_distance - self.camera_distance) > 0.01
+            or abs(new_yaw - self.camera_yaw) > 0.5
+            or abs(new_pitch - self.camera_pitch) > 0.5
+        ):
+            self.camera_distance = new_distance
+            self.camera_yaw = new_yaw
+            self.camera_pitch = new_pitch
+
+            p.resetDebugVisualizerCamera(
+                cameraDistance=self.camera_distance,
+                cameraYaw=self.camera_yaw,
+                cameraPitch=self.camera_pitch,
+                cameraTargetPosition=self.camera_target,
+            )
+
+    def initialize_obb_system(self, obb_templates, valid_collision_links):
+        """初始化OBB系统"""
+        self.obb_templates = obb_templates
+        self.valid_collision_links = valid_collision_links
+        if self.sim.robot_id:
+            self.obb_fk = OBBForwardKinematics(self.sim.robot_id)  # 传入整数ID
+
+    def clear_obbs(self):
+        """清除所有OBB可视化"""
+        for body_id in self.obb_bodies:
+            try:
+                p.removeBody(body_id)
+            except Exception:
+                pass
+        self.obb_bodies.clear()
+
+    def draw_obbs(self):
+        """绘制OBB"""
+        if not self.show_obbs or not self.obb_templates or not self.obb_fk:
+            return
+
+        self.clear_obbs()
+
+        try:
+            # 计算当前配置下的OBB位姿
+            obb_poses = self.obb_fk.compute_obb_poses(self.obb_templates)
+
+            # OBB颜色
+            obb_colors = [
+                [1.0, 0.0, 0.0, 0.3],  # 红色半透明
+                [0.0, 1.0, 0.0, 0.3],  # 绿色半透明
+                [0.0, 0.0, 1.0, 0.3],  # 蓝色半透明
+                [1.0, 1.0, 0.0, 0.3],  # 黄色半透明
+                [1.0, 0.0, 1.0, 0.3],  # 品红半透明
+                [0.0, 1.0, 1.0, 0.3],  # 青色半透明
+            ]
+
+            for i, obb_pose in enumerate(obb_poses):
+                if i >= len(self.valid_collision_links):
+                    continue
+
+                color = obb_colors[i % len(obb_colors)]
+
+                # 创建OBB可视化
+                visual_shape_id = p.createVisualShape(
+                    shapeType=p.GEOM_BOX,
+                    halfExtents=obb_pose["extents"] / 2.0,
+                    rgbaColor=color,
+                )
+
+                body_id = p.createMultiBody(
+                    baseMass=0,
+                    baseVisualShapeIndex=visual_shape_id,
+                    basePosition=obb_pose["position"],
+                    baseOrientation=obb_pose["quaternion"],
+                )
+
+                self.obb_bodies.append(body_id)
+
+        except Exception as e:
+            print(f"OBB绘制失败: {e}")
+
+    def calculate_link_distances(self):
+        """计算各个link到各个障碍物的距离"""
+        if not self.sim.robot_id or not self.sim.obstacle_ids:
+            return {}
+
+        distances = {}
+
+        for link_id in self.valid_collision_links:
+            link_name = f"Link_{link_id}" if link_id >= 0 else "Base"
+            distances[link_name] = {}
+
+            for i, obstacle_id in enumerate(self.sim.obstacle_ids):
+                # 使用PyBullet的getClosestPoints计算最短距离
+                closest_points = p.getClosestPoints(
+                    bodyA=self.sim.robot_id,
+                    bodyB=obstacle_id,
+                    linkIndexA=link_id,
+                    distance=10.0,  # 最大查询距离
+                )
+
+                if closest_points:
+                    # 取最近的点
+                    min_distance = min(
+                        [point[8] for point in closest_points]
+                    )  # contactDistance
+                    distances[link_name][f"Obstacle_{i}"] = min_distance
+                else:
+                    distances[link_name][f"Obstacle_{i}"] = float("inf")
+
+        return distances
+
+    def print_distances(self):
+        """打印当前距离信息"""
+        distances = self.calculate_link_distances()
+
+        print("\n=== Link-Obstacle Distances ===")
+        for link_name, obstacle_distances in distances.items():
+            print(f"{link_name}:")
+            for obstacle_name, distance in obstacle_distances.items():
+                if distance == float("inf"):
+                    print(f"  {obstacle_name}: No collision geometry")
+                else:
+                    print(f"  {obstacle_name}: {distance:.4f}m")
+        print("================================\n")
+
+    def update_visualization(self):
+        """更新可视化"""
+        try:
+            # 更新相机位置
+            self.update_camera()
+
+            # 每隔1秒打印距离信息
+            current_time = time.time()
+            if current_time - self.last_distance_check >= 1.0:
+                self.print_distances()
+                self.last_distance_check = current_time
+
+        except Exception as e:
+            print(f"可视化更新失败: {e}")
+
+    def run_visualization_loop(self):
+        """运行可视化循环"""
+        print("\n=== 可视化模式 ===")
+        print("显示机器人、障碍物和OBB")
+        print("关闭窗口或按Ctrl+C退出...")
+
+        # 初始绘制
+        if self.show_obbs:
+            self.draw_obbs()
+
+        try:
+            while True:
+                self.update_visualization()
+                p.stepSimulation()
+                time.sleep(1.0 / 60.0)  # 60 FPS
+
+        except KeyboardInterrupt:
+            print("用户中断可视化")
+        except Exception as e:
+            print(f"可视化循环错误: {e}")
+        finally:
+            self.clear_obbs()
+
+
 # ========== 几何变换辅助函数 ==========
-
-
-def give_RT(x):
-    """
-    从 4x4 变换矩阵中提取旋转矩阵 R 和平移向量 T
-
-    Args:
-        x: 4x4 齐次变换矩阵
-    Returns:
-        R: 展平的 3x3 旋转矩阵 (9个元素的列表)
-        T: 3x1 平移向量 (3个元素的列表)
-    """
-    R = []
-    T = []
-    for j in range(0, 3):
-        for i in range(0, 3):
-            R.append(x[i][j])  # 按列优先顺序展平旋转矩阵
-        T.append(x[j][3])  # 提取平移分量
-    return (R, T)
-
-
-def get_obbRT(R, T):
-    """
-    将展平的旋转矩阵和平移向量重构为标准的 numpy 数组格式
-
-    Args:
-        R: 展平的旋转矩阵 (9个元素)
-        T: 平移向量 (3个元素)
-    Returns:
-        newR: 3x3 numpy 旋转矩阵
-        newT: 3x1 numpy 平移向量
-    """
-    newR = np.eye(3)
-    newT = np.array(T)
-    pointer = 0
-    for j in range(0, 3):
-        for i in range(0, 3):
-            newR[i][j] = R[pointer]  # 重构 3x3 旋转矩阵
-            pointer += 1
-    return newR, newT
-
-
-def give_dh(d, r, th, al):
-    """
-    根据 DH (Denavit-Hartenberg) 参数构建齐次变换矩阵
-    用于机器人运动学正向计算
-
-    Args:
-        d: 连杆偏移 (link offset)
-        r: 连杆长度 (link length)
-        th: 关节角 (joint angle)
-        al: 连杆扭转角 (link twist)
-    Returns:
-        new: 4x4 DH 变换矩阵
-    """
-    new = np.eye(4)
-    # DH 变换矩阵的标准公式
-    new[0, 0] = math.cos(th)
-    new[0, 1] = -1 * math.cos(al) * math.sin(th)
-    new[0, 2] = math.sin(al) * math.sin(th)
-    new[0, 3] = r * math.cos(th)
-
-    new[1, 0] = math.sin(th)
-    new[1, 1] = 1 * math.cos(al) * math.cos(th)
-    new[1, 2] = -1 * math.sin(al) * math.cos(th)
-    new[1, 3] = r * math.sin(th)
-
-    new[2, 0] = 0
-    new[2, 1] = math.sin(al)
-    new[2, 2] = math.cos(al)
-    new[2, 3] = d
-    return new
-
-
-def get_RT(x):
-    """
-    从旋转矩阵和平移向量重构 4x4 齐次变换矩阵
-
-    Args:
-        x: 包含 [R, T] 的元组，R为展平旋转矩阵，T为平移向量
-    Returns:
-        new: 4x4 齐次变换矩阵
-    """
-    R = x[0]
-    T = x[1]
-    new = np.eye(4)
-    pointer = 0
-    for j in range(0, 3):
-        for i in range(0, 3):
-            new[i][j] = R[pointer]
-            pointer += 1
-        new[j][3] = T[j]
-    return new
 
 
 def transform_point(p, R, T):
@@ -320,87 +443,25 @@ def transform_point(p, R, T):
     return newT
 
 
-def inverse(R):
-    """
-    从旋转矩阵提取欧拉角 (暂未在主程序中使用)
-    """
-    x = math.atan(R[1][2] / R[0][2])
-    y = math.atan(math.sqrt(R[0][2] ** 2 + R[1][2] ** 2) / R[2][2])
-    z = math.atan(-1 * R[2][1] / R[2][0])
-    return [(x), (y), (z)]
-
-
 # ========== 核心 OBB 计算函数 ==========
 
 
-def initialize_obb_templates(robot_urdf_path, num_links):
-    """
-    一次性计算机器人所有link的OBB模板信息
-    这些信息只依赖于几何结构，不依赖于关节配置
-
-    Returns:
-        obb_templates: list of OBB template info, or None if failed
-    """
-    # 1. 尝试使用精确的 OBB 计算
-    if robot_urdf_path and obb_calculator.check_dependencies()[0]:
-        try:
-            print(f"Initializing precise OBB templates with {robot_urdf_path}")
-            link_obbs = obb_calculator.calculate_link_obbs(
-                robot_urdf_path, verbose=False
-            )
-
-            if link_obbs and len(link_obbs) == num_links:
-                print(f"Successfully computed {len(link_obbs)} OBB templates")
-                return link_obbs
-
-        except Exception as e:
-            print(f"Warning: Precise OBB template calculation failed: {e}")
-
-    # 2. 如果精确计算失败，返回空列表
-    return []
-
-
-def get_obbs(world, qbase, obb_templates=None):
-    """
-    计算给定关节配置下所有 links 的 OBB 信息
-    使用预计算的 OBB 模板或回退到几何包围盒方法
-
-    Args:
-        world: 世界模型 (在PyBullet版本中可能为None)
-        qbase: 关节配置
-        obb_templates: 预计算的OBB模板信息
-    """
-    # 1. 使用预计算的精确 OBB 模板
-    if obb_templates is not None:
-        dump_list = []
-        for i, obb_info in enumerate(obb_templates):
-            obbc = obb_info["position"]
-            obbr = obb_info["rotation_matrix"]
-            obbe = obb_info["extents"]
-            dirstring = calculate_direction_encoding(obbe, obbr, obbc)
-            dump_list.append([i, obbc, obbe, obbr, dirstring])
-        return dump_list
-
-    # 返回空列表
-    return []
-
-
-def calculate_direction_encoding(obbe, obbr, obbc):
+def calculate_direction_encoding(extents, rotation_matrix, center):
     """
     计算方向编码字符串
 
     Args:
-        obbe: OBB 尺寸 [x, y, z]
-        obbr: 3x3 旋转矩阵
-        obbc: OBB 中心位置
+        extents: OBB 尺寸 [x, y, z]
+        rotation_matrix: 3x3 旋转矩阵
+        center: OBB 中心位置
 
     Returns:
         dirstring: 2位方向编码字符串
     """
     try:
         # 使用 OBB 尺寸作为参考点
-        newpoint = transform_point(obbe, obbr, obbc)
-        direction = np.sign(newpoint - obbc)
+        newpoint = transform_point(extents, rotation_matrix, center)
+        direction = np.sign(newpoint - center)
 
         if direction[0] < 0:
             direction = direction * -1  # 标准化 x 方向
@@ -415,20 +476,47 @@ def calculate_direction_encoding(obbe, obbr, obbc):
         return "00"  # 默认编码
 
 
+def initialize_obb_templates(robot_urdf_path):
+    """
+    初始化 OBB 模板计算器
+
+    Args:
+        robot_urdf_path: 机器人 URDF 文件路径
+        num_links: 链接数量
+
+    Returns:
+        obb_data: OBB 数据列表，用于 OBBForwardKinematics
+    """
+    try:
+        # 使用 obb_calculator 生成初始 OBB 数据
+        obb_data = obb_calculator.calculate_link_obbs(robot_urdf_path, verbose=False)
+        print(f"    OBB templates initialized for {len(obb_data)} links")
+        return obb_data
+    except Exception as e:
+        print(f"    Error: Failed to initialize OBB templates: {e}")
+        return None
+
+
 def parse_command_args():
     """解析命令行参数"""
-    numqueries = int(sys.argv[1])
-    foldername = sys.argv[2]
-    filenumber = sys.argv[3]
-    return numqueries, foldername, filenumber
+    import argparse
+
+    parser = argparse.ArgumentParser(description="机器人碰撞检测数据生成脚本")
+    parser.add_argument("numqueries", type=int, help="采样姿态数量")
+    parser.add_argument("foldername", help="环境文件夹")
+    parser.add_argument("filenumber", help="环境文件编号")
+    parser.add_argument("--visualize", action="store_true", help="启用可视化模式")
+
+    args = parser.parse_args()
+    return args.numqueries, args.foldername, args.filenumber, args.visualize
 
 
-def initialize_environment(foldername, filenumber):
+def initialize_environment(foldername, filenumber, use_gui=False):
     """初始化环境和机器人模型"""
-    robot_urdf_path = "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/jaco_7/jaco_7s.urdf"
+    robot_urdf_path = "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/panda/panda.urdf"
 
     # 创建PyBullet仿真器
-    sim = PyBulletRobotSimulator()
+    sim = PyBulletRobotSimulator(use_gui=use_gui)
 
     # 加载包含障碍物的环境
     scene_file = foldername + "/obstacles_" + filenumber + ".xml"
@@ -491,13 +579,23 @@ def sample_and_generate_data(
     coll_count = 0
     num_real_links = len(valid_collision_links)
 
+    # 初始化OBB正向运动学计算器
+    obb_fk = OBBForwardKinematics(sim.robot_id)
+
     while counter < numqueries:
         # 采样可行的机器人配置
         q = sim.sample_feasible_config()
         sim.set_robot_config(q)
 
-        # 计算OBB信息 (使用虚拟的world参数)
-        obbs = get_obbs(None, q, obb_templates=obb_templates)
+        # 使用OBB正向运动学直接计算当前配置下的OBB位姿
+        if obb_templates is not None:
+            obb_poses = obb_fk.compute_obb_poses(obb_templates)
+        else:
+            # 如果模板初始化失败，跳过OBB计算，使用默认值
+            print(
+                f"    Warning: OBB templates not available, using defaults for iteration {counter}"
+            )
+            obb_poses = []
 
         # 逐link碰撞检测
         real_link_idx = 0
@@ -507,10 +605,28 @@ def sample_and_generate_data(
             ans = 0 if collision else 1
 
             # 存储当前实体link的数据
-            if lid < len(obbs):
-                qarr[counter * num_real_links + real_link_idx] = obbs[lid][1]
-                yarr[counter * num_real_links + real_link_idx] = ans
-                dirarr.append(obbs[lid][4])
+            if obb_poses and lid < len(obb_poses):
+                # 使用计算出的OBB位姿
+                qarr[counter * num_real_links + real_link_idx] = obb_poses[lid][
+                    "position"
+                ]
+                # 计算方向编码 (保持与原有格式兼容)
+                dirstring = calculate_direction_encoding(
+                    obb_poses[lid]["extents"],
+                    obb_poses[lid]["transform"][:3, :3],
+                    obb_poses[lid]["position"],
+                )
+            else:
+                # 使用默认值或链接位置
+                link_state = sim.get_link_state(lid)
+                if link_state:
+                    qarr[counter * num_real_links + real_link_idx] = link_state[0]
+                else:
+                    qarr[counter * num_real_links + real_link_idx] = [0.0, 0.0, 0.0]
+                dirstring = "00"  # 默认方向编码
+
+            yarr[counter * num_real_links + real_link_idx] = ans
+            dirarr.append(dirstring)
             real_link_idx += 1
 
         # 整体机器人碰撞检测
@@ -559,10 +675,12 @@ def save_results(foldername, filenumber, qarr, dirarr, yarr, qarr_pose, yarr_pos
 def main():
     """主程序：数据生成流程"""
     # 解析命令行参数
-    numqueries, foldername, filenumber = parse_command_args()
+    numqueries, foldername, filenumber, visualize_mode = parse_command_args()
 
     # 环境和机器人初始化
-    sim, robot_urdf_path = initialize_environment(foldername, filenumber)
+    sim, robot_urdf_path = initialize_environment(
+        foldername, filenumber, use_gui=visualize_mode
+    )
 
     # 预先筛选实体link
     valid_collision_links = find_valid_collision_links(sim)
@@ -573,7 +691,7 @@ def main():
 
     # 一次性初始化OBB模板
     print("Initializing OBB templates...")
-    obb_templates = initialize_obb_templates(robot_urdf_path, sim.get_num_links())
+    obb_templates = initialize_obb_templates(robot_urdf_path)
     print(
         f"OBB templates initialization {'succeeded' if obb_templates else 'failed, will use fallback method'}"
     )
@@ -585,6 +703,25 @@ def main():
         f"Robot has {num_links} total links ({num_real_links} real) and {num_dofs} DOFs"
     )
 
+    # 如果是可视化模式，运行可视化
+    if visualize_mode:
+        print("\n启动可视化模式...")
+        vis_manager = VisualizationManager(sim, robot_urdf_path)
+        vis_manager.initialize_obb_system(obb_templates, valid_collision_links)
+
+        # 设置初始配置
+        q = sim.sample_feasible_config()
+        sim.set_robot_config(q)
+
+        try:
+            vis_manager.run_visualization_loop()
+        finally:
+            sim.disconnect()
+        return
+
+    # 数据生成模式
+    print("\n启动数据生成模式...")
+
     # 数据存储数组初始化
     qarr, dirarr, yarr, qarr_pose, yarr_pose = initialize_data_arrays(
         numqueries, num_real_links, num_dofs
@@ -593,9 +730,6 @@ def main():
     # 初始化采样
     q = sim.sample_feasible_config()
     sim.set_robot_config(q)
-
-    # # 为每个实体link设置碰撞检测器（PyBullet版本中直接使用sim）
-    # setup_collision_detectors(sim, valid_collision_links)
 
     # 主要数据生成循环
     coll_count = sample_and_generate_data(

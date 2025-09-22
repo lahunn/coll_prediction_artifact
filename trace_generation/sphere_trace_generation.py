@@ -19,22 +19,15 @@
 """
 
 import klampt
-from klampt.plan import cspace, robotplanning
-from klampt.io import resource
+from klampt.plan import robotplanning
 from klampt.model import collide
 import klampt.model
-from klampt.model import trajectory
-import time
 import sys
 from klampt import vis
 import pickle
-from typing import NamedTuple
-from collections import namedtuple
 import numpy as np
-import random
 import math
 from klampt.model.create import primitives
-from klampt import WorldModel, Geometry3D
 import yaml
 
 # ========== 几何变换辅助函数 (与原程序相同) ==========
@@ -332,19 +325,27 @@ def check_sphere_collision(
     """
     # 创建球体几何体
     sphere_geom = primitives.sphere(sphere_radius)
-    
+
     # 设置球体变换矩阵 - Klampt 使用 SO3 + 平移向量格式
     # SO3 旋转矩阵 (单位矩阵，因为球体无方向)
-    rotation = [1, 0, 0,  # 第一行
-                0, 1, 0,  # 第二行  
-                0, 0, 1]  # 第三行
-    
+    rotation = [
+        1,
+        0,
+        0,  # 第一行
+        0,
+        1,
+        0,  # 第二行
+        0,
+        0,
+        1,
+    ]  # 第三行
+
     # 平移向量
     translation = sphere_center.flatten().tolist()
-    
+
     # 设置变换
     sphere_geom.setCurrentTransform(rotation, translation)
-    
+
     # 检查与所有障碍物的碰撞
     for obstacle_id in range(num_obstacles):
         obstacle = world.terrain(obstacle_id)
@@ -355,7 +356,8 @@ def check_sphere_collision(
             return True  # 发现碰撞
 
     return False  # 无碰撞
-        
+
+
 # ========== 主程序：球体数据生成流程 ==========
 
 
@@ -489,7 +491,7 @@ def main():
     sphere_id_arr = np.array(sphere_id_arr)
 
     # ========== 结果输出和数据保存 ==========
-    print(f"Data generation completed!")
+    print("Data generation completed!")
     print(f"Collision count: {coll_count} out of {numqueries} poses")
     print(f"Total spheres generated: {len(qarr_sphere)}")
     print(

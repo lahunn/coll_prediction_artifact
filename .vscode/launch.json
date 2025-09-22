@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "调试 pred_trace_generation.py",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/trace_generation/pred_trace_generation.py",
+      "console": "integratedTerminal",
+      "args": [
+        "100",
+        "./scene_benchmarks/dens3",
+        "1",
+        "--visualize"
+      ],
+      "cwd": "${workspaceFolder}/trace_generation"
+    }
+  ]
+}
