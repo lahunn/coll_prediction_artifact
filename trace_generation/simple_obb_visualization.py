@@ -186,25 +186,6 @@ class RobotVisualizer:
                 p.changeVisualShape(self.robot_id, link_index, rgbaColor=[0, 0, 0, 0])
                 print(f"隐藏连杆: {link_name}")
 
-    def get_link_world_transform(self, link_name):
-        """获取连杆在世界坐标系中的4x4变换矩阵"""
-        if link_name not in self.link_name_to_index:
-            return np.eye(4)
-
-        link_index = self.link_name_to_index[link_name]
-        if link_index == -1:
-            pos = (0, 0, 0)
-            orn = (0, 0, 0, 1)
-        else:
-            state = p.getLinkState(self.robot_id, link_index)
-            pos, orn = state[4], state[5]
-
-        transform_matrix = np.eye(4)
-        rotation = p.getMatrixFromQuaternion(orn)
-        transform_matrix[:3, :3] = np.array(rotation).reshape(3, 3)
-        transform_matrix[:3, 3] = pos
-        return transform_matrix
-
     def disconnect(self):
         p.disconnect()
 

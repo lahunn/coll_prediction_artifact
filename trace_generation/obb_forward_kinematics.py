@@ -118,7 +118,8 @@ def get_link_world_transform(
 
     link_index = link_name_to_index[link_name]
     if link_index == -1:  # 基座连杆
-        pos, orn = p.getBasePositionAndOrientation(robot_id)
+        pos = (0, 0, 0)
+        orn = (0, 0, 0, 1)
     else:
         state = p.getLinkState(robot_id, link_index)
         pos, orn = state[4], state[5]  # 世界坐标系中的位置和方向

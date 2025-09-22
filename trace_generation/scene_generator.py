@@ -3,19 +3,78 @@ import os.path
 import tqdm
 import sys
 
+
+def get_robot_workspace_bounds(robot_urdf_path):
+    """
+    获取机器人工作空间边界
+
+    Args:
+        robot_urdf_path: 机器人URDF文件路径
+
+    Returns:
+        dict: 包含工作空间边界的字典
+    """
+    # 生成工作空间文件名
+    robot_name = os.path.splitext(os.path.basename(robot_urdf_path))[0]
+    workspace_file = f"{robot_name}_workspace.json"
+    # 使用默认的保守估计
+    workspace_bounds = {
+        "x_start": -0.8,
+        "x_end": 0.8,
+        "y_start": -0.8,
+        "y_end": 0.8,
+        "z_start": 0.1,
+        "z_end": 1.0,
+    }
+
+    if workspace_bounds is None:
+        print(f"工作空间文件 {workspace_file} 不存在，正在分析工作空间...")
+
+        # 动态导入并运行工作空间分析器
+        try:
+            from workspace_analyzer import WorkspaceAnalyzer
+
+            analyzer = WorkspaceAnalyzer(robot_urdf_path)
+            if analyzer.load_robot():
+                positions = analyzer.sample_workspace(num_samples=1000)
+                workspace_bounds = analyzer.analyze_workspace_bounds(positions)
+                analyzer.save_workspace_bounds(workspace_bounds, workspace_file)
+                print(f"工作空间分析完成，结果保存到 {workspace_file}")
+            analyzer.disconnect()
+
+        except Exception as e:
+            print(f"工作空间分析失败: {e}")
+            print("使用默认工作空间范围")
+
+    return workspace_bounds
+
+
 # 配置参数
 random.seed(1)
-ROBOT_URDF_PATH = "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/panda/panda.urdf"  # 默认机器人URDF路径
+
+# 根据命令行参数确定机器人URDF路径
+ROBOT_URDF_PATH = "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/jaco_7/jaco_7s.urdf"  # 默认Jaco机器人
 if len(sys.argv) > 1:
     ROBOT_URDF_PATH = sys.argv[1]  # 允许通过命令行指定URDF路径
 
-length = 0.07
-xstart = -1.12
-xend = 1.12
-ystart = -1.12
-yend = 1.12
-zstart = -1.12
-zend = 1.12
+print(f"使用机器人: {ROBOT_URDF_PATH}")
+
+# 获取机器人工作空间边界
+workspace_bounds = get_robot_workspace_bounds(ROBOT_URDF_PATH)
+
+# 根据机器人工作空间设置场景生成参数
+length = 0.07  # 体素大小
+xstart = workspace_bounds["x_start"]
+xend = workspace_bounds["x_end"]
+ystart = workspace_bounds["y_start"]
+yend = workspace_bounds["y_end"]
+zstart = workspace_bounds["z_start"]
+zend = workspace_bounds["z_end"]
+
+print("工作空间范围:")
+print(f"  X: [{xstart:.3f}, {xend:.3f}]")
+print(f"  Y: [{ystart:.3f}, {yend:.3f}]")
+print(f"  Z: [{zstart:.3f}, {zend:.3f}]")
 
 xlist = []
 t = xstart
@@ -38,14 +97,13 @@ while t < zend:
 
 
 def find_nearest(x1, x2, xlist):
-    for i in range(0, len(xlist)):
-        if x1 < xlist[i]:
-            break
-    lower = i - 1
-    for i in range(0, len(xlist)):
-        if x2 <= xlist[i]:
-            break
-    upper = i - 1
+    """改进版本，使用二分查找提高效率"""
+    import bisect
+
+    # 使用二分查找找到插入位置
+    lower = max(0, bisect.bisect_left(xlist, x1) - 1)
+    upper = max(0, bisect.bisect_right(xlist, x2) - 1)
+
     return (lower, upper)
 
 
@@ -135,12 +193,21 @@ for num_ob in [3, 6, 9, 12]:
         # print(num_ob)
         objects = int(random.uniform(num_ob, num_ob + 2))
         for j in range(0, objects):
-            xscale = random.uniform(length * 0, length * 8)
-            xpos = random.uniform(xstart, xend)
-            yscale = random.uniform(length * 0, length * 8)
-            ypos = random.uniform(ystart, yend)
-            zscale = random.uniform(length * 0, length * 8)
-            zpos = random.uniform(zstart, zend)
+            # 调整障碍物大小使其适合机器人工作空间
+            # 障碍物大小相对于工作空间的比例
+            workspace_x_range = xend - xstart
+            workspace_y_range = yend - ystart
+            workspace_z_range = zend - zstart
+
+            # 障碍物尺寸为工作空间的5%-20%
+            xscale = random.uniform(workspace_x_range * 0.05, workspace_x_range * 0.2)
+            yscale = random.uniform(workspace_y_range * 0.05, workspace_y_range * 0.2)
+            zscale = random.uniform(workspace_z_range * 0.05, workspace_z_range * 0.2)
+
+            # 确保障碍物位置在工作空间内，且不会超出边界
+            xpos = random.uniform(xstart + xscale / 2, xend - xscale / 2)
+            ypos = random.uniform(ystart + yscale / 2, yend - yscale / 2)
+            zpos = random.uniform(zstart + zscale / 2, zend - zscale / 2)
 
             # 写入MuJoCo格式
             write_mujoco_obstacle(

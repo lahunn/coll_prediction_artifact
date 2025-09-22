@@ -539,13 +539,21 @@ def sample_and_generate_data(
 
 def save_results(foldername, filenumber, qarr, dirarr, yarr, qarr_pose, yarr_pose):
     """保存结果到文件"""
+    import os
+
+    # 创建新的输出文件夹
+    output_folder = foldername + "_rs"
+    os.makedirs(output_folder, exist_ok=True)
+
     # 保存link级数据
-    with open(foldername + "/obstacles_" + filenumber + "_coord.pkl", "wb") as f:
+    with open(output_folder + "/obstacles_" + filenumber + "_coord.pkl", "wb") as f:
         pickle.dump((qarr, dirarr, yarr), f)
 
     # 保存pose级数据
-    with open(foldername + "/obstacles_" + filenumber + "_pose.pkl", "wb") as f:
+    with open(output_folder + "/obstacles_" + filenumber + "_pose.pkl", "wb") as f:
         pickle.dump((qarr_pose, yarr_pose), f)
+
+    print(f"Results saved to {output_folder}/")
 
 
 def main():
