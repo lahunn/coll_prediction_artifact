@@ -166,6 +166,18 @@ def write_mujoco_footer(f):
     f.write("</mujoco>\n")
 
 
+# 定义一个机器人基座周围的避让区域（立方体），防止障碍物生成得太近
+# 尺寸为 [min, max]，单位为米
+KEEPOUT_BOX = {
+    "x": [-0.25, 0.25],
+    "y": [-0.25, 0.25],
+    "z": [0.0, 0.3],  # 从地面到0.3米高
+}
+print("\n使用机器人基座的避让区域:")
+print(f"  X: {KEEPOUT_BOX['x']}")
+print(f"  Y: {KEEPOUT_BOX['y']}")
+print(f"  Z: {KEEPOUT_BOX['z']}")
+
 voxel_dict = {}
 color = ["0.2 0.2 0.0", "0.5 0.5 0.0", "0.8 0.8 0.0"]
 for num_ob in [3, 6, 9, 12]:
@@ -193,23 +205,59 @@ for num_ob in [3, 6, 9, 12]:
         # print(num_ob)
         objects = int(random.uniform(num_ob, num_ob + 2))
         for j in range(0, objects):
-            # 调整障碍物大小使其适合机器人工作空间
-            # 障碍物大小相对于工作空间的比例
-            workspace_x_range = xend - xstart
-            workspace_y_range = yend - ystart
-            workspace_z_range = zend - zstart
+            # --- 修改: 循环生成障碍物，直到其不与基座避让区碰撞 ---
+            max_retries = 100
+            for _ in range(max_retries):
+                # 调整障碍物大小使其适合机器人工作空间
+                workspace_x_range = xend - xstart
+                workspace_y_range = yend - ystart
+                workspace_z_range = zend - zstart
 
-            # 障碍物尺寸为工作空间的5%-20%
-            xscale = random.uniform(workspace_x_range * 0.05, workspace_x_range * 0.2)
-            yscale = random.uniform(workspace_y_range * 0.05, workspace_y_range * 0.2)
-            zscale = random.uniform(workspace_z_range * 0.05, workspace_z_range * 0.2)
+                # 障碍物尺寸为工作空间的5%-20%
+                xscale = random.uniform(
+                    workspace_x_range * 0.05, workspace_x_range * 0.2
+                )
+                yscale = random.uniform(
+                    workspace_y_range * 0.05, workspace_y_range * 0.2
+                )
+                zscale = random.uniform(
+                    workspace_z_range * 0.05, workspace_z_range * 0.2
+                )
 
-            # 确保障碍物位置在工作空间内，且不会超出边界
-            xpos = random.uniform(xstart + xscale / 2, xend - xscale / 2)
-            ypos = random.uniform(ystart + yscale / 2, yend - yscale / 2)
-            zpos = random.uniform(zstart + zscale / 2, zend - zscale / 2)
+                # 确保障碍物位置在工作空间内
+                xpos = random.uniform(xstart + xscale / 2, xend - xscale / 2)
+                ypos = random.uniform(ystart + yscale / 2, yend - yscale / 2)
+                zpos = random.uniform(zstart + zscale / 2, zend - zscale / 2)
 
-            # 写入MuJoCo格式
+                # 检查障碍物是否与避让区重叠
+                obs_xmin, obs_xmax = xpos - xscale / 2, xpos + xscale / 2
+                obs_ymin, obs_ymax = ypos - yscale / 2, ypos + yscale / 2
+                obs_zmin, obs_zmax = zpos - zscale / 2, zpos + zscale / 2
+
+                # AABB (轴对齐包围盒) 重叠测试
+                x_overlap = (
+                    obs_xmin < KEEPOUT_BOX["x"][1] and obs_xmax > KEEPOUT_BOX["x"][0]
+                )
+                y_overlap = (
+                    obs_ymin < KEEPOUT_BOX["y"][1] and obs_ymax > KEEPOUT_BOX["y"][0]
+                )
+                z_overlap = (
+                    obs_zmin < KEEPOUT_BOX["z"][1] and obs_zmax > KEEPOUT_BOX["z"][0]
+                )
+
+                if not (x_overlap and y_overlap and z_overlap):
+                    # 如果不重叠，则此障碍物位置有效，跳出重试循环
+                    break
+            else:
+                # 如果循环完成（即达到最大重试次数）而没有break
+                print(
+                    f"\n警告: 场景 {i} 中, 无法为障碍物 {j} 找到避让区域外的位置 (已尝试 {max_retries} 次). 跳过此障碍物."
+                )
+                continue  # 跳到下一个障碍物j
+
+            # --- 修改结束 ---
+
+            # 写入有效的障碍物到MuJoCo文件
             write_mujoco_obstacle(
                 f,
                 j,

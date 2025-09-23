@@ -46,17 +46,38 @@ class PyBulletRobotSimulator:
         try:
             scene_objects = p.loadMJCF(scene_file)
             if scene_objects:
-                # 假设第一个是地面，其余是障碍物
-                self.obstacle_ids = scene_objects[2:] if len(scene_objects) > 2 else []
+                # 分析场景对象并正确识别障碍物
+                self.obstacle_ids = []
+
+                print(f"Loaded {len(scene_objects)} objects from scene:")
+                for i, obj_id in enumerate(scene_objects):
+                    # 获取对象信息来判断类型
+                    info = p.getBodyInfo(obj_id)
+                    body_name = info[0].decode("utf-8") if info[0] else f"Object_{i}"
+
+                    # 跳过地面对象（通常名称包含ground、floor、plane等）
+                    if any(
+                        keyword in body_name.lower()
+                        for keyword in ["ground", "floor", "plane", "terrain"]
+                    ):
+                        print(f"  Object {i}: {body_name} (Ground - skipped)")
+                        continue
+
+                    # 其他对象视为障碍物
+                    self.obstacle_ids.append(obj_id)
+                    print(f"  Object {i}: {body_name} (Obstacle - ID: {obj_id})")
 
                 # 将所有场景物体设置为静态（质量为0）并禁用碰撞响应
                 for body_id in scene_objects:
                     p.changeDynamics(body_id, -1, mass=0)
-                    # 禁用碰撞响应，允许穿透
-                    p.setCollisionFilterGroupMask(body_id, -1, 0, 0)
+                    # 原始代码中下面这行禁用了碰撞组，导致 getContactPoints 无法检测到碰撞。
+                    # getClosestPoints 不受此影响，因此可以正确报告距离。
+                    # p.setCollisionFilterGroupMask(body_id, -1, 0, 0)
+                    # 通过注释掉此行，我们使用PyBullet的默认碰撞设置 (group=1, mask=1)，
+                    # 从而使 getContactPoints 能够正常工作。
 
                 print(
-                    f"Loaded scene with {len(self.obstacle_ids)} static obstacles (penetration allowed)"
+                    f"Final obstacle count: {len(self.obstacle_ids)} static obstacles"
                 )
             return scene_objects
         except Exception as e:
@@ -367,18 +388,39 @@ class VisualizationManager:
         return distances
 
     def print_distances(self):
-        """打印当前距离信息"""
+        """打印当前距离信息和碰撞检测结果"""
         distances = self.calculate_link_distances()
 
-        print("\n=== Link-Obstacle Distances ===")
+        print("\n=== Link-Obstacle Distances & Collision Status ===")
         for link_name, obstacle_distances in distances.items():
-            print(f"{link_name}:")
+            # 提取link_id
+            if link_name == "Base":
+                link_id = -1
+            else:
+                link_id = int(link_name.split("_")[1])
+
+            # 检查该link的碰撞状态
+            collision_status = self.sim.check_link_collision(link_id)
+            collision_indicator = "🔴 COLLISION" if collision_status else "🟢 FREE"
+
+            print(f"{link_name} [{collision_indicator}]:")
             for obstacle_name, distance in obstacle_distances.items():
                 if distance == float("inf"):
                     print(f"  {obstacle_name}: No collision geometry")
                 else:
-                    print(f"  {obstacle_name}: {distance:.4f}m")
-        print("================================\n")
+                    # 根据距离添加状态指示
+                    status_icon = (
+                        "💥" if distance <= 0.0 else "⚠️" if distance < 0.05 else "✅"
+                    )
+                    print(f"  {obstacle_name}: {distance:.4f}m {status_icon}")
+
+        # 整体机器人碰撞状态
+        overall_collision = self.sim.check_robot_collision()
+        overall_status = (
+            "🔴 ROBOT IN COLLISION" if overall_collision else "🟢 ROBOT FREE"
+        )
+        print(f"\nOverall Status: {overall_status}")
+        print("=" * 50 + "\n")
 
     def update_visualization(self):
         """更新可视化"""
@@ -586,7 +628,7 @@ def sample_and_generate_data(
         # 采样可行的机器人配置
         q = sim.sample_feasible_config()
         sim.set_robot_config(q)
-
+        p.performCollisionDetection()
         # 使用OBB正向运动学直接计算当前配置下的OBB位姿
         if obb_templates is not None:
             obb_poses = obb_fk.compute_obb_poses(obb_templates)
