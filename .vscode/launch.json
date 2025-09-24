@@ -10,8 +10,7 @@
       "args": [
         "100",
         "./scene_benchmarks/dens3",
-        "1",
-        "--visualize"
+        "1"
       ],
       "cwd": "${workspaceFolder}/trace_generation"
     }

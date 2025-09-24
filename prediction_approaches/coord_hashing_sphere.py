@@ -1,5 +1,6 @@
-# 坐标哈希算法评估脚本
-# 通过离散化坐标空间并构建哈希表来预测机器人运动轨迹的碰撞风险
+# 坐标哈希算法评估脚本 - 球体版本
+# 通过离散化球体位置和半径空间并构建哈希表来预测机器人运动轨迹的碰撞风险
+# 使用球体的位置坐标(x,y,z)和半径作为哈希键值
 # 使用命令行参数: <密度等级> <量化位数> <碰撞阈值> <自由样本采样率>
 
 import sys
@@ -39,8 +40,7 @@ def plot(code, ytest, name):
     plt.close()
 
 
-# 是否考虑运动方向（当前设为False，仅考虑位置）
-consider_dir = False
+# 球体哈希算法：使用球体位置(x,y,z)和半径构建哈希键
 
 
 # 设置量化参数：将连续坐标空间离散化为哈希桶
@@ -69,36 +69,43 @@ colldict = {}  # 当前场景的碰撞统计字典
 # 主循环：遍历100个基准场景进行评估
 for benchid in range(0, 100):
     benchidstr = str(benchid)
-    # 根据密度参数选择不同的数据集
+    # 根据密度参数选择不同的数据集 - 修改为读取球体数据
     if sys.argv[1] == "low":
         f = open(
             "../trace_files/scene_benchmarks/moving_1030_10_low/obstacles_"
             + benchidstr
-            + "_coord.pkl",
+            + "_sphere.pkl",
             "rb",
         )
-        # f=open("../trace_generation/scene_benchmarks/dens6/obstacles_"+benchidstr+"_coord.pkl","rb")
     elif sys.argv[1] == "mid":
         f = open(
             "../trace_files/scene_benchmarks/moving_1030_10_mid/obstacles_"
             + benchidstr
-            + "_coord.pkl",
+            + "_sphere.pkl",
             "rb",
         )
     else:
         f = open(
             "../trace_files/scene_benchmarks/moving_1030_10_high/obstacles_"
             + benchidstr
-            + "_coord.pkl",
+            + "_sphere.pkl",
             "rb",
         )
-    ##f=open("../trace_files/scene_benchmarks/moving_3050_10_mid/obstacles_"+benchidstr+"_coord.pkl","rb")
-    # 加载测试数据：坐标、方向、碰撞标签
-    xtest_pred, dirr_pred, label_pred = pickle.load(f)
-    # print(xtest_pred,label_pred)
+    # 加载球体数据：球体位置、球体半径、球体碰撞标签
+    qarr_sphere, rarr_sphere, yarr_sphere = pickle.load(f)
+    # print(qarr_sphere.shape, rarr_sphere.shape, yarr_sphere.shape)
     f.close()
-    # 对坐标进行量化离散化
+
+    # 构建球体测试数据
+    xtest_pred = qarr_sphere  # 球体位置 [N, 3]
+    radius_pred = rarr_sphere  # 球体半径 [N, 1]
+    label_pred = yarr_sphere.flatten()  # 球体碰撞标签 [N,]
+    # 对球体位置进行量化离散化
     code_pred_quant = np.digitize(xtest_pred, bins, right=True)
+    # 对球体半径进行量化离散化 (使用相同的区间)
+    radius_pred_quant = np.digitize(radius_pred.flatten(), bins, right=True)
+    # 对球体半径进行量化离散化 (使用相同的区间)
+    radius_pred_quant = np.digitize(radius_pred.flatten(), bins, right=True)
     # print(len(code_pred_quant))
     # 重置当前场景的碰撞统计字典
     colldict = {}
@@ -118,80 +125,63 @@ for benchid in range(0, 100):
     link_onezero = 0
     all_total += len(code_pred_quant)
 
-    # 按7个一组遍历数据（对应机器人7个关节/链接）
-    for bini in range(0, len(code_pred_quant), 7):
-        # if bini>=2800:
-        #   break
+    # 按单个球体遍历数据（每个球体独立处理）
+    for i in range(len(code_pred_quant)):
         # 初始化预测结果为1（无碰撞）
         predicted = 1
-        # 初始化真实答案为1（无碰撞）
-        true_ans = 1
-        # 遍历当前组内的7个链接
-        for i in range(bini, bini + 7):
-            # 构建当前链接的哈希键
-            keyy = ""
-            for j in range(0, bitsize):
-                # 为小于10的桶号添加前导0，保持键的统一格式
-                if code_pred_quant[i, j] < 10:
-                    keyy = keyy + "0"
-                keyy = keyy + str(code_pred_quant[i, j])
-            # 如果考虑方向，将方向信息添加到键中
-            if consider_dir:
-                keyy = keyy + dirr_pred[i]
-            # print(keyy,predicted)
+        # 获取真实答案
+        true_ans = int(label_pred[i])
 
-            # 检查键是否已存在于碰撞字典中
-            if keyy in colldict:
-                # 判断碰撞阈值：碰撞次数 > 阈值 × 自由次数
-                # if colldict[keyy][0]>0:#colldict[keyy][1]:
-                if colldict[keyy][0] > (
-                    float(sys.argv[3]) * colldict[keyy][1]
-                ):  # colldict[keyy][1]:
-                    # print(colldict[keyy],keyy)
-                    # 预测为碰撞
-                    predicted = 0
-                    if label_pred[i] > 0.5:
-                        link_onezero += 1
-                # 更新统计（持续学习模式）：
-                # 碰撞样本总是更新；自由样本按概率argv[4]采样更新
-                ## for continual
-                if (
-                    label_pred[i] > 0.5 and random.random() <= float(sys.argv[4])
-                ) or label_pred[i] < 0.5:
-                    colldict[keyy][int(label_pred[i])] += 1
-            else:
-                # 新键：初始化统计并按规则更新
-                if (
-                    label_pred[i] > 0.5 and random.random() <= float(sys.argv[4])
-                ) or label_pred[i] < 0.5:
-                    colldict[keyy] = [0, 0]  # [碰撞计数, 自由计数]
-                    colldict[keyy][int(label_pred[i])] += 1
+        # 构建当前球体的哈希键：位置(x,y,z) + 半径
+        keyy = ""
+        # 添加球体位置信息到键中
+        for j in range(bitsize):  # 位置的x,y,z坐标
+            if code_pred_quant[i, j] < 10:
+                keyy = keyy + "0"
+            keyy = keyy + str(code_pred_quant[i, j])
 
-            # 检查真实标签：如果任一链接碰撞，整组为碰撞
-            if label_pred[i] < 0.5:
-                true_ans = 0  # 标记真实答案为碰撞
-                link_colliding += 1
-                if predicted == 0:
-                    link_zerozero += 1
-                    break  # 预测到碰撞，提前退出当前组检查
-        # print(keyy,predicted)
+        # 添加球体半径信息到键中
+        if radius_pred_quant[i] < 10:
+            keyy = keyy + "0"
+        keyy = keyy + str(radius_pred_quant[i])
+
+        # 检查键是否已存在于碰撞字典中
+        if keyy in colldict:
+            # 判断碰撞阈值：碰撞次数 > 阈值 × 自由次数
+            if colldict[keyy][0] > (float(sys.argv[3]) * colldict[keyy][1]):
+                predicted = 0  # 预测为碰撞
+                if true_ans == 1:  # 真实无碰撞但预测碰撞
+                    link_onezero += 1
+
+            # 更新统计（持续学习模式）
+            if (
+                true_ans == 1 and random.random() <= float(sys.argv[4])
+            ) or true_ans == 0:
+                colldict[keyy][true_ans] += 1
+        else:
+            # 新键：初始化统计并按规则更新
+            if (
+                true_ans == 1 and random.random() <= float(sys.argv[4])
+            ) or true_ans == 0:
+                colldict[keyy] = [0, 0]  # [碰撞计数, 自由计数]
+                colldict[keyy][true_ans] += 1
+
         # 根据真实值和预测值更新混淆矩阵统计
         if true_ans == 0 and predicted == 0:
-            # 真正例：真实碰撞且预测碰撞
-            zerozero += 1
+            zerozero += 1  # 真正例：真实碰撞且预测碰撞
             all_zerozero += 1
+            link_zerozero += 1
         elif true_ans == 1 and predicted == 0:
-            # 假正例：真实无碰撞但预测碰撞
-            onezero += 1
+            onezero += 1  # 假正例：真实无碰撞但预测碰撞
             all_onezero += 1
-            # print(colldict[keyy])
         elif true_ans == 0 and predicted == 1:
-            # 假负例：真实碰撞但预测无碰撞
-            zeroone += 1
-        # 统计真实碰撞总数
+            zeroone += 1  # 假负例：真实碰撞但预测无碰撞
+
+        # 统计真实碰撞总数和连杆碰撞
         if true_ans == 0:
             total_colliding += 1
             all_total_colliding += 1
+            link_colliding += 1
 
     # 过滤条件：跳过没有碰撞或没有正确预测碰撞的场景
     if total_colliding == 0 or zerozero == 0:

@@ -29,12 +29,12 @@ def get_robot_workspace_bounds(robot_urdf_path):
     workspace_file = f"{robot_name}_workspace.json"
     # 使用默认的保守估计
     workspace_bounds = {
-        "x_start": -0.8,
-        "x_end": 0.8,
-        "y_start": -0.8,
-        "y_end": 0.8,
+        "x_start": -1.2,
+        "x_end": 1.2,
+        "y_start": -1.2,
+        "y_end": 1.2,
         "z_start": 0.1,
-        "z_end": 1.0,
+        "z_end": 1.2,
     }
 
     if workspace_bounds is None:

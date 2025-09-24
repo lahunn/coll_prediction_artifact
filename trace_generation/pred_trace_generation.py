@@ -26,6 +26,9 @@ import random
 import time
 import obb_calculator
 from obb_forward_kinematics import OBBForwardKinematics
+from robot_sphere_analyzer import RobotSphereAnalyzer
+import torch
+
 
 # ========== PyBullet机器人仿真类 ==========
 
@@ -250,6 +253,12 @@ class VisualizationManager:
         self.show_obbs = True
         self.last_distance_check = time.time()
 
+        # 球体可视化相关属性
+        self.sphere_bodies = []
+        self.sphere_analyzer = None
+        self.show_spheres = True
+        self.last_sphere_update = time.time()
+
         # 相机控制参数
         self.camera_distance = 2.0
         self.camera_yaw = 45
@@ -300,6 +309,25 @@ class VisualizationManager:
         self.valid_collision_links = valid_collision_links
         if self.sim.robot_id:
             self.obb_fk = OBBForwardKinematics(self.sim.robot_id)  # 传入整数ID
+
+    def initialize_sphere_system(self):
+        """初始化球体可视化系统"""
+        try:
+            # 创建球体分析器
+            self.sphere_analyzer = RobotSphereAnalyzer("franka", device="cuda:0")
+            print("✓ 可视化球体分析器初始化成功")
+
+            # 创建球体实体用于可视化
+            self.sphere_bodies = create_sphere_bodies(self.sim, self.sphere_analyzer)
+            if self.sphere_bodies:
+                print(f"✓ 可视化球体创建成功: {len(self.sphere_bodies)} 个球体")
+            else:
+                print("⚠️ 可视化球体创建失败")
+                self.show_spheres = False
+
+        except Exception as e:
+            print(f"❌ 球体可视化系统初始化失败: {e}")
+            self.show_spheres = False
 
     def clear_obbs(self):
         """清除所有OBB可视化"""
@@ -355,6 +383,37 @@ class VisualizationManager:
 
         except Exception as e:
             print(f"OBB绘制失败: {e}")
+
+    def update_spheres(self):
+        """更新球体位置"""
+        if not self.show_spheres or not self.sphere_analyzer or not self.sphere_bodies:
+            return
+
+        try:
+            # 获取当前关节配置
+            current_config = self.sim.get_robot_config()
+            if not current_config:
+                return
+
+            # 将关节配置转换为张量
+            joint_config = torch.tensor(
+                current_config, dtype=torch.float32, device=torch.device("cuda:0")
+            ).unsqueeze(0)
+
+            # 获取当前配置下的球体世界坐标
+            world_spheres = self.sphere_analyzer.get_world_spheres(joint_config)
+
+            # 更新球体位置
+            update_sphere_positions(self.sphere_bodies, world_spheres)
+
+        except Exception as e:
+            print(f"球体位置更新失败: {e}")
+
+    def cleanup_spheres(self):
+        """清理球体可视化"""
+        if self.sphere_bodies:
+            cleanup_sphere_bodies(self.sphere_bodies)
+            self.sphere_bodies.clear()
 
     def calculate_link_distances(self):
         """计算各个link到各个障碍物的距离"""
@@ -428,6 +487,14 @@ class VisualizationManager:
             # 更新相机位置
             self.update_camera()
 
+            # 更新球体位置（每帧更新）
+            if self.show_spheres:
+                current_time = time.time()
+                # 每隔0.1秒更新一次球体位置以提高性能
+                if current_time - self.last_sphere_update >= 0.1:
+                    self.update_spheres()
+                    self.last_sphere_update = current_time
+
             # 每隔1秒打印距离信息
             current_time = time.time()
             if current_time - self.last_distance_check >= 1.0:
@@ -440,8 +507,12 @@ class VisualizationManager:
     def run_visualization_loop(self):
         """运行可视化循环"""
         print("\n=== 可视化模式 ===")
-        print("显示机器人、障碍物和OBB")
+        print("显示机器人、障碍物、OBB和球体")
         print("关闭窗口或按Ctrl+C退出...")
+
+        # 初始化球体系统
+        if self.show_spheres:
+            self.initialize_sphere_system()
 
         # 初始绘制
         if self.show_obbs:
@@ -459,6 +530,7 @@ class VisualizationManager:
             print(f"可视化循环错误: {e}")
         finally:
             self.clear_obbs()
+            self.cleanup_spheres()
 
 
 # ========== 几何变换辅助函数 ==========
@@ -483,6 +555,189 @@ def transform_point(p, R, T):
     newT[1] += temp[1, 0]
     newT[2] += temp[2, 0]
     return newT
+
+
+def check_sphere_collision(sim, sphere_position, sphere_radius):
+    """
+    检查单个球体与环境障碍物的碰撞
+
+    Args:
+        sim: PyBullet仿真器实例
+        sphere_position: 球体位置 [x, y, z]
+        sphere_radius: 球体半径
+
+    Returns:
+        bool: True表示碰撞，False表示无碰撞
+    """
+    if not sim.obstacle_ids:
+        return False
+
+    try:
+        # 在PyBullet中创建临时球体用于碰撞检测
+        sphere_collision_shape = p.createCollisionShape(
+            p.GEOM_SPHERE, radius=sphere_radius
+        )
+
+        sphere_body = p.createMultiBody(
+            baseMass=0,  # 静态球体
+            baseCollisionShapeIndex=sphere_collision_shape,
+            basePosition=sphere_position,
+        )
+
+        # 执行碰撞检测
+        p.performCollisionDetection()
+
+        # 检查球体与所有障碍物的碰撞
+        has_collision = False
+        for obstacle_id in sim.obstacle_ids:
+            contacts = p.getContactPoints(bodyA=sphere_body, bodyB=obstacle_id)
+            if len(contacts) > 0:
+                has_collision = True
+                break
+
+        # 清理临时创建的球体
+        p.removeBody(sphere_body)
+
+        return has_collision
+
+    except Exception as e:
+        print(f"球体碰撞检测失败: {e}")
+        return False
+
+
+def create_sphere_bodies(sim, sphere_analyzer):
+    """
+    创建用于碰撞检测的球体实体，使用默认关节配置下的实际球体数据
+
+    Args:
+        sim: PyBullet仿真器实例
+        sphere_analyzer: 球体分析器实例
+
+    Returns:
+        list: 球体body ID列表
+    """
+    sphere_bodies = []
+
+    try:
+        # 获取默认关节配置下的球体数据
+        world_spheres = sphere_analyzer.get_world_spheres()
+
+        for i, (x, y, z, radius) in enumerate(world_spheres):
+            # 创建球体碰撞形状，使用实际半径
+            sphere_collision_shape = p.createCollisionShape(
+                p.GEOM_SPHERE, radius=float(radius)
+            )
+
+            # 创建球体可视化形状，使用半透明绿色
+            sphere_visual_shape = p.createVisualShape(
+                p.GEOM_SPHERE,
+                radius=float(radius),
+                rgbaColor=[0.0, 1.0, 0.0, 0.3],  # 半透明绿色
+            )
+
+            # 创建球体body，使用实际位置
+            sphere_body = p.createMultiBody(
+                baseMass=0,  # 静态球体
+                baseCollisionShapeIndex=sphere_collision_shape,
+                baseVisualShapeIndex=sphere_visual_shape,
+                basePosition=[float(x), float(y), float(z)],
+            )
+
+            # 设置碰撞过滤，让球体不与机器人发生物理碰撞
+            # 碰撞组设为2，掩码设为0（不与任何组碰撞）
+            p.setCollisionFilterGroupMask(sphere_body, -1, 2, 0)
+
+            sphere_bodies.append(sphere_body)
+
+        print(f"✓ 成功创建 {len(sphere_bodies)} 个球体用于碰撞检测")
+        return sphere_bodies
+
+    except Exception as e:
+        print(f"❌ 球体创建失败: {e}")
+        return []
+
+
+def update_sphere_positions(sphere_bodies, world_spheres):
+    """
+    更新球体位置和半径
+
+    Args:
+        sphere_bodies: 球体body ID列表
+        world_spheres: 世界坐标下的球体信息 [N, 4] (x, y, z, radius)
+    """
+    try:
+        for i, (sphere_body, (x, y, z, radius)) in enumerate(
+            zip(sphere_bodies, world_spheres)
+        ):
+            if i >= len(sphere_bodies):
+                break
+
+            # 更新球体位置
+            p.resetBasePositionAndOrientation(
+                sphere_body,
+                [float(x), float(y), float(z)],
+                [0, 0, 0, 1],  # 无旋转
+            )
+
+            # 注意：PyBullet中动态更改半径比较复杂，这里暂时保持固定半径
+            # 如果需要动态半径，需要重新创建collision shape
+
+    except Exception as e:
+        print(f"球体位置更新失败: {e}")
+
+
+def check_spheres_collision(sim, sphere_bodies):
+    """
+    检查所有球体与障碍物的碰撞
+
+    Args:
+        sim: PyBullet仿真器实例
+        sphere_bodies: 球体body ID列表
+
+    Returns:
+        list: 每个球体的碰撞结果列表 (True=碰撞, False=无碰撞)
+    """
+    collision_results = []
+
+    if not sim.obstacle_ids:
+        return [False] * len(sphere_bodies)
+
+    try:
+        # 执行碰撞检测
+        p.performCollisionDetection()
+
+        for sphere_body in sphere_bodies:
+            has_collision = False
+
+            # 检查当前球体与所有障碍物的碰撞
+            for obstacle_id in sim.obstacle_ids:
+                contacts = p.getContactPoints(bodyA=sphere_body, bodyB=obstacle_id)
+                if len(contacts) > 0:
+                    has_collision = True
+                    break
+
+            collision_results.append(has_collision)
+
+        return collision_results
+
+    except Exception as e:
+        print(f"球体碰撞检测失败: {e}")
+        return [False] * len(sphere_bodies)
+
+
+def cleanup_sphere_bodies(sphere_bodies):
+    """
+    清理球体实体
+
+    Args:
+        sphere_bodies: 球体body ID列表
+    """
+    try:
+        for sphere_body in sphere_bodies:
+            p.removeBody(sphere_body)
+        print(f"✓ 成功清理 {len(sphere_bodies)} 个球体")
+    except Exception as e:
+        print(f"球体清理失败: {e}")
 
 
 # ========== 核心 OBB 计算函数 ==========
@@ -555,7 +810,7 @@ def parse_command_args():
 
 def initialize_environment(foldername, filenumber, use_gui=False):
     """初始化环境和机器人模型"""
-    robot_urdf_path = "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/panda/panda.urdf"
+    robot_urdf_path = "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/franka_description/franka_panda.urdf"
 
     # 创建PyBullet仿真器
     sim = PyBulletRobotSimulator(use_gui=use_gui)
@@ -591,7 +846,23 @@ def find_valid_collision_links(sim):
 #     return sim  # 返回仿真器本身
 
 
-def initialize_data_arrays(numqueries, num_real_links, num_dofs):
+def get_sphere_count():
+    """获取机器人球体数量"""
+
+    # 创建球体分析器（使用franka机器人，对应panda）
+    analyzer = RobotSphereAnalyzer("franka")
+
+    # 获取默认配置下的世界坐标球体
+    world_spheres = analyzer.get_world_spheres()
+    sphere_count = len(world_spheres)
+
+    # print(f"✓ 通过球体分析器检测到机器人有 {sphere_count} 个球体")
+    return sphere_count
+
+
+def initialize_data_arrays(
+    numqueries, num_real_links, num_dofs, sphere_count_per_query=0
+):
     """初始化数据存储数组"""
     # link级数据数组
     qarr = np.zeros((num_real_links * numqueries, 3))
@@ -602,7 +873,22 @@ def initialize_data_arrays(numqueries, num_real_links, num_dofs):
     qarr_pose = np.zeros((numqueries, num_dofs))
     yarr_pose = np.zeros((numqueries, 1))
 
-    return qarr, dirarr, yarr, qarr_pose, yarr_pose
+    # 球体数据数组
+    total_spheres = sphere_count_per_query * numqueries
+    qarr_sphere = np.zeros((total_spheres, 3))  # 球体位置
+    rarr_sphere = np.zeros((total_spheres, 1))  # 球体半径
+    yarr_sphere = np.zeros((total_spheres, 1))  # 球体对应link的碰撞结果
+
+    return (
+        qarr,
+        dirarr,
+        yarr,
+        qarr_pose,
+        yarr_pose,
+        qarr_sphere,
+        rarr_sphere,
+        yarr_sphere,
+    )
 
 
 def sample_and_generate_data(
@@ -615,19 +901,41 @@ def sample_and_generate_data(
     yarr,
     qarr_pose,
     yarr_pose,
+    qarr_sphere=None,
+    rarr_sphere=None,
+    yarr_sphere=None,
+    sphere_count_per_query=0,
 ):
     """主要的数据生成循环"""
     counter = 0
     coll_count = 0
+    sphere_counter = 0  # 球体数据计数器
+    sphere_collision_count = 0  # 球体碰撞总次数
+    sphere_free_count = 0  # 球体无碰撞总次数
     num_real_links = len(valid_collision_links)
 
     # 初始化OBB正向运动学计算器
     obb_fk = OBBForwardKinematics(sim.robot_id)
 
+    # 初始化球体分析器（如果需要）
+    sphere_analyzer = None
+    sphere_bodies = []  # 球体body ID列表
+    if qarr_sphere is not None:
+        sphere_analyzer = RobotSphereAnalyzer("franka", device="cuda:0")
+        print("✓ 球体分析器初始化成功")
+
+        # 创建用于碰撞检测的球体实体，使用默认配置下的球体数据
+        sphere_bodies = create_sphere_bodies(sim, sphere_analyzer)
+        if not sphere_bodies:
+            print("⚠️ 球体创建失败，将跳过球体碰撞检测")
+            qarr_sphere = None
+
     while counter < numqueries:
         # 采样可行的机器人配置
         q = sim.sample_feasible_config()
         sim.set_robot_config(q)
+        # 获取当前关节配置
+        current_config = sim.get_robot_config()
         p.performCollisionDetection()
         # 使用OBB正向运动学直接计算当前配置下的OBB位姿
         if obb_templates is not None:
@@ -638,6 +946,14 @@ def sample_and_generate_data(
                 f"    Warning: OBB templates not available, using defaults for iteration {counter}"
             )
             obb_poses = []
+
+        # 准备关节配置张量（如果需要球体分析）
+        joint_config = None
+        if sphere_analyzer is not None:
+            # 将当前关节配置转换为张量
+            joint_config = torch.tensor(
+                current_config, dtype=torch.float32, device=torch.device("cuda:0")
+            ).unsqueeze(0)
 
         # 逐link碰撞检测
         real_link_idx = 0
@@ -671,6 +987,59 @@ def sample_and_generate_data(
             dirarr.append(dirstring)
             real_link_idx += 1
 
+        # 逐个球体碰撞检测
+        if (
+            sphere_analyzer is not None
+            and qarr_sphere is not None
+            and rarr_sphere is not None
+            and yarr_sphere is not None
+            and sphere_bodies
+        ):
+            try:
+                # 获取当前配置下的球体世界坐标
+                world_spheres = sphere_analyzer.get_world_spheres(joint_config)
+
+                # 更新球体位置
+                update_sphere_positions(sphere_bodies, world_spheres)
+
+                # 执行批量球体碰撞检测
+                collision_results = check_spheres_collision(sim, sphere_bodies)
+
+                # 遍历每个球体，保存数据
+                for sphere_idx, ((x, y, z, radius), sphere_collision) in enumerate(
+                    zip(world_spheres, collision_results)
+                ):
+                    if sphere_counter < len(qarr_sphere):
+                        # 保存球体位置和半径
+                        qarr_sphere[sphere_counter] = [x, y, z]  # 球体位置
+                        rarr_sphere[sphere_counter] = [radius]  # 球体半径
+
+                        # 保存球体碰撞结果 (0=碰撞, 1=无碰撞)
+                        collision_result = 0 if sphere_collision else 1
+                        yarr_sphere[sphere_counter] = [collision_result]
+
+                        # 更新球体碰撞统计
+                        if sphere_collision:
+                            sphere_collision_count += 1
+                        else:
+                            sphere_free_count += 1
+
+                        sphere_counter += 1
+
+                # 每100个查询打印一次球体碰撞统计
+                if counter % 100 == 0 and sphere_counter > 0:
+                    collision_rate = sphere_collision_count / sphere_counter * 100
+                    print(
+                        f"    已处理 {counter} 个查询，球体数据: {sphere_counter}/{len(qarr_sphere)}"
+                    )
+                    print(
+                        f"    球体碰撞统计: 碰撞{sphere_collision_count}, 无碰撞{sphere_free_count}, 碰撞率{collision_rate:.1f}%"
+                    )
+
+            except Exception as e:
+                if counter % 100 == 0:
+                    print(f"    球体数据计算失败 (查询 {counter}): {e}")
+
         # 整体机器人碰撞检测
         overall_collision = sim.check_robot_collision()
         ans = 0 if overall_collision else 1
@@ -692,10 +1061,38 @@ def sample_and_generate_data(
         yarr_pose[counter] = ans
         counter += 1
 
+    # 打印最终球体碰撞统计
+    if sphere_counter > 0:
+        final_collision_rate = sphere_collision_count / sphere_counter * 100
+        print("\n=== 球体碰撞检测最终统计 ===")
+        print(f"总球体数: {sphere_counter}")
+        print(
+            f"碰撞球体: {sphere_collision_count} ({sphere_collision_count / sphere_counter * 100:.1f}%)"
+        )
+        print(
+            f"无碰撞球体: {sphere_free_count} ({sphere_free_count / sphere_counter * 100:.1f}%)"
+        )
+        print(f"碰撞率: {final_collision_rate:.1f}%")
+
+    # 清理球体实体
+    if sphere_bodies:
+        cleanup_sphere_bodies(sphere_bodies)
+
     return coll_count
 
 
-def save_results(foldername, filenumber, qarr, dirarr, yarr, qarr_pose, yarr_pose):
+def save_results(
+    foldername,
+    filenumber,
+    qarr,
+    dirarr,
+    yarr,
+    qarr_pose,
+    yarr_pose,
+    qarr_sphere=None,
+    rarr_sphere=None,
+    yarr_sphere=None,
+):
     """保存结果到文件"""
     import os
 
@@ -711,6 +1108,9 @@ def save_results(foldername, filenumber, qarr, dirarr, yarr, qarr_pose, yarr_pos
     with open(output_folder + "/obstacles_" + filenumber + "_pose.pkl", "wb") as f:
         pickle.dump((qarr_pose, yarr_pose), f)
 
+    # 保存球体数据（如果可用）
+    with open(output_folder + "/obstacles_" + filenumber + "_sphere.pkl", "wb") as f:
+        pickle.dump((qarr_sphere, rarr_sphere, yarr_sphere), f)
     print(f"Results saved to {output_folder}/")
 
 
@@ -745,6 +1145,9 @@ def main():
         f"Robot has {num_links} total links ({num_real_links} real) and {num_dofs} DOFs"
     )
 
+    # 获取球体数量
+    sphere_count_per_query = get_sphere_count()
+
     # 如果是可视化模式，运行可视化
     if visualize_mode:
         print("\n启动可视化模式...")
@@ -765,8 +1168,10 @@ def main():
     print("\n启动数据生成模式...")
 
     # 数据存储数组初始化
-    qarr, dirarr, yarr, qarr_pose, yarr_pose = initialize_data_arrays(
-        numqueries, num_real_links, num_dofs
+    qarr, dirarr, yarr, qarr_pose, yarr_pose, qarr_sphere, rarr_sphere, yarr_sphere = (
+        initialize_data_arrays(
+            numqueries, num_real_links, num_dofs, sphere_count_per_query
+        )
     )
 
     # 初始化采样
@@ -784,11 +1189,26 @@ def main():
         yarr,
         qarr_pose,
         yarr_pose,
+        qarr_sphere,
+        rarr_sphere,
+        yarr_sphere,
+        sphere_count_per_query,
     )
 
     # 结果输出和数据保存
     print("collision count", coll_count, "out of ", numqueries)
-    save_results(foldername, filenumber, qarr, dirarr, yarr, qarr_pose, yarr_pose)
+    save_results(
+        foldername,
+        filenumber,
+        qarr,
+        dirarr,
+        yarr,
+        qarr_pose,
+        yarr_pose,
+        qarr_sphere,
+        rarr_sphere,
+        yarr_sphere,
+    )
 
     # 清理资源
     sim.disconnect()
