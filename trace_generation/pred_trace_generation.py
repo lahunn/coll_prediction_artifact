@@ -44,18 +44,46 @@ class PyBulletRobotSimulator:
         self.joint_limits = []
         self.valid_joints = []
 
+        # 用于球体碰撞检测的独立仿真器
+        self.sphere_physics_client = p.connect(p.DIRECT)
+        p.setGravity(0, 0, 0, physicsClientId=self.sphere_physics_client)
+        self.sphere_obstacle_ids = []
+
     def load_scene(self, scene_file):
         """加载MuJoCo格式的场景文件"""
         try:
-            scene_objects = p.loadMJCF(scene_file)
+            # 在主仿真器中加载场景
+            scene_objects = self._load_scene_internal(
+                scene_file, self.physics_client, "主仿真器"
+            )
             if scene_objects:
-                # 分析场景对象并正确识别障碍物
-                self.obstacle_ids = []
+                self.obstacle_ids = scene_objects
 
-                print(f"Loaded {len(scene_objects)} objects from scene:")
+            # 在球体仿真器中加载相同的场景
+            sphere_scene_objects = self._load_scene_internal(
+                scene_file, self.sphere_physics_client, "球体仿真器"
+            )
+            if sphere_scene_objects:
+                self.sphere_obstacle_ids = sphere_scene_objects
+
+            return self.obstacle_ids
+        except Exception as e:
+            print(f"Failed to load scene: {e}")
+            return []
+
+    def _load_scene_internal(self, scene_file, physics_client_id, client_name):
+        """内部场景加载函数，统一处理不同仿真器"""
+        try:
+            scene_objects = p.loadMJCF(scene_file, physicsClientId=physics_client_id)
+            if scene_objects:
+                obstacle_ids = []
+
+                print(
+                    f"Loaded {len(scene_objects)} objects from scene in {client_name}:"
+                )
                 for i, obj_id in enumerate(scene_objects):
                     # 获取对象信息来判断类型
-                    info = p.getBodyInfo(obj_id)
+                    info = p.getBodyInfo(obj_id, physicsClientId=physics_client_id)
                     body_name = info[0].decode("utf-8") if info[0] else f"Object_{i}"
 
                     # 跳过地面对象（通常名称包含ground、floor、plane等）
@@ -67,30 +95,30 @@ class PyBulletRobotSimulator:
                         continue
 
                     # 其他对象视为障碍物
-                    self.obstacle_ids.append(obj_id)
+                    obstacle_ids.append(obj_id)
                     print(f"  Object {i}: {body_name} (Obstacle - ID: {obj_id})")
 
-                # 将所有场景物体设置为静态（质量为0）并禁用碰撞响应
+                # 将所有场景物体设置为静态（质量为0）
                 for body_id in scene_objects:
-                    p.changeDynamics(body_id, -1, mass=0)
-                    # 原始代码中下面这行禁用了碰撞组，导致 getContactPoints 无法检测到碰撞。
-                    # getClosestPoints 不受此影响，因此可以正确报告距离。
-                    # p.setCollisionFilterGroupMask(body_id, -1, 0, 0)
-                    # 通过注释掉此行，我们使用PyBullet的默认碰撞设置 (group=1, mask=1)，
-                    # 从而使 getContactPoints 能够正常工作。
+                    p.changeDynamics(
+                        body_id, -1, mass=0, physicsClientId=physics_client_id
+                    )
 
                 print(
-                    f"Final obstacle count: {len(self.obstacle_ids)} static obstacles"
+                    f"Final obstacle count in {client_name}: {len(obstacle_ids)} static obstacles"
                 )
-            return scene_objects
+                return obstacle_ids
+
         except Exception as e:
-            print(f"Failed to load scene: {e}")
+            print(f"{client_name}场景加载失败: {e}")
             return []
 
     def load_robot(self, robot_urdf):
         """加载机器人URDF"""
         try:
-            self.robot_id = p.loadURDF(robot_urdf, useFixedBase=True)  # 固定基座
+            self.robot_id = p.loadURDF(
+                robot_urdf, useFixedBase=True, physicsClientId=self.physics_client
+            )  # 固定基座
             self._setup_joint_info()
             return self.robot_id
         except Exception as e:
@@ -102,12 +130,14 @@ class PyBulletRobotSimulator:
         if self.robot_id is None:
             return
 
-        num_joints = p.getNumJoints(self.robot_id)
+        num_joints = p.getNumJoints(self.robot_id, physicsClientId=self.physics_client)
         self.joint_limits = []
         self.valid_joints = []
 
         for i in range(num_joints):
-            joint_info = p.getJointInfo(self.robot_id, i)
+            joint_info = p.getJointInfo(
+                self.robot_id, i, physicsClientId=self.physics_client
+            )
             if joint_info[2] != p.JOINT_FIXED:  # 非固定关节
                 self.valid_joints.append(i)
                 lower_limit = joint_info[8]
@@ -143,14 +173,21 @@ class PyBulletRobotSimulator:
 
         for i, angle in enumerate(joint_angles):
             if i < len(self.valid_joints):
-                p.resetJointState(self.robot_id, self.valid_joints[i], angle)
+                p.resetJointState(
+                    self.robot_id,
+                    self.valid_joints[i],
+                    angle,
+                    physicsClientId=self.physics_client,
+                )
 
     def get_robot_config(self):
         """获取当前机器人关节配置"""
         if self.robot_id is None:
             return []
 
-        joint_states = p.getJointStates(self.robot_id, self.valid_joints)
+        joint_states = p.getJointStates(
+            self.robot_id, self.valid_joints, physicsClientId=self.physics_client
+        )
         return [state[0] for state in joint_states]
 
     def check_self_collision(self):
@@ -159,7 +196,11 @@ class PyBulletRobotSimulator:
             return False
 
         # 检查机器人内部连杆间的碰撞
-        contacts = p.getContactPoints(bodyA=self.robot_id, bodyB=self.robot_id)
+        contacts = p.getContactPoints(
+            bodyA=self.robot_id,
+            bodyB=self.robot_id,
+            physicsClientId=self.physics_client,
+        )
         return len(contacts) > 0
 
     def check_link_collision(self, link_id, ignore_links=None):
@@ -170,7 +211,10 @@ class PyBulletRobotSimulator:
         # 检查与所有障碍物的碰撞
         for obstacle_id in self.obstacle_ids:
             contacts = p.getContactPoints(
-                bodyA=self.robot_id, bodyB=obstacle_id, linkIndexA=link_id
+                bodyA=self.robot_id,
+                bodyB=obstacle_id,
+                linkIndexA=link_id,
+                physicsClientId=self.physics_client,
             )
             if len(contacts) > 0:
                 return True
@@ -182,7 +226,11 @@ class PyBulletRobotSimulator:
             return False
 
         for obstacle_id in self.obstacle_ids:
-            contacts = p.getContactPoints(bodyA=self.robot_id, bodyB=obstacle_id)
+            contacts = p.getContactPoints(
+                bodyA=self.robot_id,
+                bodyB=obstacle_id,
+                physicsClientId=self.physics_client,
+            )
             if len(contacts) > 0:
                 return True
         return False
@@ -191,7 +239,9 @@ class PyBulletRobotSimulator:
         """获取连杆数量"""
         if self.robot_id is None:
             return 0
-        return p.getNumJoints(self.robot_id) + 1  # 包括base link
+        return (
+            p.getNumJoints(self.robot_id, physicsClientId=self.physics_client) + 1
+        )  # 包括base link
 
     def find_valid_collision_links(self):
         """找到有碰撞几何体的连杆"""
@@ -199,11 +249,13 @@ class PyBulletRobotSimulator:
             return []
 
         valid_links = []
-        num_joints = p.getNumJoints(self.robot_id)
+        num_joints = p.getNumJoints(self.robot_id, physicsClientId=self.physics_client)
 
         # 检查base link
         try:
-            collision_data = p.getCollisionShapeData(self.robot_id, -1)
+            collision_data = p.getCollisionShapeData(
+                self.robot_id, -1, physicsClientId=self.physics_client
+            )
             if collision_data:
                 valid_links.append(-1)
         except Exception:
@@ -212,7 +264,9 @@ class PyBulletRobotSimulator:
         # 检查其他连杆
         for i in range(num_joints):
             try:
-                collision_data = p.getCollisionShapeData(self.robot_id, i)
+                collision_data = p.getCollisionShapeData(
+                    self.robot_id, i, physicsClientId=self.physics_client
+                )
                 if collision_data:
                     valid_links.append(i)
             except Exception:
@@ -226,15 +280,21 @@ class PyBulletRobotSimulator:
             return None
 
         if link_id == -1:  # base link
-            pos, orn = p.getBasePositionAndOrientation(self.robot_id)
+            pos, orn = p.getBasePositionAndOrientation(
+                self.robot_id, physicsClientId=self.physics_client
+            )
             return pos, orn
         else:
-            link_state = p.getLinkState(self.robot_id, link_id)
+            link_state = p.getLinkState(
+                self.robot_id, link_id, physicsClientId=self.physics_client
+            )
             return link_state[0], link_state[1]  # position, orientation
 
     def disconnect(self):
         """断开PyBullet连接"""
-        p.disconnect()
+        p.disconnect(physicsClientId=self.physics_client)
+        if self.sphere_physics_client is not None:
+            p.disconnect(physicsClientId=self.sphere_physics_client)
 
 
 # ========== 可视化管理类 ==========
@@ -404,7 +464,32 @@ class VisualizationManager:
             world_spheres = self.sphere_analyzer.get_world_spheres(joint_config)
 
             # 更新球体位置
-            update_sphere_positions(self.sphere_bodies, world_spheres)
+            update_sphere_positions(self.sim, self.sphere_bodies, world_spheres)
+
+            # 执行球体碰撞检测并输出结果
+            collision_results = check_spheres_collision(self.sim, self.sphere_bodies)
+
+            # 统计碰撞结果
+            collision_count = sum(collision_results)
+            free_count = len(collision_results) - collision_count
+            collision_rate = (
+                collision_count / len(collision_results) * 100
+                if collision_results
+                else 0
+            )
+
+            print("\n=== 球体碰撞检测结果 ===")
+            print(f"总球体数: {len(collision_results)}")
+            print(f"碰撞球体: {collision_count} ({collision_rate:.1f}%)")
+            print(f"无碰撞球体: {free_count} ({(100 - collision_rate):.1f}%)")
+
+            print("球体的详细碰撞状态:")
+            for i in range(len(collision_results)):
+                x, y, z, radius = world_spheres[i]
+                collision_status = "碰撞" if collision_results[i] else "无碰撞"
+                print(
+                    f"  球体{i + 1}: 位置[{x:.3f}, {y:.3f}, {z:.3f}] 半径{radius:.3f} → {collision_status}"
+                )
 
         except Exception as e:
             print(f"球体位置更新失败: {e}")
@@ -412,7 +497,7 @@ class VisualizationManager:
     def cleanup_spheres(self):
         """清理球体可视化"""
         if self.sphere_bodies:
-            cleanup_sphere_bodies(self.sphere_bodies)
+            cleanup_sphere_bodies(self.sim, self.sphere_bodies)
             self.sphere_bodies.clear()
 
     def calculate_link_distances(self):
@@ -433,6 +518,7 @@ class VisualizationManager:
                     bodyB=obstacle_id,
                     linkIndexA=link_id,
                     distance=10.0,  # 最大查询距离
+                    physicsClientId=self.sim.physics_client,
                 )
 
                 if closest_points:
@@ -491,7 +577,7 @@ class VisualizationManager:
             if self.show_spheres:
                 current_time = time.time()
                 # 每隔0.1秒更新一次球体位置以提高性能
-                if current_time - self.last_sphere_update >= 0.1:
+                if current_time - self.last_sphere_update >= 1.0:
                     self.update_spheres()
                     self.last_sphere_update = current_time
 
@@ -521,7 +607,7 @@ class VisualizationManager:
         try:
             while True:
                 self.update_visualization()
-                p.stepSimulation()
+                p.stepSimulation(physicsClientId=self.sim.physics_client)
                 time.sleep(1.0 / 60.0)  # 60 FPS
 
         except KeyboardInterrupt:
@@ -575,28 +661,31 @@ def check_sphere_collision(sim, sphere_position, sphere_radius):
     try:
         # 在PyBullet中创建临时球体用于碰撞检测
         sphere_collision_shape = p.createCollisionShape(
-            p.GEOM_SPHERE, radius=sphere_radius
+            p.GEOM_SPHERE, radius=sphere_radius, physicsClientId=sim.physics_client
         )
 
         sphere_body = p.createMultiBody(
             baseMass=0,  # 静态球体
             baseCollisionShapeIndex=sphere_collision_shape,
             basePosition=sphere_position,
+            physicsClientId=sim.physics_client,
         )
 
         # 执行碰撞检测
-        p.performCollisionDetection()
+        p.performCollisionDetection(physicsClientId=sim.physics_client)
 
         # 检查球体与所有障碍物的碰撞
         has_collision = False
         for obstacle_id in sim.obstacle_ids:
-            contacts = p.getContactPoints(bodyA=sphere_body, bodyB=obstacle_id)
+            contacts = p.getContactPoints(
+                bodyA=sphere_body, bodyB=obstacle_id, physicsClientId=sim.physics_client
+            )
             if len(contacts) > 0:
                 has_collision = True
                 break
 
         # 清理临时创建的球体
-        p.removeBody(sphere_body)
+        p.removeBody(sphere_body, physicsClientId=sim.physics_client)
 
         return has_collision
 
@@ -618,14 +707,21 @@ def create_sphere_bodies(sim, sphere_analyzer):
     """
     sphere_bodies = []
 
+    # 确保球体仿真器已初始化
+    if sim.sphere_physics_client is None:
+        print("❌ 球体仿真器未初始化")
+        return []
+
     try:
         # 获取默认关节配置下的球体数据
         world_spheres = sphere_analyzer.get_world_spheres()
 
         for i, (x, y, z, radius) in enumerate(world_spheres):
-            # 创建球体碰撞形状，使用实际半径
+            # 在球体仿真器中创建球体碰撞形状
             sphere_collision_shape = p.createCollisionShape(
-                p.GEOM_SPHERE, radius=float(radius)
+                p.GEOM_SPHERE,
+                radius=float(radius),
+                physicsClientId=sim.sphere_physics_client,
             )
 
             # 创建球体可视化形状，使用半透明绿色
@@ -633,23 +729,21 @@ def create_sphere_bodies(sim, sphere_analyzer):
                 p.GEOM_SPHERE,
                 radius=float(radius),
                 rgbaColor=[0.0, 1.0, 0.0, 0.3],  # 半透明绿色
+                physicsClientId=sim.sphere_physics_client,
             )
 
-            # 创建球体body，使用实际位置
+            # 在球体仿真器中创建球体body
             sphere_body = p.createMultiBody(
-                baseMass=0,  # 静态球体
+                baseMass=1,
                 baseCollisionShapeIndex=sphere_collision_shape,
                 baseVisualShapeIndex=sphere_visual_shape,
                 basePosition=[float(x), float(y), float(z)],
+                physicsClientId=sim.sphere_physics_client,
             )
-
-            # 设置碰撞过滤，让球体不与机器人发生物理碰撞
-            # 碰撞组设为2，掩码设为0（不与任何组碰撞）
-            p.setCollisionFilterGroupMask(sphere_body, -1, 2, 0)
 
             sphere_bodies.append(sphere_body)
 
-        print(f"✓ 成功创建 {len(sphere_bodies)} 个球体用于碰撞检测")
+        print(f"✓ 成功在球体仿真器中创建 {len(sphere_bodies)} 个球体用于碰撞检测")
         return sphere_bodies
 
     except Exception as e:
@@ -657,11 +751,12 @@ def create_sphere_bodies(sim, sphere_analyzer):
         return []
 
 
-def update_sphere_positions(sphere_bodies, world_spheres):
+def update_sphere_positions(sim, sphere_bodies, world_spheres):
     """
     更新球体位置和半径
 
     Args:
+        sim: PyBullet仿真器实例
         sphere_bodies: 球体body ID列表
         world_spheres: 世界坐标下的球体信息 [N, 4] (x, y, z, radius)
     """
@@ -672,11 +767,12 @@ def update_sphere_positions(sphere_bodies, world_spheres):
             if i >= len(sphere_bodies):
                 break
 
-            # 更新球体位置
+            # 在球体仿真器中更新球体位置
             p.resetBasePositionAndOrientation(
                 sphere_body,
                 [float(x), float(y), float(z)],
                 [0, 0, 0, 1],  # 无旋转
+                physicsClientId=sim.sphere_physics_client,
             )
 
             # 注意：PyBullet中动态更改半径比较复杂，这里暂时保持固定半径
@@ -699,19 +795,23 @@ def check_spheres_collision(sim, sphere_bodies):
     """
     collision_results = []
 
-    if not sim.obstacle_ids:
+    if not sim.sphere_obstacle_ids:
         return [False] * len(sphere_bodies)
 
     try:
-        # 执行碰撞检测
-        p.performCollisionDetection()
+        # 在球体仿真器中执行碰撞检测
+        p.performCollisionDetection(physicsClientId=sim.sphere_physics_client)
 
         for sphere_body in sphere_bodies:
             has_collision = False
 
             # 检查当前球体与所有障碍物的碰撞
-            for obstacle_id in sim.obstacle_ids:
-                contacts = p.getContactPoints(bodyA=sphere_body, bodyB=obstacle_id)
+            for obstacle_id in sim.sphere_obstacle_ids:
+                contacts = p.getContactPoints(
+                    bodyA=sphere_body,
+                    bodyB=obstacle_id,
+                    physicsClientId=sim.sphere_physics_client,
+                )
                 if len(contacts) > 0:
                     has_collision = True
                     break
@@ -725,16 +825,17 @@ def check_spheres_collision(sim, sphere_bodies):
         return [False] * len(sphere_bodies)
 
 
-def cleanup_sphere_bodies(sphere_bodies):
+def cleanup_sphere_bodies(sim, sphere_bodies):
     """
     清理球体实体
 
     Args:
+        sim: PyBullet仿真器实例
         sphere_bodies: 球体body ID列表
     """
     try:
         for sphere_body in sphere_bodies:
-            p.removeBody(sphere_body)
+            p.removeBody(sphere_body, physicsClientId=sim.sphere_physics_client)
         print(f"✓ 成功清理 {len(sphere_bodies)} 个球体")
     except Exception as e:
         print(f"球体清理失败: {e}")
@@ -936,7 +1037,7 @@ def sample_and_generate_data(
         sim.set_robot_config(q)
         # 获取当前关节配置
         current_config = sim.get_robot_config()
-        p.performCollisionDetection()
+        p.performCollisionDetection(physicsClientId=sim.physics_client)
         # 使用OBB正向运动学直接计算当前配置下的OBB位姿
         if obb_templates is not None:
             obb_poses = obb_fk.compute_obb_poses(obb_templates)
@@ -1000,7 +1101,7 @@ def sample_and_generate_data(
                 world_spheres = sphere_analyzer.get_world_spheres(joint_config)
 
                 # 更新球体位置
-                update_sphere_positions(sphere_bodies, world_spheres)
+                update_sphere_positions(sim, sphere_bodies, world_spheres)
 
                 # 执行批量球体碰撞检测
                 collision_results = check_spheres_collision(sim, sphere_bodies)
@@ -1026,15 +1127,15 @@ def sample_and_generate_data(
 
                         sphere_counter += 1
 
-                # 每100个查询打印一次球体碰撞统计
-                if counter % 100 == 0 and sphere_counter > 0:
-                    collision_rate = sphere_collision_count / sphere_counter * 100
-                    print(
-                        f"    已处理 {counter} 个查询，球体数据: {sphere_counter}/{len(qarr_sphere)}"
-                    )
-                    print(
-                        f"    球体碰撞统计: 碰撞{sphere_collision_count}, 无碰撞{sphere_free_count}, 碰撞率{collision_rate:.1f}%"
-                    )
+                # # 每100个查询打印一次球体碰撞统计
+                # if counter % 100 == 0 and sphere_counter > 0:
+                #     collision_rate = sphere_collision_count / sphere_counter * 100
+                #     print(
+                #         f"    已处理 {counter} 个查询，球体数据: {sphere_counter}/{len(qarr_sphere)}"
+                #     )
+                #     print(
+                #         f"    球体碰撞统计: 碰撞{sphere_collision_count}, 无碰撞{sphere_free_count}, 碰撞率{collision_rate:.1f}%"
+                #     )
 
             except Exception as e:
                 if counter % 100 == 0:
@@ -1076,7 +1177,7 @@ def sample_and_generate_data(
 
     # 清理球体实体
     if sphere_bodies:
-        cleanup_sphere_bodies(sphere_bodies)
+        cleanup_sphere_bodies(sim, sphere_bodies)
 
     return coll_count
 

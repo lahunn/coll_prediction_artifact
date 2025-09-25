@@ -2,6 +2,20 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Python 调试程序: 当前文件",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/prediction_approaches/coord_hashing.py",
+      "console": "integratedTerminal",
+      "args": [
+        "high",
+        "5",
+        "0.05",
+        "0.5"
+      ],
+      "cwd": "${workspaceFolder}/prediction_approaches"
+    },
+    {
       "name": "调试 pred_trace_generation.py",
       "type": "debugpy",
       "request": "launch",

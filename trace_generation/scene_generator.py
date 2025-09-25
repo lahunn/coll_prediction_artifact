@@ -7,7 +7,7 @@ import sys
 random.seed(1)
 
 # 根据命令行参数确定机器人URDF路径
-ROBOT_URDF_PATH = "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/jaco_7/jaco_7s.urdf"  # 默认Jaco机器人
+ROBOT_URDF_PATH = "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/franka_description/franka_panda.urdf"  # 默认Jaco机器人
 if len(sys.argv) > 1:
     ROBOT_URDF_PATH = sys.argv[1]  # 允许通过命令行指定URDF路径
 
@@ -26,20 +26,19 @@ def get_robot_workspace_bounds(robot_urdf_path):
     """
     # 生成工作空间文件名
     robot_name = os.path.splitext(os.path.basename(robot_urdf_path))[0]
-    workspace_file = f"{robot_name}_workspace.json"
+    workspace_file = f"/home/lanh/project/robot_sim/coll_prediction_artifact/trace_generation/workspace_bound/{robot_name}_workspace.json"
+    workspace_bounds = None
     # 使用默认的保守估计
-    workspace_bounds = {
-        "x_start": -1.2,
-        "x_end": 1.2,
-        "y_start": -1.2,
-        "y_end": 1.2,
-        "z_start": 0.1,
-        "z_end": 1.2,
-    }
+    # workspace_bounds = {
+    #     "x_start": -1.2,
+    #     "x_end": 1.2,
+    #     "y_start": -1.2,
+    #     "y_end": 1.2,
+    #     "z_start": 0.1,
+    #     "z_end": 1.2,
+    # }
 
     if workspace_bounds is None:
-        print(f"工作空间文件 {workspace_file} 不存在，正在分析工作空间...")
-
         # 动态导入并运行工作空间分析器
         try:
             from workspace_analyzer import WorkspaceAnalyzer
@@ -49,7 +48,6 @@ def get_robot_workspace_bounds(robot_urdf_path):
                 positions = analyzer.sample_workspace(num_samples=1000)
                 workspace_bounds = analyzer.analyze_workspace_bounds(positions)
                 analyzer.save_workspace_bounds(workspace_bounds, workspace_file)
-                print(f"工作空间分析完成，结果保存到 {workspace_file}")
             analyzer.disconnect()
 
         except Exception as e:

@@ -144,13 +144,10 @@ class WorkspaceAnalyzer:
         try:
             link_state = p.getLinkState(self.robot_id, num_joints - 1)
             return link_state[0]  # 世界坐标位置
-        except:
+        except Exception:
             # 如果获取失败，尝试倒数第二个连杆
-            try:
-                link_state = p.getLinkState(self.robot_id, num_joints - 2)
-                return link_state[0]
-            except:
-                return None
+            link_state = p.getLinkState(self.robot_id, num_joints - 2)
+            return link_state[0]
 
     def analyze_workspace_bounds(self, positions):
         """

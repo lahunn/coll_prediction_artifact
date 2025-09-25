@@ -1,13 +1,44 @@
 # 坐标哈希算法评估脚本
 # 通过离散化坐标空间并构建哈希表来预测机器人运动轨迹的碰撞风险
-# 使用命令行参数: <密度等级> <量化位数> <碰撞阈值> <自由样本采样率>
+# 使用命令行参数: <密度等级> <量化位数> <碰撞阈值> <自由样本采样率> <链接数>
 
+# 使用示例：
+# python coord_hashing.py mid 8 0.1 0.3 7    # 中等密度场景，8位量化，0.1碰撞阈值，30%自由样本采样率，7个链接
+# python coord_hashing.py high 10 0.05 0.5 7 # 高密度场景，10位量化，0.05碰撞阈值，50%自由样本采样率，7个链接
+# python coord_hashing.py low 6 0.2 0.2 7    # 低密度场景，6位量化，0.2碰撞阈值，20%自由样本采样率，7个链接
 import sys
 
 import numpy as np
 import matplotlib.pyplot as plt
 import random
 import pickle
+
+# 解析命令行参数
+if len(sys.argv) != 6:
+    print(
+        "用法: python coord_hashing.py <密度等级> <量化位数> <碰撞阈值> <自由样本采样率> <链接数>"
+    )
+    print("示例: python coord_hashing.py mid 8 0.1 0.3 7")
+    sys.exit(1)
+
+# 解析命令行参数到变量
+density_level = sys.argv[1]  # 密度等级: "low", "mid", "high"
+quantize_bits = int(sys.argv[2])  # 量化位数 (如: 8)
+collision_threshold = float(sys.argv[3])  # 碰撞阈值 (如: 0.1)
+free_sample_rate = float(sys.argv[4])  # 自由样本采样率 (如: 0.3)
+num_links = int(sys.argv[5])  # 链接数 (如: 7)
+
+# print(
+#     f"参数设置: 密度={density_level}, 量化={quantize_bits}位, 碰撞阈值={collision_threshold}, "
+#     + f"采样率={free_sample_rate}, 链接数={num_links}"
+# )
+
+
+# 是否考虑运动方向（当前设为False，仅考虑位置）
+consider_dir = False
+
+# 从解析的变量获取链接数
+# num_links = 11  # 默认11个链接（已在参数解析中定义）
 
 
 def plot(code, ytest, name):
@@ -39,15 +70,11 @@ def plot(code, ytest, name):
     plt.close()
 
 
-# 是否考虑运动方向（当前设为False，仅考虑位置）
-consider_dir = False
-
-
 # 设置量化参数：将连续坐标空间离散化为哈希桶
 # distributing the dataset into two components X and Y
 
-# 根据命令行参数计算分桶数量：binnumber = 2^argv[2]
-binnumber = 2 ** int(sys.argv[2])
+# 根据解析的参数计算分桶数量：binnumber = 2^quantize_bits
+binnumber = 2**quantize_bits
 # 计算每个桶的区间大小（总范围2.24，区间[-1.12, 1.12)）
 intervalsize = 2.24 / binnumber
 bins = np.zeros(binnumber)
@@ -70,24 +97,24 @@ colldict = {}  # 当前场景的碰撞统计字典
 for benchid in range(0, 100):
     benchidstr = str(benchid)
     # 根据密度参数选择不同的数据集
-    if sys.argv[1] == "low":
+    if density_level == "low":
         f = open(
-            "../trace_files/scene_benchmarks/moving_1030_10_low/obstacles_"
+            "../trace_generation/scene_benchmarks/dens3_rs/obstacles_"
             + benchidstr
             + "_coord.pkl",
             "rb",
         )
         # f=open("../trace_generation/scene_benchmarks/dens6/obstacles_"+benchidstr+"_coord.pkl","rb")
-    elif sys.argv[1] == "mid":
+    elif density_level == "mid":
         f = open(
-            "../trace_files/scene_benchmarks/moving_1030_10_mid/obstacles_"
+            "../trace_generation/scene_benchmarks/dens3_rs/obstacles_"
             + benchidstr
             + "_coord.pkl",
             "rb",
         )
     else:
         f = open(
-            "../trace_files/scene_benchmarks/moving_1030_10_high/obstacles_"
+            "../trace_generation/scene_benchmarks/dens3_rs/obstacles_"
             + benchidstr
             + "_coord.pkl",
             "rb",
@@ -118,16 +145,16 @@ for benchid in range(0, 100):
     link_onezero = 0
     all_total += len(code_pred_quant)
 
-    # 按7个一组遍历数据（对应机器人7个关节/链接）
-    for bini in range(0, len(code_pred_quant), 7):
+    # 按指定链接数分组遍历数据（对应机器人的多个关节/链接）
+    for bini in range(0, len(code_pred_quant), num_links):
         # if bini>=2800:
         #   break
         # 初始化预测结果为1（无碰撞）
         predicted = 1
         # 初始化真实答案为1（无碰撞）
         true_ans = 1
-        # 遍历当前组内的7个链接
-        for i in range(bini, bini + 7):
+        # 遍历当前组内的所有链接
+        for i in range(bini, min(bini + num_links, len(code_pred_quant))):
             # 构建当前链接的哈希键
             keyy = ""
             for j in range(0, bitsize):
@@ -145,7 +172,7 @@ for benchid in range(0, 100):
                 # 判断碰撞阈值：碰撞次数 > 阈值 × 自由次数
                 # if colldict[keyy][0]>0:#colldict[keyy][1]:
                 if colldict[keyy][0] > (
-                    float(sys.argv[3]) * colldict[keyy][1]
+                    collision_threshold * colldict[keyy][1]
                 ):  # colldict[keyy][1]:
                     # print(colldict[keyy],keyy)
                     # 预测为碰撞
@@ -153,19 +180,19 @@ for benchid in range(0, 100):
                     if label_pred[i] > 0.5:
                         link_onezero += 1
                 # 更新统计（持续学习模式）：
-                # 碰撞样本总是更新；自由样本按概率argv[4]采样更新
+                # 碰撞样本总是更新；自由样本按概率free_sample_rate采样更新
                 ## for continual
                 if (
-                    label_pred[i] > 0.5 and random.random() <= float(sys.argv[4])
+                    label_pred[i] > 0.5 and random.random() <= free_sample_rate
                 ) or label_pred[i] < 0.5:
-                    colldict[keyy][int(label_pred[i])] += 1
+                    colldict[keyy][int(label_pred[i].item())] += 1
             else:
                 # 新键：初始化统计并按规则更新
                 if (
-                    label_pred[i] > 0.5 and random.random() <= float(sys.argv[4])
+                    label_pred[i] > 0.5 and random.random() <= free_sample_rate
                 ) or label_pred[i] < 0.5:
                     colldict[keyy] = [0, 0]  # [碰撞计数, 自由计数]
-                    colldict[keyy][int(label_pred[i])] += 1
+                    colldict[keyy][int(label_pred[i].item())] += 1
 
             # 检查真实标签：如果任一链接碰撞，整组为碰撞
             if label_pred[i] < 0.5:
@@ -200,10 +227,23 @@ for benchid in range(0, 100):
 # 输出最终评估指标
 # 精确率 = TP / (TP + FP) * 100%
 # 召回率 = TP / (TP + FN) * 100% = TP / 总碰撞数 * 100%
+# TP (True Positive) - 真正例
+# FP (False Positive) - 假正例
+# FN (False Negative) - 假负例
+# 精确率 (Precision) - 含义: 在所有预测为碰撞的样本中，真正碰撞的比例，反映: 算法预测碰撞的可信度
+# 召回率 (Recall) - 含义: 在所有真实碰撞样本中，被正确预测出的比例，反映: 算法发现碰撞的能力
+
+# 计算精确率和召回率
+precision = (
+    all_zerozero * 100 / (all_zerozero + all_onezero)
+    if (all_zerozero + all_onezero) > 0
+    else 0
+)
+recall = all_zerozero * 100 / all_total_colliding if all_total_colliding > 0 else 0
+
+# 输出详细结果：参数设置和性能指标
+# print("密度, 量化位数, 碰撞阈值, 采样率,  精确率, 召回率")
+
 print(
-    "%.2f,%.2f"
-    % (
-        all_zerozero * 100 / (all_zerozero + all_onezero),
-        all_zerozero * 100 / all_total_colliding,
-    )
+    f"{density_level}, {quantize_bits}, {collision_threshold}, {free_sample_rate},  {precision:.2f}%, {recall:.2f}%"
 )
