@@ -19,7 +19,7 @@ do
         
         # 生成 OBB 数据 (原有功能)
         echo "    Generating OBB data..."
-        python pred_trace_generation.py 100 scene_benchmarks/${j} ${i}
+        python pred_trace_generation.py 1000 scene_benchmarks/${j} ${i}
         
         echo "    Completed ${j} environment ${i}"
     done
