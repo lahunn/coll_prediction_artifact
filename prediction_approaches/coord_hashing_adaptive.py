@@ -1,10 +1,9 @@
-import sys, os, argparse
+import sys
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import random
-from tqdm import tqdm
 import pickle
-import pandas as pd
 from collections import deque
 
 # 该脚本实现了一种自适应哈希策略。
@@ -21,9 +20,15 @@ def plot(code, ytest, name):
             collfree.append(principalComponents[i])
         else:
             coll.append(principalComponents[i])
-    coll1 = (np.array(coll))
-    collfree1 = (np.array(collfree))
-    plt.scatter(collfree1[:, 0], collfree1[:, 1], label="Collision free", color="blue", alpha=0.3)
+    coll1 = np.array(coll)
+    collfree1 = np.array(collfree)
+    plt.scatter(
+        collfree1[:, 0],
+        collfree1[:, 1],
+        label="Collision free",
+        color="blue",
+        alpha=0.3,
+    )
     plt.scatter(coll1[:, 0], coll1[:, 1], color="red", label="Colliding", alpha=0.3)
     plt.savefig(name)
     plt.clf()
@@ -36,7 +41,7 @@ def plot(code, ytest, name):
 # sys.argv[3]: S_max (低碰撞频率下的敏感度)
 # sys.argv[4]: 对于非碰撞状态,以一定概率更新哈希表,用于控制哈希表的学习速度。
 
-binnumber = 2**int(sys.argv[1])  # 计算箱子总数
+binnumber = 2 ** int(sys.argv[1])  # 计算箱子总数
 S_min = float(sys.argv[2])  # 最小敏感度
 S_max = float(sys.argv[3])  # 最大敏感度
 update_prob = float(sys.argv[4])  # 更新概率
@@ -93,7 +98,9 @@ for benchid in range(0, 100):
         # --- 自适应敏感度计算 ---
         if len(collision_history) > 0:
             # 碰撞频率 = 历史记录中0的个数 / 历史记录长度
-            collision_freq = (collision_history.maxlen - sum(collision_history)) / len(collision_history)
+            collision_freq = (collision_history.maxlen - sum(collision_history)) / len(
+                collision_history
+            )
             # 使用线性插值计算当前的敏感度S
             # 碰撞频率越高,S越接近S_min; 频率越低,S越接近S_max。
             current_S = S_max - (S_max - S_min) * collision_freq
@@ -116,11 +123,15 @@ for benchid in range(0, 100):
                         all_onezero += 1
 
                 # 更新哈希表
-                if (label_pred[i] > 0.5 and random.random() <= update_prob) or label_pred[i] < 0.5:
+                if (
+                    label_pred[i] > 0.5 and random.random() <= update_prob
+                ) or label_pred[i] < 0.5:
                     colldict[keyy][int(label_pred[i].item())] += 1
             else:
                 # 如果哈希键不存在,则创建新条目并更新
-                if (label_pred[i] > 0.5 and random.random() <= update_prob) or label_pred[i] < 0.5:
+                if (
+                    label_pred[i] > 0.5 and random.random() <= update_prob
+                ) or label_pred[i] < 0.5:
                     colldict[keyy] = [0, 0]
                     colldict[keyy][int(label_pred[i].item())] += 1
 
@@ -141,7 +152,11 @@ for benchid in range(0, 100):
 
 # --- 最终结果计算 ---
 # 精确度 = 正确预测的碰撞 / (正确预测的碰撞 + 错误预测的碰撞)
-precision = all_zerozero * 100 / (all_zerozero + all_onezero) if (all_zerozero + all_onezero) > 0 else 0
+precision = (
+    all_zerozero * 100 / (all_zerozero + all_onezero)
+    if (all_zerozero + all_onezero) > 0
+    else 0
+)
 # 召回率 = 正确预测的碰撞 / 所有真实发生的碰撞
 recall = all_zerozero * 100 / all_total_colliding if all_total_colliding > 0 else 0
 

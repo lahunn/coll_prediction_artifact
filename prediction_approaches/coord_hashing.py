@@ -14,11 +14,11 @@ import random
 import pickle
 
 # 解析命令行参数
-if len(sys.argv) != 6:
+if len(sys.argv) != 5:
     print(
-        "用法: python coord_hashing.py <密度等级> <量化位数> <碰撞阈值> <自由样本采样率> <链接数>"
+        "用法: python coord_hashing.py <密度等级> <量化位数> <碰撞阈值> <自由样本采样率>"
     )
-    print("示例: python coord_hashing.py mid 8 0.1 0.3 7")
+    print("示例: python coord_hashing.py mid 8 0.1 0.3")
     sys.exit(1)
 
 # 解析命令行参数到变量
@@ -26,7 +26,7 @@ density_level = sys.argv[1]  # 密度等级: "low", "mid", "high"
 quantize_bits = int(sys.argv[2])  # 量化位数 (如: 8)
 collision_threshold = float(sys.argv[3])  # 碰撞阈值 (如: 0.1)
 free_sample_rate = float(sys.argv[4])  # 自由样本采样率 (如: 0.3)
-num_links = int(sys.argv[5])  # 链接数 (如: 7)
+num_links = 11
 
 # print(
 #     f"参数设置: 密度={density_level}, 量化={quantize_bits}位, 碰撞阈值={collision_threshold}, "

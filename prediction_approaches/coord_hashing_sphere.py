@@ -152,7 +152,7 @@ all_total = 0  # 全局总样本数
 all_total_colliding = 0  # 全局真实碰撞总数 len(label_pred)-np.sum(label_pred)
 globalcolldict = {}  # 全局碰撞字典(未使用)
 colldict = {}  # 当前场景的碰撞统计字典
-# print("Total colliding,zerozero,onezero,random_baseline,Prediction_accuracy,Fraction_predicted,link_colliding,link_zerozero,link_onezero")
+
 
 # 主循环：遍历100个基准场景进行评估
 for benchid in range(0, 100):
@@ -210,10 +210,6 @@ for benchid in range(0, 100):
     zeroone = 0  # false negative (真实碰撞但预测自由)
     total_colliding = 0  # 当前场景真实碰撞总数
 
-    # link级别的统计变量
-    link_colliding = 0
-    link_zerozero = 0
-    link_onezero = 0
     all_total += len(code_pred_quant)
 
     # 按单个球体遍历数据（每个球体独立处理）
@@ -242,8 +238,6 @@ for benchid in range(0, 100):
             # 判断碰撞阈值：碰撞次数 > 阈值 × 自由次数
             if colldict[keyy][0] > (collision_threshold * colldict[keyy][1]):
                 predicted = 0  # 预测为碰撞
-                if true_ans == 1:  # 真实无碰撞但预测碰撞
-                    link_onezero += 1
 
             # 更新统计（持续学习模式）
             if (true_ans == 1 and random.random() <= free_sample_rate) or true_ans == 0:
@@ -258,7 +252,6 @@ for benchid in range(0, 100):
         if true_ans == 0 and predicted == 0:
             zerozero += 1  # 真正例：真实碰撞且预测碰撞
             all_zerozero += 1
-            link_zerozero += 1
         elif true_ans == 1 and predicted == 0:
             onezero += 1  # 假正例：真实无碰撞但预测碰撞
             all_onezero += 1
@@ -269,7 +262,6 @@ for benchid in range(0, 100):
         if true_ans == 0:
             total_colliding += 1
             all_total_colliding += 1
-            link_colliding += 1
 
     # 过滤条件：跳过没有碰撞或没有正确预测碰撞的场景
     if total_colliding == 0 or zerozero == 0:

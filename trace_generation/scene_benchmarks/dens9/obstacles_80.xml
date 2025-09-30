@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+<mujoco model="obstacle_scene">
+  <compiler angle="radian" coordinate="local"/>
+  <option timestep="0.001" gravity="0 0 -9.81"/>
+
+  <asset>
+    <material name="obstacle_mat" rgba="0.8 0.8 0.0 0.8"/>
+    <material name="ground_mat" rgba="0.5 0.5 0.5 1"/>
+  </asset>
+
+  <worldbody>
+    <!-- Ground plane -->
+    <geom name="ground" type="plane" size="3 3 0.1" material="ground_mat"/>
+
+    <!-- Obstacles -->
+    <body name="obstacle_0" pos="-0.024263 -0.214250 0.664654">
+      <geom name="obs_0" type="box" size="0.149685 0.075841 0.093383" rgba="0.2 0.2 0.0 0.8"/>
+    </body>
+    <body name="obstacle_1" pos="-0.103181 -0.638393 0.826953">
+      <geom name="obs_1" type="box" size="0.058291 0.104106 0.080520" rgba="0.5 0.5 0.0 0.8"/>
+    </body>
+    <body name="obstacle_2" pos="-0.636168 -0.243991 1.230658">
+      <geom name="obs_2" type="box" size="0.142948 0.200447 0.056984" rgba="0.8 0.8 0.0 0.8"/>
+    </body>
+    <body name="obstacle_3" pos="-0.482476 -0.658608 0.492026">
+      <geom name="obs_3" type="box" size="0.136618 0.187543 0.123327" rgba="0.2 0.2 0.0 0.8"/>
+    </body>
+    <body name="obstacle_4" pos="-0.652400 0.199215 1.031582">
+      <geom name="obs_4" type="box" size="0.059847 0.151354 0.099212" rgba="0.5 0.5 0.0 0.8"/>
+    </body>
+    <body name="obstacle_5" pos="-0.550502 -0.632192 0.645565">
+      <geom name="obs_5" type="box" size="0.092746 0.141244 0.118817" rgba="0.8 0.8 0.0 0.8"/>
+    </body>
+    <body name="obstacle_6" pos="-0.494043 -0.231960 0.277558">
+      <geom name="obs_6" type="box" size="0.104251 0.078693 0.048321" rgba="0.2 0.2 0.0 0.8"/>
+    </body>
+    <body name="obstacle_7" pos="0.322593 -0.871362 0.193371">
+      <geom name="obs_7" type="box" size="0.091899 0.082040 0.075003" rgba="0.5 0.5 0.0 0.8"/>
+    </body>
+    <body name="obstacle_8" pos="-0.901689 -0.804909 0.729400">
+      <geom name="obs_8" type="box" size="0.117605 0.078764 0.066735" rgba="0.8 0.8 0.0 0.8"/>
+    </body>
+  </worldbody>
+</mujoco>

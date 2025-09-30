@@ -12,7 +12,7 @@
 # --- 配置 ---
 
 # 定义结果输出文件
-OUTPUT_FILE="sphere_hashing_results.csv"
+OUTPUT_FILE="./result_files/sphere_hashing_results.csv"
 
 # 定义要测试的参数范围
 DENSITY_LEVELS=("low" "mid" "high")             # 目标场景密度: "low", "mid", "high"

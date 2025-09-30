@@ -1,7 +1,3 @@
 trace_files/motion_traces/*
 trace_files/scene_benchmarks/*
-trace_generation/scene_benchmarks/*
 ./*.zip
-trace_generation/scene_benchmarks_abs/*
-trace_generation/scene_benchmarks_urdf/*
-trace_generation/scene_benchmarks/*

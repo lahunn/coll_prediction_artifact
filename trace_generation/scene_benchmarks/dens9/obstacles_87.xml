@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+<mujoco model="obstacle_scene">
+  <compiler angle="radian" coordinate="local"/>
+  <option timestep="0.001" gravity="0 0 -9.81"/>
+
+  <asset>
+    <material name="obstacle_mat" rgba="0.8 0.8 0.0 0.8"/>
+    <material name="ground_mat" rgba="0.5 0.5 0.5 1"/>
+  </asset>
+
+  <worldbody>
+    <!-- Ground plane -->
+    <geom name="ground" type="plane" size="3 3 0.1" material="ground_mat"/>
+
+    <!-- Obstacles -->
+    <body name="obstacle_0" pos="-0.499800 -0.609215 1.142522">
+      <geom name="obs_0" type="box" size="0.099938 0.113967 0.075497" rgba="0.2 0.2 0.0 0.8"/>
+    </body>
+    <body name="obstacle_1" pos="-0.147975 -0.320251 1.249209">
+      <geom name="obs_1" type="box" size="0.127711 0.076492 0.100753" rgba="0.5 0.5 0.0 0.8"/>
+    </body>
+    <body name="obstacle_2" pos="-0.394765 -0.483009 1.177742">
+      <geom name="obs_2" type="box" size="0.199089 0.063198 0.064120" rgba="0.8 0.8 0.0 0.8"/>
+    </body>
+    <body name="obstacle_3" pos="-0.320703 0.717233 1.096766">
+      <geom name="obs_3" type="box" size="0.074269 0.115095 0.106764" rgba="0.2 0.2 0.0 0.8"/>
+    </body>
+    <body name="obstacle_4" pos="-0.127712 0.136953 1.145621">
+      <geom name="obs_4" type="box" size="0.193513 0.081349 0.088605" rgba="0.5 0.5 0.0 0.8"/>
+    </body>
+    <body name="obstacle_5" pos="0.766467 -0.345042 0.464254">
+      <geom name="obs_5" type="box" size="0.194434 0.103752 0.100833" rgba="0.8 0.8 0.0 0.8"/>
+    </body>
+    <body name="obstacle_6" pos="-0.070815 0.226282 1.218349">
+      <geom name="obs_6" type="box" size="0.106647 0.204055 0.112998" rgba="0.2 0.2 0.0 0.8"/>
+    </body>
+    <body name="obstacle_7" pos="-0.820511 -0.542732 0.947241">
+      <geom name="obs_7" type="box" size="0.137393 0.084527 0.125755" rgba="0.5 0.5 0.0 0.8"/>
+    </body>
+    <body name="obstacle_8" pos="-0.187819 -0.543380 0.419204">
+      <geom name="obs_8" type="box" size="0.132054 0.141737 0.089587" rgba="0.8 0.8 0.0 0.8"/>
+    </body>
+  </worldbody>
+</mujoco>

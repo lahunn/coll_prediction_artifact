@@ -1,0 +1,56 @@
+<?xml version="1.0"?>
+<mujoco model="obstacle_scene">
+  <compiler angle="radian" coordinate="local"/>
+  <option timestep="0.001" gravity="0 0 -9.81"/>
+
+  <asset>
+    <material name="obstacle_mat" rgba="0.8 0.8 0.0 0.8"/>
+    <material name="ground_mat" rgba="0.5 0.5 0.5 1"/>
+  </asset>
+
+  <worldbody>
+    <!-- Ground plane -->
+    <geom name="ground" type="plane" size="3 3 0.1" material="ground_mat"/>
+
+    <!-- Obstacles -->
+    <body name="obstacle_0" pos="-0.359535 -0.211640 0.494850">
+      <geom name="obs_0" type="box" size="0.103088 0.099306 0.061430" rgba="0.2 0.2 0.0 0.8"/>
+    </body>
+    <body name="obstacle_1" pos="-0.531266 0.410079 1.284289">
+      <geom name="obs_1" type="box" size="0.194527 0.142819 0.076391" rgba="0.5 0.5 0.0 0.8"/>
+    </body>
+    <body name="obstacle_2" pos="0.018034 0.163077 0.832874">
+      <geom name="obs_2" type="box" size="0.073038 0.189922 0.056621" rgba="0.8 0.8 0.0 0.8"/>
+    </body>
+    <body name="obstacle_3" pos="0.365934 -0.031439 0.930132">
+      <geom name="obs_3" type="box" size="0.103287 0.147392 0.129442" rgba="0.2 0.2 0.0 0.8"/>
+    </body>
+    <body name="obstacle_4" pos="0.429649 -0.413594 0.592089">
+      <geom name="obs_4" type="box" size="0.135501 0.078227 0.034596" rgba="0.5 0.5 0.0 0.8"/>
+    </body>
+    <body name="obstacle_5" pos="-0.624749 -0.439836 0.558079">
+      <geom name="obs_5" type="box" size="0.068210 0.132217 0.090685" rgba="0.8 0.8 0.0 0.8"/>
+    </body>
+    <body name="obstacle_6" pos="0.773836 -0.393777 0.662001">
+      <geom name="obs_6" type="box" size="0.113593 0.160026 0.130212" rgba="0.2 0.2 0.0 0.8"/>
+    </body>
+    <body name="obstacle_7" pos="0.809737 -0.740529 0.340426">
+      <geom name="obs_7" type="box" size="0.097654 0.088047 0.077865" rgba="0.5 0.5 0.0 0.8"/>
+    </body>
+    <body name="obstacle_8" pos="0.431907 -0.665475 0.869035">
+      <geom name="obs_8" type="box" size="0.195931 0.205439 0.133681" rgba="0.8 0.8 0.0 0.8"/>
+    </body>
+    <body name="obstacle_9" pos="-0.377229 0.138274 0.463237">
+      <geom name="obs_9" type="box" size="0.180465 0.065229 0.122351" rgba="0.2 0.2 0.0 0.8"/>
+    </body>
+    <body name="obstacle_10" pos="0.838199 -0.471079 0.948619">
+      <geom name="obs_10" type="box" size="0.162984 0.089785 0.117857" rgba="0.5 0.5 0.0 0.8"/>
+    </body>
+    <body name="obstacle_11" pos="-0.603199 -0.037994 0.199063">
+      <geom name="obs_11" type="box" size="0.196555 0.135424 0.073516" rgba="0.8 0.8 0.0 0.8"/>
+    </body>
+    <body name="obstacle_12" pos="0.182906 -0.252678 1.017002">
+      <geom name="obs_12" type="box" size="0.193902 0.182088 0.059114" rgba="0.2 0.2 0.0 0.8"/>
+    </body>
+  </worldbody>
+</mujoco>
