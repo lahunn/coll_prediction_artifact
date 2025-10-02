@@ -3,9 +3,9 @@
 # 使用命令行参数: <密度等级> <量化位数> <碰撞阈值> <自由样本采样率> <链接数>
 
 # 使用示例：
-# python coord_hashing.py mid 8 0.1 0.3 7    # 中等密度场景，8位量化，0.1碰撞阈值，30%自由样本采样率，7个链接
-# python coord_hashing.py high 10 0.05 0.5 7 # 高密度场景，10位量化，0.05碰撞阈值，50%自由样本采样率，7个链接
-# python coord_hashing.py low 6 0.2 0.2 7    # 低密度场景，6位量化，0.2碰撞阈值，20%自由样本采样率，7个链接
+# python coord_hashing.py mid 8 0.1 0.3    # 中等密度场景，8位量化，0.1碰撞阈值，30%自由样本采样率
+# python coord_hashing.py high 10 0.05 0.5  # 高密度场景，10位量化，0.05碰撞阈值，50%自由样本采样率
+# python coord_hashing.py low 6 0.2 0.2    # 低密度场景，6位量化，0.2碰撞阈值，20%自由样本采样率
 import sys
 
 import numpy as np
