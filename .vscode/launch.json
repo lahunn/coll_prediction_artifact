@@ -1,8 +1,35 @@
 {
   "version": "0.2.0",
   "configurations": [
+
     {
-      "name": "Python 调试程序: 当前文件",
+      "name": "调试 optimize_s_parameters_sphere.py",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/prediction_approaches/optimize_s_parameters_sphere.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/prediction_approaches",
+      "args": [
+        "5",
+        "4",
+        "0.5",
+        "0"
+      ],
+    },
+    {
+      "name": "调试 optimize_s_parameters.py",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/prediction_approaches/optimize_s_parameters.py",
+      "console": "integratedTerminal",
+      "args": [
+        "5",
+        "0.5"
+      ],
+      "cwd": "${workspaceFolder}/prediction_approaches"
+    },
+    {
+      "name": "调试 coord_hashing.py",
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/prediction_approaches/coord_hashing.py",
@@ -12,6 +39,21 @@
         "5",
         "0.05",
         "0.5"
+      ],
+      "cwd": "${workspaceFolder}/prediction_approaches"
+    },
+    {
+      "name": "调试 coord_hashing_sphere.py",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/prediction_approaches/coord_hashing_sphere.py",
+      "console": "integratedTerminal",
+      "args": [
+        "mid",
+        "4",
+        "0",
+        "1",
+        "0.3"
       ],
       "cwd": "${workspaceFolder}/prediction_approaches"
     },

@@ -6,8 +6,11 @@
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
-import random
 import pickle
+from collision_prediction_strategies import (
+    FixedThresholdStrategy,
+    evaluate_strategy_on_spheres,
+)
 
 
 # 解析命令行参数
@@ -76,36 +79,33 @@ all_radii = []
 # 遍历所有场景收集数据范围
 for benchid in range(0, 100):
     benchidstr = str(benchid)
-    try:
-        if density_level == "low":
-            f = open(
-                "../trace_generation/scene_benchmarks/dens3_rs/obstacles_"
-                + benchidstr
-                + "_sphere.pkl",
-                "rb",
-            )
-        elif density_level == "mid":
-            f = open(
-                "../trace_generation/scene_benchmarks/dens3_rs/obstacles_"
-                + benchidstr
-                + "_sphere.pkl",
-                "rb",
-            )
-        else:
-            f = open(
-                "../trace_generation/scene_benchmarks/dens3_rs/obstacles_"
-                + benchidstr
-                + "_sphere.pkl",
-                "rb",
-            )
+    if density_level == "low":
+        f = open(
+            "../trace_generation/scene_benchmarks/dens6_rs/obstacles_"
+            + benchidstr
+            + "_sphere.pkl",
+            "rb",
+        )
+    elif density_level == "mid":
+        f = open(
+            "../trace_generation/scene_benchmarks/dens9_rs/obstacles_"
+            + benchidstr
+            + "_sphere.pkl",
+            "rb",
+        )
+    else:
+        f = open(
+            "../trace_generation/scene_benchmarks/dens12_rs/obstacles_"
+            + benchidstr
+            + "_sphere.pkl",
+            "rb",
+        )
 
-        qarr_sphere, rarr_sphere, yarr_sphere = pickle.load(f)
-        f.close()
+    qarr_sphere, rarr_sphere, yarr_sphere = pickle.load(f)
+    f.close()
 
-        all_positions.append(qarr_sphere)
-        all_radii.append(rarr_sphere.flatten())
-    except FileNotFoundError:
-        continue
+    all_positions.append(qarr_sphere)
+    all_radii.append(rarr_sphere.flatten())
 
 # 合并所有数据
 all_positions = np.vstack(all_positions)  # [N_total, 3]
@@ -145,36 +145,38 @@ r_bins = create_bins(r_min, r_max, binnumber_radius)
 
 # print(f"坐标轴使用 {binnumber_coord} 个桶, 半径使用 {binnumber_radius} 个桶进行离散化")
 
-# 初始化全局累计统计变量
-all_onezero = 0  # 全局false positive计数(真实无碰撞但预测碰撞)
-all_zerozero = 0  # 全局true positive计数(真实碰撞且预测碰撞)
-all_total = 0  # 全局总样本数
-all_total_colliding = 0  # 全局真实碰撞总数 len(label_pred)-np.sum(label_pred)
-globalcolldict = {}  # 全局碰撞字典(未使用)
-colldict = {}  # 当前场景的碰撞统计字典
-
+# 创建固定阈值策略
+strategy = FixedThresholdStrategy(
+    threshold=collision_threshold,
+    update_prob=free_sample_rate,
+    max_count=255,  # 8-bit SRAM存储
+)
 
 # 主循环：遍历100个基准场景进行评估
 for benchid in range(0, 100):
+    # 🔑 修复方案2: 重置strategy的历史和统计 (每个benchmark独立评估)
+    strategy.reset_collision_history()  # 清空colldict
+    # strategy.reset_statistics()  # 重置统计变量
+
     benchidstr = str(benchid)
     # 根据密度参数选择不同的数据集 - 修改为读取球体数据
     if density_level == "low":
         f = open(
-            "../trace_generation/scene_benchmarks/dens3_rs/obstacles_"
+            "../trace_generation/scene_benchmarks/dens6_rs/obstacles_"
             + benchidstr
             + "_sphere.pkl",
             "rb",
         )
     elif density_level == "mid":
         f = open(
-            "../trace_generation/scene_benchmarks/dens3_rs/obstacles_"
+            "../trace_generation/scene_benchmarks/dens9_rs/obstacles_"
             + benchidstr
             + "_sphere.pkl",
             "rb",
         )
     else:
         f = open(
-            "../trace_generation/scene_benchmarks/dens3_rs/obstacles_"
+            "../trace_generation/scene_benchmarks/dens12_rs/obstacles_"
             + benchidstr
             + "_sphere.pkl",
             "rb",
@@ -197,92 +199,21 @@ for benchid in range(0, 100):
 
     # 对球体半径进行独立量化离散化
     radius_pred_quant = np.digitize(radius_pred.flatten(), r_bins, right=True)
-    # print(len(code_pred_quant))
-    # 重置当前场景的碰撞统计字典
-    colldict = {}
 
-    # 获取坐标维度数（每个样本的坐标分量数）
-    bitsize = len(code_pred_quant[0])
-    # 初始化当前场景的统计变量
-    prediction_true = 0
-    onezero = 0  # false positive (真实自由但预测碰撞)
-    zerozero = 0  # true positive (真实碰撞且预测碰撞)
-    zeroone = 0  # false negative (真实碰撞但预测自由)
-    total_colliding = 0  # 当前场景真实碰撞总数
-
-    all_total += len(code_pred_quant)
-
-    # 按单个球体遍历数据（每个球体独立处理）
-    for i in range(len(code_pred_quant)):
-        # 初始化预测结果为1（无碰撞）
-        predicted = 1
-        # 获取真实答案
-        true_ans = int(label_pred[i])
-
-        # 构建当前球体的哈希键：位置(x,y,z) + 半径(可选)
-        keyy = ""
-        # 添加球体位置信息到键中
-        for j in range(bitsize):  # 位置的x,y,z坐标
-            if code_pred_quant[i, j] < 10:
-                keyy = keyy + "0"
-            keyy = keyy + str(code_pred_quant[i, j])
-
-        # 根据全局变量决定是否添加球体半径信息到键中
-        if consider_radius:
-            if radius_pred_quant[i] < 10:
-                keyy = keyy + "0"
-            keyy = keyy + str(radius_pred_quant[i])
-
-        # 检查键是否已存在于碰撞字典中
-        if keyy in colldict:
-            # 判断碰撞阈值：碰撞次数 > 阈值 × 自由次数
-            if colldict[keyy][0] > (collision_threshold * colldict[keyy][1]):
-                predicted = 0  # 预测为碰撞
-
-            # 更新统计（持续学习模式）
-            if (true_ans == 1 and random.random() <= free_sample_rate) or true_ans == 0:
-                colldict[keyy][true_ans] += 1
-        else:
-            # 新键：初始化统计并按规则更新
-            if (true_ans == 1 and random.random() <= free_sample_rate) or true_ans == 0:
-                colldict[keyy] = [0, 0]  # [碰撞计数, 自由计数]
-                colldict[keyy][true_ans] += 1
-
-        # 根据真实值和预测值更新混淆矩阵统计
-        if true_ans == 0 and predicted == 0:
-            zerozero += 1  # 真正例：真实碰撞且预测碰撞
-            all_zerozero += 1
-        elif true_ans == 1 and predicted == 0:
-            onezero += 1  # 假正例：真实无碰撞但预测碰撞
-            all_onezero += 1
-        elif true_ans == 0 and predicted == 1:
-            zeroone += 1  # 假负例：真实碰撞但预测无碰撞
-
-        # 统计真实碰撞总数和连杆碰撞
-        if true_ans == 0:
-            total_colliding += 1
-            all_total_colliding += 1
-
-    # 过滤条件：跳过没有碰撞或没有正确预测碰撞的场景
-    if total_colliding == 0 or zerozero == 0:
-        continue
+    # 使用策略评估球体
+    evaluate_strategy_on_spheres(
+        strategy,
+        code_pred_quant,
+        radius_pred_quant,
+        label_pred,
+        consider_radius=consider_radius,
+    )
 
 # 输出最终评估指标
-# 精确率 = TP / (TP + FP) * 100%
-# 召回率 = TP / (TP + FN) * 100% = TP / 总碰撞数 * 100%
-
 # 计算精确率和召回率
-precision = (
-    all_zerozero * 100 / (all_zerozero + all_onezero)
-    if (all_zerozero + all_onezero) > 0
-    else 0
-)
-recall = all_zerozero * 100 / all_total_colliding if all_total_colliding > 0 else 0
-
+precision, recall = strategy.get_metrics()
 
 # 输出详细结果：参数设置和性能指标
-# print("密度, 坐标量化位数, 半径量化位数, 碰撞阈值, 采样率, 精确率, 召回率")
-
 print(
     f"{density_level}, {coord_quantize_bits}, {radius_quantize_bits}, {collision_threshold}, {free_sample_rate}, {precision:.2f}%, {recall:.2f}%"
 )

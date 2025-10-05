@@ -1,17 +1,19 @@
 # 坐标哈希算法评估脚本
 # 通过离散化坐标空间并构建哈希表来预测机器人运动轨迹的碰撞风险
-# 使用命令行参数: <密度等级> <量化位数> <碰撞阈值> <自由样本采样率> <链接数>
+# 使用命令行参数: <密度等级> <量化位数> <碰撞阈值> <自由样本采样率>
 
 # 使用示例：
 # python coord_hashing.py mid 8 0.1 0.3    # 中等密度场景，8位量化，0.1碰撞阈值，30%自由样本采样率
 # python coord_hashing.py high 10 0.05 0.5  # 高密度场景，10位量化，0.05碰撞阈值，50%自由样本采样率
 # python coord_hashing.py low 6 0.2 0.2    # 低密度场景，6位量化，0.2碰撞阈值，20%自由样本采样率
 import sys
-
-import numpy as np
 import matplotlib.pyplot as plt
-import random
+import numpy as np
 import pickle
+from collision_prediction_strategies import (
+    FixedThresholdStrategy,
+    evaluate_strategy_on_trajectory,
+)
 
 # 解析命令行参数
 if len(sys.argv) != 5:
@@ -71,7 +73,6 @@ def plot(code, ytest, name):
 
 
 # 设置量化参数：将连续坐标空间离散化为哈希桶
-# distributing the dataset into two components X and Y
 
 # 根据解析的参数计算分桶数量：binnumber = 2^quantize_bits
 binnumber = 2**quantize_bits
@@ -84,22 +85,23 @@ for i in range(0, binnumber):
     bins[i] = start
     start += intervalsize
 
-# 初始化全局累计统计变量
-all_onezero = 0  # 全局false positive计数(真实无碰撞但预测碰撞)
-all_zerozero = 0  # 全局true positive计数(真实碰撞且预测碰撞)
-all_total = 0  # 全局总样本数
-all_total_colliding = 0  # 全局真实碰撞总数 len(label_pred)-np.sum(label_pred)
-globalcolldict = {}  # 全局碰撞字典(未使用)
-colldict = {}  # 当前场景的碰撞统计字典
-# print("Total colliding,zerozero,onezero,random_baseline,Prediction_accuracy,Fraction_predicted,link_colliding,link_zerozero,link_onezero")
+# 创建固定阈值策略
+strategy = FixedThresholdStrategy(
+    threshold=collision_threshold,
+    update_prob=free_sample_rate,
+    max_count=255,  # 8-bit SRAM存储
+)
 
 # 主循环：遍历100个基准场景进行评估
 for benchid in range(0, 100):
+    # 🔑 修复方案2: 重置strategy的历史和统计 (每个benchmark独立评估)
+    strategy.reset_collision_history()  # 清空colldict
+
     benchidstr = str(benchid)
     # 根据密度参数选择不同的数据集
     if density_level == "low":
         f = open(
-            "../trace_generation/scene_benchmarks/dens3_rs/obstacles_"
+            "../trace_generation/scene_benchmarks/dens6_rs/obstacles_"
             + benchidstr
             + "_coord.pkl",
             "rb",
@@ -107,14 +109,14 @@ for benchid in range(0, 100):
         # f=open("../trace_generation/scene_benchmarks/dens6/obstacles_"+benchidstr+"_coord.pkl","rb")
     elif density_level == "mid":
         f = open(
-            "../trace_generation/scene_benchmarks/dens3_rs/obstacles_"
+            "../trace_generation/scene_benchmarks/dens9_rs/obstacles_"
             + benchidstr
             + "_coord.pkl",
             "rb",
         )
     else:
         f = open(
-            "../trace_generation/scene_benchmarks/dens3_rs/obstacles_"
+            "../trace_generation/scene_benchmarks/dens12_rs/obstacles_"
             + benchidstr
             + "_coord.pkl",
             "rb",
@@ -126,124 +128,17 @@ for benchid in range(0, 100):
     f.close()
     # 对坐标进行量化离散化
     code_pred_quant = np.digitize(xtest_pred, bins, right=True)
-    # print(len(code_pred_quant))
-    # 重置当前场景的碰撞统计字典
-    colldict = {}
 
-    # 获取坐标维度数（每个样本的坐标分量数）
-    bitsize = len(code_pred_quant[0])
-    # 初始化当前场景的统计变量
-    prediction_true = 0
-    onezero = 0  # false positive (真实自由但预测碰撞)
-    zerozero = 0  # true positive (真实碰撞且预测碰撞)
-    zeroone = 0  # false negative (真实碰撞但预测自由)
-    total_colliding = 0  # 当前场景真实碰撞总数
-
-    # link级别的统计变量
-    link_colliding = 0
-    link_zerozero = 0
-    link_onezero = 0
-    all_total += len(code_pred_quant)
-
-    # 按指定链接数分组遍历数据（对应机器人的多个关节/链接）
-    for bini in range(0, len(code_pred_quant), num_links):
-        # if bini>=2800:
-        #   break
-        # 初始化预测结果为1（无碰撞）
-        predicted = 1
-        # 初始化真实答案为1（无碰撞）
-        true_ans = 1
-        # 遍历当前组内的所有链接
-        for i in range(bini, min(bini + num_links, len(code_pred_quant))):
-            # 构建当前链接的哈希键
-            keyy = ""
-            for j in range(0, bitsize):
-                # 为小于10的桶号添加前导0，保持键的统一格式
-                if code_pred_quant[i, j] < 10:
-                    keyy = keyy + "0"
-                keyy = keyy + str(code_pred_quant[i, j])
-            # 如果考虑方向，将方向信息添加到键中
-            if consider_dir:
-                keyy = keyy + dirr_pred[i]
-            # print(keyy,predicted)
-
-            # 检查键是否已存在于碰撞字典中
-            if keyy in colldict:
-                # 判断碰撞阈值：碰撞次数 > 阈值 × 自由次数
-                # if colldict[keyy][0]>0:#colldict[keyy][1]:
-                if colldict[keyy][0] > (
-                    collision_threshold * colldict[keyy][1]
-                ):  # colldict[keyy][1]:
-                    # print(colldict[keyy],keyy)
-                    # 预测为碰撞
-                    predicted = 0
-                    if label_pred[i] > 0.5:
-                        link_onezero += 1
-                # 更新统计（持续学习模式）：
-                # 碰撞样本总是更新；自由样本按概率free_sample_rate采样更新
-                ## for continual
-                if (
-                    label_pred[i] > 0.5 and random.random() <= free_sample_rate
-                ) or label_pred[i] < 0.5:
-                    colldict[keyy][int(label_pred[i].item())] += 1
-            else:
-                # 新键：初始化统计并按规则更新
-                if (
-                    label_pred[i] > 0.5 and random.random() <= free_sample_rate
-                ) or label_pred[i] < 0.5:
-                    colldict[keyy] = [0, 0]  # [碰撞计数, 自由计数]
-                    colldict[keyy][int(label_pred[i].item())] += 1
-
-            # 检查真实标签：如果任一链接碰撞，整组为碰撞
-            if label_pred[i] < 0.5:
-                true_ans = 0  # 标记真实答案为碰撞
-                link_colliding += 1
-                if predicted == 0:
-                    link_zerozero += 1
-                    break  # 预测到碰撞，提前退出当前组检查
-        # print(keyy,predicted)
-        # 根据真实值和预测值更新混淆矩阵统计
-        if true_ans == 0 and predicted == 0:
-            # 真正例：真实碰撞且预测碰撞
-            zerozero += 1
-            all_zerozero += 1
-        elif true_ans == 1 and predicted == 0:
-            # 假正例：真实无碰撞但预测碰撞
-            onezero += 1
-            all_onezero += 1
-            # print(colldict[keyy])
-        elif true_ans == 0 and predicted == 1:
-            # 假负例：真实碰撞但预测无碰撞
-            zeroone += 1
-        # 统计真实碰撞总数
-        if true_ans == 0:
-            total_colliding += 1
-            all_total_colliding += 1
-
-    # 过滤条件：跳过没有碰撞或没有正确预测碰撞的场景
-    if total_colliding == 0 or zerozero == 0:
-        continue
+    # 使用策略评估轨迹
+    evaluate_strategy_on_trajectory(
+        strategy, code_pred_quant, label_pred, group_size=num_links
+    )
 
 # 输出最终评估指标
-# 精确率 = TP / (TP + FP) * 100%
-# 召回率 = TP / (TP + FN) * 100% = TP / 总碰撞数 * 100%
-# TP (True Positive) - 真正例
-# FP (False Positive) - 假正例
-# FN (False Negative) - 假负例
-# 精确率 (Precision) - 含义: 在所有预测为碰撞的样本中，真正碰撞的比例，反映: 算法预测碰撞的可信度
-# 召回率 (Recall) - 含义: 在所有真实碰撞样本中，被正确预测出的比例，反映: 算法发现碰撞的能力
-
 # 计算精确率和召回率
-precision = (
-    all_zerozero * 100 / (all_zerozero + all_onezero)
-    if (all_zerozero + all_onezero) > 0
-    else 0
-)
-recall = all_zerozero * 100 / all_total_colliding if all_total_colliding > 0 else 0
+precision, recall = strategy.get_metrics()
 
 # 输出详细结果：参数设置和性能指标
-# print("密度, 量化位数, 碰撞阈值, 采样率,  精确率, 召回率")
-
 print(
     f"{density_level}, {quantize_bits}, {collision_threshold}, {free_sample_rate},  {precision:.2f}%, {recall:.2f}%"
 )
