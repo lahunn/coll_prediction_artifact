@@ -82,6 +82,99 @@ class CollisionPredictionStrategy:
         """
         self.colldict.clear()
 
+    def inherit_collision_history(self, source_strategy, rate=1.0):
+        """
+        从另一个策略对象继承碰撞历史表,支持缩放比例
+        用于在连续的运动规划任务之间复用已学习的碰撞模式
+
+        使用场景:
+        - 连续的运动规划任务(环境相似)
+        - 迁移学习:从相似场景迁移知识,rate<1.0降低旧知识权重
+        - 热启动:避免冷启动问题
+
+        Args:
+            source_strategy: 源策略对象,从中继承colldict
+            rate: 缩放比例 (0.0~1.0)
+                  rate=1.0: 完全继承(默认)
+                  rate=0.5: 继承后计数减半(降低旧知识权重)
+                  rate=0.1: 继承后计数缩小到10%(弱先验)
+                  rate=0.0: 不继承任何历史
+
+        注意:
+        - 只继承历史表(colldict),不继承统计变量
+        - 使用深拷贝避免引用共享
+        - 计数缩放后向下取整,最小为0
+        - rate<1.0适用于环境变化场景,降低旧经验的影响
+        """
+        if source_strategy is None:
+            return
+
+        if not isinstance(source_strategy, CollisionPredictionStrategy):
+            raise TypeError("source_strategy必须是CollisionPredictionStrategy的实例")
+
+        if not 0.0 <= rate <= 1.0:
+            raise ValueError("rate必须在0.0到1.0之间")
+
+        # 深拷贝历史表并按比例缩放,避免引用共享
+        self.colldict.clear()
+        for key, counts in source_strategy.colldict.items():
+            # counts是[碰撞次数, 自由次数]
+            # 按比例缩放并向下取整
+            scaled_coll_count = int(counts[0] * rate)
+            scaled_free_count = int(counts[1] * rate)
+
+            # 只继承非零的条目(避免无用的空条目)
+            if scaled_coll_count > 0 or scaled_free_count > 0:
+                self.colldict[key] = [scaled_coll_count, scaled_free_count]
+
+    def self_inherit_collision_history(self, rate=1.0):
+        """
+        自继承碰撞历史表,按比例缩放自身的历史数据
+        用于需要降低历史权重但保持相同策略配置的场景
+
+        使用场景:
+        - 环境发生变化,需要降低旧经验权重
+        - 周期性衰减历史数据,避免过度拟合
+        - 实现遗忘机制,让策略更关注近期数据
+
+        Args:
+            rate: 缩放比例 (0.0~1.0)
+                  rate=1.0: 保持不变(默认)
+                  rate=0.5: 计数减半(适度遗忘)
+                  rate=0.1: 计数缩小到10%(强遗忘)
+                  rate=0.0: 清空所有历史
+
+        注意:
+        - 直接修改自身的colldict
+        - 不影响统计变量(all_zerozero等)
+        - rate=0.0等价于reset_collision_history()
+
+        示例:
+            >>> strategy = FixedThresholdStrategy(threshold=0.1)
+            >>> # ... 训练后 colldict = {"key1": [100, 50]} ...
+            >>> strategy.self_inherit_collision_history(rate=0.5)
+            >>> # 现在 colldict = {"key1": [50, 25]}
+        """
+        if not 0.0 <= rate <= 1.0:
+            raise ValueError("rate必须在0.0到1.0之间")
+
+        if rate == 0.0:
+            self.colldict.clear()
+            return
+
+        # 创建临时字典存储缩放后的结果
+        new_colldict = {}
+        for key, counts in self.colldict.items():
+            scaled_coll_count = int(counts[0] * rate)
+            scaled_free_count = int(counts[1] * rate)
+
+            # 只保留非零的条目
+            if scaled_coll_count > 0 or scaled_free_count > 0:
+                new_colldict[key] = [scaled_coll_count, scaled_free_count]
+
+        # 替换原字典
+        self.colldict = new_colldict
+
     def update_statistics(self, predicted, true_label):
         """
         更新统计变量
