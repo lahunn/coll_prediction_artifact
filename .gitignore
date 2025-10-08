@@ -1,3 +1,7 @@
 trace_files/motion_traces/*
 trace_files/scene_benchmarks/*
 ./*.zip
+motion_planning_prediction/result_files/*.csv
+prediction_approaches/*.pdf
+prediction_approaches/*.png
+motion_planning_prediction/*log*
