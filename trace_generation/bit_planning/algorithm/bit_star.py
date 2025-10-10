@@ -136,8 +136,6 @@ class BITStar:
         return x
 
     def informed_sample(self, c_best, sample_num, vertices):
-        edge_info = []
-        edge_info_coll = []
         if c_best < float("inf"):
             c_b = math.sqrt(c_best**2 - self.c_min**2) / 2.0
             r = [c_best / 2.0] + [c_b] * (self.dimension - 1)
@@ -153,33 +151,29 @@ class BITStar:
             else:
                 random_point = self.get_random_point()
             # print("sampling in informed sample")
-            feas, linkinfo, linkinfo_coll = self.is_point_free(random_point)
-            edge_info.append([linkinfo])
-            edge_info_coll.append([linkinfo_coll])
+            feas = self.is_point_free(random_point)
             if feas:
                 sample_array.append(random_point)
                 cur_num += 1
 
-        return sample_array, edge_info, edge_info_coll
+        return sample_array
 
     def get_random_point(self):
         point = self.bounds[:, 0] + np.random.random(self.dimension) * self.ranges
         return tuple(point)
 
     def is_point_free(self, point):
-        result, info, coll = self.env._state_fp_probe(np.array(point))
+        result = self.env._state_fp(np.array(point))
         if result:
             self.n_free_points += 1
         else:
             self.n_collision_points += 1
-        return result, info, coll
+        return result
 
     def is_edge_free(self, edge):
-        result, info, coll = self.env._edge_fp_probe(
-            np.array(edge[0]), np.array(edge[1])
-        )
+        result = self.env._edge_fp(np.array(edge[0]), np.array(edge[1]))
         # self.T += self.env.k
-        return result, info, coll
+        return result
 
     def get_g_score(self, point):
         # gT(x)
@@ -198,10 +192,10 @@ class BITStar:
 
     def actual_edge_cost(self, point1, point2):
         # c(x1,x2)
-        feas, info, coll = self.is_edge_free([point1, point2])
+        feas = self.is_edge_free([point1, point2])
         if not feas:
-            return INF, info, coll
-        return self.distance(point1, point2), info, coll
+            return INF
+        return self.distance(point1, point2)
 
     def heuristic_cost(self, point1, point2):
         # Euler distance as the heuristic distance
@@ -376,11 +370,8 @@ class BITStar:
                 # 剪枝：移除不可能改进当前解的顶点和边
                 self.prune(c_best)
 
-                # 批量采样：生成新样本点，并记录采样过程的边信息
-                sample_temp, edge_info_full, edge_infocoll_full = self.sampling(
-                    c_best, self.batch_size, self.vertices
-                )
-                # print(edge_info_full)
+                # 批量采样：生成新样本点
+                sample_temp = self.sampling(c_best, self.batch_size, self.vertices)
                 self.samples.extend(sample_temp)
                 self.T += self.batch_size  # 更新总采样数
 
@@ -421,14 +412,7 @@ class BITStar:
             # 检查该边是否可能改进当前解
             if best_edge_value < self.g_scores[self.goal]:
                 # 计算边的实际代价（进行碰撞检测）
-                # print("actual cost of edge",bestEdge[0],bestEdge[1])
-                actual_cost_of_edge, edgeinfo, edgeinfo_coll = self.actual_edge_cost(
-                    bestEdge[0], bestEdge[1]
-                )
-                # 保存边的检测信息，用于后续数据分析
-                # print(edgeinfo)
-                edge_info_full.append(edgeinfo)
-                edge_infocoll_full.append(edgeinfo_coll)
+                actual_cost_of_edge = self.actual_edge_cost(bestEdge[0], bestEdge[1])
 
                 self.timer.start()
                 # 计算通过该边的实际f值
