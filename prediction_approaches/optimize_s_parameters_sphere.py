@@ -16,6 +16,9 @@ from collision_prediction_strategies import (
 )
 
 
+sphere_num = 63
+sphere_cost = 18
+
 def load_sphere_benchmark_data(benchid, density="low"):
     """
     加载球体基准测试数据
@@ -177,8 +180,8 @@ def evaluate_fixed_threshold_sphere(
 
         if prec > 0 and rec > 0 and collision_ratio > 0:
             cost = find_sim_cost(
-                R=collision_ratio, C=rec / 100.0, A=prec / 100.0, N=1000
-            )
+                R=collision_ratio, C=rec / 100.0, A=prec / 100.0, N=sphere_num
+            ) * sphere_cost
             all_costs.append(cost)
 
         # 重置以准备下一个场景
@@ -250,8 +253,8 @@ def evaluate_adaptive_threshold_sphere(
         collision_ratio = strategy.get_collision_ratio()
 
         if prec > 0 and rec > 0 and collision_ratio > 0:
-            # 对于球体，N=1（每个球体独立）
-            cost = find_sim_cost(R=collision_ratio, C=rec / 100.0, A=prec / 100.0, N=1)
+            # 对于球体，N=63
+            cost = find_sim_cost(R=collision_ratio, C=rec / 100.0, A=prec / 100.0, N=sphere_num) * sphere_cost
             all_costs.append(cost)
 
         # 重置以准备下一个场景
