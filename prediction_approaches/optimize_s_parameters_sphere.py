@@ -19,6 +19,7 @@ from collision_prediction_strategies import (
 sphere_num = 63
 sphere_cost = 18
 
+
 def load_sphere_benchmark_data(benchid, density="low"):
     """
     加载球体基准测试数据
@@ -179,9 +180,12 @@ def evaluate_fixed_threshold_sphere(
         collision_ratio = strategy.get_collision_ratio()
 
         if prec > 0 and rec > 0 and collision_ratio > 0:
-            cost = find_sim_cost(
-                R=collision_ratio, C=rec / 100.0, A=prec / 100.0, N=sphere_num
-            ) * sphere_cost
+            cost = (
+                find_sim_cost(
+                    R=collision_ratio, C=rec / 100.0, A=prec / 100.0, N=sphere_num
+                )
+                * sphere_cost
+            )
             all_costs.append(cost)
 
         # 重置以准备下一个场景
@@ -254,7 +258,12 @@ def evaluate_adaptive_threshold_sphere(
 
         if prec > 0 and rec > 0 and collision_ratio > 0:
             # 对于球体，N=63
-            cost = find_sim_cost(R=collision_ratio, C=rec / 100.0, A=prec / 100.0, N=sphere_num) * sphere_cost
+            cost = (
+                find_sim_cost(
+                    R=collision_ratio, C=rec / 100.0, A=prec / 100.0, N=sphere_num
+                )
+                * sphere_cost
+            )
             all_costs.append(cost)
 
         # 重置以准备下一个场景
@@ -417,7 +426,7 @@ def main():
         print(
             "用法: python optimize_s_parameters_sphere.py <coord_bin_bits> <radius_bin_bits> [update_prob] [consider_radius]"
         )
-        print("示例: python optimize_s_parameters_sphere.py 5 4 0.5 0")
+        print("示例: python optimize_s_parameters_sphere.py 4 0 0.5 0")
         sys.exit(1)
 
     coord_bin_bits = int(sys.argv[1])

@@ -19,6 +19,7 @@ from collision_prediction_strategies import (
 obb_num = 11
 obb_cost = 42
 
+
 def load_benchmark_data(benchid, density="low"):
     """
     加载基准测试数据
@@ -106,9 +107,12 @@ def evaluate_fixed_threshold(threshold, density, bench_ids, num_bins, update_pro
         collision_ratio = strategy.get_collision_ratio()
 
         if prec > 0 and rec > 0 and collision_ratio > 0:
-            cost = find_sim_cost(
-                R=collision_ratio, C=rec / 100.0, A=prec / 100.0, N=obb_num
-            ) * obb_cost
+            cost = (
+                find_sim_cost(
+                    R=collision_ratio, C=rec / 100.0, A=prec / 100.0, N=obb_num
+                )
+                * obb_cost
+            )
             all_costs.append(cost)
 
         # 重置以准备下一个场景
@@ -160,7 +164,12 @@ def evaluate_adaptive_threshold(
         collision_ratio = strategy.get_collision_ratio()
 
         if prec > 0 and rec > 0 and collision_ratio > 0:
-            cost = find_sim_cost(R=collision_ratio, C=rec / 100.0, A=prec / 100.0, N=obb_num) * obb_cost
+            cost = (
+                find_sim_cost(
+                    R=collision_ratio, C=rec / 100.0, A=prec / 100.0, N=obb_num
+                )
+                * obb_cost
+            )
             all_costs.append(cost)
 
         # 重置以准备下一个场景
@@ -291,7 +300,7 @@ def main():
     # 解析命令行参数
     if len(sys.argv) < 2:
         print("用法: python optimize_s_parameters.py <bin_bits> [update_prob]")
-        print("示例: python optimize_s_parameters.py 5 0.5")
+        print("示例: python optimize_s_parameters.py 4 0.5")
         sys.exit(1)
 
     bin_bits = int(sys.argv[1])
