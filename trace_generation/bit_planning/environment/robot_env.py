@@ -6,7 +6,7 @@ from time import time
 from environment.timer import Timer
 
 
-class KukaEnv:
+class RobotEnv:
     """
     Interface class for maze environment
     """
