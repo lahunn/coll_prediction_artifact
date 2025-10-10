@@ -28,9 +28,7 @@ matplotlib.rcParams["axes.unicode_minus"] = False  # 解决负号显示问题
 
 # 解析命令行参数
 if len(sys.argv) < 6:
-    print(
-        "用法: python analyze_training_progression.py <数据类型> <密度等级> <量化参数> <碰撞阈值> <自由样本采样率> [benchmark_id] [步长]"
-    )
+    print("用法: python analyze_training_progression.py <数据类型> <密度等级> <量化参数> <碰撞阈值> <自由样本采样率> [benchmark_id] [步长]")
     print("\n数据类型:")
     print("  trajectory - 机器人轨迹数据")
     print("  sphere - 球体数据")
@@ -144,7 +142,6 @@ else:  # sphere
         f"数据范围: X[{x_min:.3f},{x_max:.3f}] Y[{y_min:.3f},{y_max:.3f}] Z[{z_min:.3f},{z_max:.3f}] R[{r_min:.3f},{r_max:.3f}]"
     )
 
-
 # ========== 加载单个benchmark数据 ==========
 print(f"\n正在加载benchmark {benchmark_id}的数据...")
 
@@ -179,7 +176,6 @@ print(f"总样本数: {total_samples}")
 # 计算需要评估的区间数
 num_intervals = (total_samples + step_size - 1) // step_size
 print(f"将划分为 {num_intervals} 个区间 (每个区间 {step_size} 个样本)")
-
 
 # ========== 增量训练和评估 ==========
 print("\n" + "=" * 80)
@@ -263,28 +259,22 @@ for interval_idx in range(num_intervals):
     # 计算指标
     precision = (tp * 100.0 / (tp + fp)) if (tp + fp) > 0 else 0.0
     recall = (tp * 100.0 / total_collisions) if total_collisions > 0 else 0.0
-    f1 = (
-        (2 * precision * recall / (precision + recall))
-        if (precision + recall) > 0
-        else 0.0
-    )
+    f1 = ((2 * precision * recall / (precision + recall)) if (precision + recall) > 0 else 0.0)
     cht_size = len(strategy.colldict)
 
-    results.append(
-        {
-            "interval": interval_idx + 1,
-            "start": start_idx,
-            "end": end_idx,
-            "samples": end_idx,
-            "precision": precision,
-            "recall": recall,
-            "f1": f1,
-            "tp": tp,
-            "fp": fp,
-            "total_collisions": total_collisions,
-            "cht_size": cht_size,
-        }
-    )
+    results.append({
+        "interval": interval_idx + 1,
+        "start": start_idx,
+        "end": end_idx,
+        "samples": end_idx,
+        "precision": precision,
+        "recall": recall,
+        "f1": f1,
+        "tp": tp,
+        "fp": fp,
+        "total_collisions": total_collisions,
+        "cht_size": cht_size,
+    })
 
     if interval_idx % 5 == 0 or interval_idx == num_intervals - 1:
         print(
@@ -292,14 +282,11 @@ for interval_idx in range(num_intervals):
             f"精确率={precision:.2f}% 召回率={recall:.2f}% F1={f1:.2f} CHT大小={cht_size}"
         )
 
-
 # ========== 输出结果 ==========
 print("\n" + "=" * 80)
 print("详细结果")
 print("=" * 80)
-print(
-    f"{'区间':<6} {'样本范围':<20} {'累积样本':<10} {'精确率%':<10} {'召回率%':<10} {'F1':<8} {'CHT大小':<10}"
-)
+print(f"{'区间':<6} {'样本范围':<20} {'累积样本':<10} {'精确率%':<10} {'召回率%':<10} {'F1':<8} {'CHT大小':<10}")
 print("-" * 80)
 
 for r in results:
