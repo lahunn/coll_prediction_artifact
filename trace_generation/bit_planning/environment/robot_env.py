@@ -20,12 +20,14 @@ class RobotEnv:
         robot_file="kuka_iiwa/model_0.urdf",
         map_file="maze_files/kukas_7_3000.pkl",
         z_offset=0.0,
+        config_output_file=None,
     ):
         # print("Initializing environment...")
 
         self.dim = 3
         self.robot_file = robot_file
         self.z_offset = z_offset
+        self.config_output_file = config_output_file
 
         self.collision_check_count = 0
         self.collision_time = 0
@@ -461,6 +463,9 @@ class RobotEnv:
     def _point_in_free_space(self, state):
         """检查单个配置是否无碰撞（内部方法），使用PyBullet碰撞检测，统计检测次数和耗时"""
         # print("here")
+        if self.config_output_file is not None:
+            with open(self.config_output_file, "a") as f:
+                f.write(" ".join(map(str, state)) + "\n")
         t0 = time()
         if not self._valid_state(state):
             return False
