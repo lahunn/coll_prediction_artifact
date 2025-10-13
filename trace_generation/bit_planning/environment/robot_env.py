@@ -77,6 +77,12 @@ class RobotEnv:
 
         self.order = list(range(len(self.problems)))
         self.episode_i = 0
+        
+        # 初始化规划问题相关属性
+        self.obstacles = []
+        self.init_state = [0.0] * self.config_dim
+        self.goal_state = [0.0] * self.config_dim
+        self.path = []
 
     def close(self):
         if self.config_file_handle is not None:
@@ -266,6 +272,118 @@ class RobotEnv:
             basePosition=basePosition,
         )
         return groundId
+
+    def init_obstacle_bodies(self, num_obstacles, initial_obstacles=None):
+        """
+        初始化固定数量的障碍物体，后续可以通过update_obstacle_poses快速更新位置
+        
+        Args:
+            num_obstacles: 障碍物数量
+            initial_obstacles: 初始障碍物列表 [(halfExtents, basePosition), ...]
+                              如果为None，使用默认尺寸
+        
+        Returns:
+            obstacle_body_ids: 障碍物体ID列表
+        """
+        self.obstacles = initial_obstacles
+        self.obstacle_body_ids = []
+        
+        for i in range(num_obstacles):
+            if initial_obstacles is not None and i < len(initial_obstacles):
+                halfExtents, basePosition = initial_obstacles[i]
+            else:
+                # 默认尺寸和位置
+                halfExtents = np.array([0.1, 0.1, 0.1])
+                basePosition = np.array([0, 0, -10])  # 放在很远的地方
+            
+            # 创建障碍物
+            body_id = self.create_voxel(halfExtents, basePosition)
+            self.obstacle_body_ids.append(body_id)
+        
+        return self.obstacle_body_ids
+
+    def update_obstacle_poses(self, new_obstacles):
+        """
+        快速更新障碍物的位置和方向（不重新创建）
+        
+        Args:
+            new_obstacles: 新的障碍物列表 [(halfExtents, basePosition), ...]
+        
+        Note:
+            此方法只更新位置，不更新尺寸。如果需要更新尺寸，需要重新创建障碍物。
+        """
+        if not hasattr(self, 'obstacle_body_ids'):
+            raise RuntimeError("请先调用 init_obstacle_bodies() 初始化障碍物")
+        
+        for i, (halfExtents, basePosition) in enumerate(new_obstacles):
+            if i < len(self.obstacle_body_ids):
+                # 只更新位置和方向
+                p.resetBasePositionAndOrientation(
+                    self.obstacle_body_ids[i],
+                    basePosition,
+                    [0, 0, 0, 1]  # 单位四元数（无旋转）
+                )
+        
+        # 更新环境的障碍物列表
+        self.obstacles = new_obstacles
+
+    def randomize_obstacle_poses(
+        self,
+        workspace_range=(-1.0, 1.0),
+        safe_zone_center=(0.0, 0.0, 0.0),
+        safe_zone_radius=0.3,
+        max_attempts_per_obstacle=100
+    ):
+        """
+        随机更新当前障碍物的位置（保持尺寸不变）
+        
+        Args:
+            workspace_range: 工作空间范围 (min, max)
+            safe_zone_center: 安全区域中心
+            safe_zone_radius: 安全区域半径
+            max_attempts_per_obstacle: 每个障碍物的最大尝试次数
+        
+        Returns:
+            new_obstacles: 更新后的障碍物列表
+        """
+        if not hasattr(self, 'obstacle_body_ids') or not hasattr(self, 'obstacles'):
+            raise RuntimeError("请先调用 init_obstacle_bodies() 并设置 self.obstacles")
+        
+        w_min, w_max = workspace_range
+        safe_center = np.array(safe_zone_center)
+        new_obstacles = []
+        
+        for halfExtents, old_position in self.obstacles:
+            # 为每个障碍物尝试找到新的有效位置
+            for attempt in range(max_attempts_per_obstacle):
+                # 随机生成新位置
+                new_position = np.random.uniform(w_min, w_max, size=3)
+                
+                # 检查是否在安全区域外
+                distance_to_base = np.linalg.norm(new_position - safe_center)
+                min_safe_distance = safe_zone_radius + np.max(halfExtents)
+                
+                if distance_to_base > min_safe_distance:
+                    new_obstacles.append((halfExtents, new_position))
+                    break
+            else:
+                # 如果找不到有效位置，保持原位置
+                new_obstacles.append((halfExtents, old_position))
+        
+        # 更新障碍物位置
+        self.update_obstacle_poses(new_obstacles)
+        
+        return new_obstacles
+
+    def cleanup_obstacles(self):
+        """清理所有障碍物体"""
+        if hasattr(self, 'obstacle_body_ids'):
+            for body_id in self.obstacle_body_ids:
+                try:
+                    p.removeBody(body_id)
+                except Exception:
+                    pass
+            self.obstacle_body_ids.clear()
 
     def sample_n_points(self, n, need_negative=False):
         """采样n个无碰撞的配置点，need_negative=True时同时返回采样过程中遇到的碰撞配置（用于生成负样本）"""

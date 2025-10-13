@@ -90,6 +90,11 @@ def main():
 
     sim = PyBulletRobotSimulator()
     sim.load_robot(robot_urdf)
+    
+    if sim.robot_id is None:
+        print("Error: Failed to load robot")
+        sys.exit(1)
+    
     sim.load_obstacles(obstacle_file)
 
     obb_templates = initialize_obb_templates(robot_urdf)

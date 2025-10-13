@@ -28,7 +28,7 @@ echo "生成 Kuka 7DOF 数据集"
 echo "========================================================================"
 python generate_problem_dataset.py \
     --robot-file kuka_iiwa/model_0.urdf \
-    --num-problems 3000 \
+    --num-problems 30 \
     --num-obstacles 10 \
     --max-time 60.0 \
     --workspace-min -0.8 \

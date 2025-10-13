@@ -76,6 +76,41 @@ class BITStar:
         self.n_free_points = 2
         print("init of BITStart done")
 
+    def reset(self, new_start, new_goal):
+        """
+        重置规划器到新的起点和终点，复用环境和参数
+        
+        Args:
+            new_start: 新起始状态 (numpy array)
+            new_goal: 新目标状态 (numpy array)
+        """
+        # 更新起点和终点
+        self.start = tuple(new_start)
+        self.goal = tuple(new_goal)
+        self.env.init_state = new_start
+        self.env.goal_state = new_goal
+        
+        # 清空树和样本
+        self.vertices.clear()
+        self.edges.clear()
+        self.g_scores.clear()
+        self.samples.clear()
+        self.vertex_queue.clear()
+        self.edge_queue.clear()
+        self.old_vertices.clear()
+        
+        # 重置迭代参数
+        self.r = INF
+        self.T = 0
+        
+        # 重新计算 informed sampling 参数
+        self.c_min = self.distance(self.start, self.goal)
+        self.informed_sample_init()
+        
+        # 重置碰撞计数（可选，保留历史统计）
+        # self.n_collision_points = 0
+        # self.n_free_points = 2
+
     def setup_planning(self):
         # add goal to the samples
         self.samples.append(self.goal)
