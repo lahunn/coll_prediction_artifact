@@ -4,7 +4,6 @@ import heapq
 import time
 from time import time
 from environment.timer import Timer
-import pickle
 
 INF = float("inf")
 
@@ -469,13 +468,6 @@ class BITStar:
                 time() - init_time > refine_time_budget
             ):
                 break
-
-        # 保存规划过程中的边信息到pickle文件
-        # 包含两部分：边的详细信息(edgeinfo)和碰撞检测信息(edgeinfo_coll)
-        f = open("logfiles_BIT_link/link_info_" + str(problemindex) + ".pkl", "wb")
-        # print(edge_infocoll_full)
-        pickle.dump((edge_info_full, edge_infocoll_full), f)
-        f.close()
 
         # 返回规划结果
         return (

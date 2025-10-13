@@ -5,3 +5,5 @@ motion_planning_prediction/result_files/*.csv
 prediction_approaches/*.pdf
 prediction_approaches/*.png
 motion_planning_prediction/*log*
+trace_generation/bit_planning/maze_files/*.pkl
+prediction_approaches/result_files/*.csv

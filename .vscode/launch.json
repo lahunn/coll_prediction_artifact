@@ -1,7 +1,6 @@
 {
   "version": "0.2.0",
   "configurations": [
-
     {
       "name": "调试 optimize_s_parameters_sphere.py",
       "type": "debugpy",
@@ -69,6 +68,35 @@
         "1"
       ],
       "cwd": "${workspaceFolder}/trace_generation"
+    },
+    {
+      "name": "调试 generate_problem_dataset.py",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/trace_generation/bit_planning/generate_problem_dataset.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/trace_generation/bit_planning",
+      "args": [
+        "--num-problems", "5",
+        "--num-obstacles", "8",
+        "--max-time", "30.0",
+        "--output-file", "maze_files/debug_test.pkl"
+      ]
+    },
+    {
+      "name": "可视化调试 generate_problem_dataset.py",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/trace_generation/bit_planning/generate_problem_dataset.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/trace_generation/bit_planning",
+      "args": [
+        "--num-problems", "1",
+        "--num-obstacles", "8",
+        "--max-time", "30.0",
+        "--safe-zone-radius", "0.5",
+        "--visualize"
+      ]
     }
   ]
 }

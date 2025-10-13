@@ -50,7 +50,9 @@ class RobotEnv:
         self.timer = Timer()
 
         p.setAdditionalSearchPath(pybullet_data.getDataPath())
-        self.robotId = p.loadURDF(robot_file, [0, 0, 0], [0, 0, 0, 1], useFixedBase=True)
+        self.robotId = p.loadURDF(
+            robot_file, [0, 0, 0], [0, 0, 0, 1], useFixedBase=True
+        )
         p.performCollisionDetection()
 
         self.config_dim = p.getNumJoints(self.robotId)
@@ -72,17 +74,18 @@ class RobotEnv:
         self.episode_i = 0
 
     def __str__(self):
+        """返回环境的字符串表示，格式为'机器人名称_自由度dof'，用于标识不同的机器人配置"""
         # 从robot_file提取机器人名称
-        robot_name = self.robot_file.split('/')[-1].split('.')[0]
+        robot_name = self.robot_file.split("/")[-1].split(".")[0]
         return f"{robot_name}_{self.config_dim}dof"
 
     def init_new_problem(self, index=None):
         """
         初始化一个新的路径规划问题
-        
+
         Args:
             index: 问题索引,如果为None则使用当前episode索引
-            
+
         Returns:
             包含地图、起始状态和目标状态的问题字典
         """
@@ -101,7 +104,7 @@ class RobotEnv:
         # 更新episode索引,循环使用问题集
         self.episode_i += 1
         self.episode_i = (self.episode_i) % len(self.order)
-        
+
         # 重置碰撞检测计数器和计时
         self.collision_check_count = 0
         self.collision_time = 0
@@ -135,6 +138,7 @@ class RobotEnv:
         return self.get_problem()
 
     def set_random_init_goal(self):
+        """随机采样两个无碰撞且不重合的配置作为起点和终点，用于生成随机规划问题"""
         while True:
             points = self.sample_n_points(n=2)
             init, goal = points[0], points[1]
@@ -143,6 +147,7 @@ class RobotEnv:
         self.init_state, self.goal_state = init, goal
 
     def aug_path(self):
+        """对路径进行增密处理，在路径点之间按RRT_EPS步长插值，生成更平滑的轨迹用于可视化或执行"""
         result = [self.init_state]
         path = np.array(self.path)
         agent = np.array(path[0])
@@ -160,6 +165,7 @@ class RobotEnv:
         return result
 
     def get_problem(self, width=15, index=None):
+        """返回当前规划问题的字典（包含障碍物地图、起点、终点），如果指定index则从缓存中获取"""
         if index is None:
             problem = {
                 "map": np.array(self.obs_map(width)[1]).astype(float),
@@ -172,6 +178,7 @@ class RobotEnv:
             return self.maps[index]
 
     def obs_map(self, num):
+        """生成3D网格地图，将工作空间离散化为num×num×num的体素网格，标记每个体素是否被障碍物占据"""
         resolution = 2.0 / (num - 1)
         grid_pos = [np.linspace(-1.0, 1.0, num=num) for i in range(3)]
         points_pos = np.meshgrid(*grid_pos)
@@ -220,6 +227,7 @@ class RobotEnv:
         )
 
     def get_robot_points(self, config, end_point=True):
+        """根据给定关节配置获取机器人连杆位置，end_point=True时只返回末端执行器位置，否则返回所有连杆位置"""
         points = []
         for i in range(p.getNumJoints(self.robotId)):
             p.resetJointState(self.robotId, i, config[i])
@@ -234,6 +242,7 @@ class RobotEnv:
         return points
 
     def create_voxel(self, halfExtents, basePosition):
+        """在PyBullet仿真环境中创建一个长方体障碍物体素，包含碰撞形状和随机颜色的可视化形状"""
         groundColId = p.createCollisionShape(p.GEOM_BOX, halfExtents=halfExtents)
         groundVisID = p.createVisualShape(
             shapeType=p.GEOM_BOX,
@@ -250,6 +259,7 @@ class RobotEnv:
         return groundId
 
     def sample_n_points(self, n, need_negative=False):
+        """采样n个无碰撞的配置点，need_negative=True时同时返回采样过程中遇到的碰撞配置（用于生成负样本）"""
         if need_negative:
             negative = []
         samples = []
@@ -268,9 +278,7 @@ class RobotEnv:
             return samples, negative
 
     def uniform_sample(self, n=1):
-        """
-        Uniformlly sample in the configuration space
-        """
+        """在配置空间的关节限位范围内均匀随机采样n个配置，不进行碰撞检测"""
         self.timer.start()
         sample = np.random.uniform(
             np.array(self.pose_range)[:, 0],
@@ -285,10 +293,7 @@ class RobotEnv:
             return sample
 
     def distance(self, from_state, to_state):
-        """
-        Distance metric
-        """
-
+        """计算两个配置之间的欧几里得距离（L2范数），自动将目标配置裁剪到关节限位范围内"""
         to_state = np.maximum(to_state, np.array(self.pose_range)[:, 0])
         to_state = np.minimum(to_state, np.array(self.pose_range)[:, 1])
         diff = np.abs(to_state - from_state)
@@ -296,6 +301,7 @@ class RobotEnv:
         return np.sqrt(np.sum(diff**2, axis=-1))
 
     def interpolate(self, from_state, to_state, ratio):
+        """在两个配置之间进行线性插值，ratio∈[0,1]表示插值比例，结果自动裁剪到关节限位范围"""
         diff = to_state - from_state
 
         new_state = from_state + diff * ratio
@@ -305,17 +311,13 @@ class RobotEnv:
         return new_state
 
     def in_goal_region(self, state):
-        """
-        Return whether a state(configuration) is in the goal region
-        """
+        """判断给定配置是否到达目标区域（距离目标小于RRT_EPS且无碰撞），用于路径规划的终止条件"""
         return self.distance(state, self.goal_state) < self.RRT_EPS and self._state_fp(
             state
         )
 
     def step(self, state, action=None, new_state=None, check_collision=True):
-        """
-        Collision detection module
-        """
+        """执行一步状态转移（state+action或直接到new_state），返回新状态、实际动作、是否无碰撞、是否到达目标"""
         print("in step")
         # must specify either action or new_state
         if action is not None:
@@ -336,6 +338,7 @@ class RobotEnv:
         return new_state, action, no_collision, done
 
     def set_config(self, c, robotId=None):
+        """设置指定机器人的关节配置并执行碰撞检测更新，用于可视化或状态设置"""
         if robotId is None:
             robotId = self.robotId
         for i in range(p.getNumJoints(robotId)):
@@ -343,6 +346,7 @@ class RobotEnv:
         p.performCollisionDetection()
 
     def plot(self, path, make_gif=False):
+        """可视化路径执行过程，沿路径显示半透明机器人姿态和末端轨迹红线，make_gif=True时捕获图像帧"""
         path = np.array(path)
 
         p.resetSimulation()
@@ -449,11 +453,13 @@ class RobotEnv:
     # =====================internal collision check module=======================
 
     def _valid_state(self, state):
+        """检查配置是否在关节限位范围内（内部方法）"""
         return (state >= np.array(self.pose_range)[:, 0]).all() and (
             state <= np.array(self.pose_range)[:, 1]
         ).all()
 
     def _point_in_free_space(self, state):
+        """检查单个配置是否无碰撞（内部方法），使用PyBullet碰撞检测，统计检测次数和耗时"""
         # print("here")
         t0 = time()
         if not self._valid_state(state):
@@ -475,12 +481,14 @@ class RobotEnv:
             return False
 
     def _state_fp(self, state):
+        """点碰撞检测的公开接口，调用_point_in_free_space并记录计时"""
         self.timer.start()
         free = self._point_in_free_space(state)
         self.timer.finish(Timer.VERTEX_CHECK)
         return free
 
     def _iterative_check_segment(self, left, right):
+        """递归二分检查线段碰撞（未使用的备用方法），在两点距离大于0.1时递归检查中点"""
         print("iterative")
         if np.sum(np.abs(left - left)) > 0.1:
             mid = (left + right) / 2.0
@@ -495,6 +503,7 @@ class RobotEnv:
         return True
 
     def _edge_fp(self, state, new_state):
+        """边碰撞检测，在两个配置之间按RRT_EPS步长插值检查，返回整条路径是否无碰撞"""
         # print("in edge fp")
         self.timer.start()
         self.k = 0

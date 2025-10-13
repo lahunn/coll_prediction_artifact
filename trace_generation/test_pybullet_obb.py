@@ -29,7 +29,6 @@ from pathlib import Path
 try:
     import obb_calculator
     import trimesh
-    from scipy.spatial.transform import Rotation as R
 except ImportError as e:
     print(f"错误: 无法导入必要的库: {e}")
     print("请安装: pip install trimesh scipy")

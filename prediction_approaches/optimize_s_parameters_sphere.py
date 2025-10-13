@@ -8,6 +8,7 @@ import sys
 import os
 import numpy as np
 import pickle
+import csv
 from collision_prediction_strategies import (
     FixedThresholdStrategy,
     AdaptiveThresholdStrategy,
@@ -562,6 +563,109 @@ def main():
     print("\n" + "=" * 70)
     print("✅ 优化完成!")
     print("=" * 70)
+
+    # 保存结果到CSV文件
+    os.makedirs("result_files", exist_ok=True)
+    radius_info = "with_radius" if consider_radius else "no_radius"
+    output_csv = f"result_files/s_params_sphere_{num_bins_coord}coord_{num_bins_radius}radius_{radius_info}.csv"
+
+    print(f"\n正在保存结果到: {output_csv}")
+
+    with open(output_csv, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+
+        # 写入表头
+        writer.writerow(
+            [
+                "密度",
+                "策略类型",
+                "阈值/参数",
+                "平均成本",
+                "精确率(%)",
+                "召回率(%)",
+                "配置",
+            ]
+        )
+
+        # 写入每种密度的结果
+        for density_name in ["low", "mid", "high"]:
+            fixed_data = all_results[density_name]["fixed"]
+
+            # 固定阈值策略结果
+            writer.writerow(
+                [
+                    density_name,
+                    "固定阈值",
+                    f"{fixed_data['threshold']:.4f}",
+                    f"{fixed_data['cost']:.4f}",
+                    f"{fixed_data['precision']:.2f}",
+                    f"{fixed_data['recall']:.2f}",
+                    f"coord_bins={num_bins_coord}, radius_bins={num_bins_radius}, "
+                    f"update_prob={update_prob}, consider_radius={consider_radius}",
+                ]
+            )
+
+            # 如果有自适应策略结果，也写入
+            if "adaptive" in all_results[density_name]:
+                adaptive_data = all_results[density_name]["adaptive"]
+                writer.writerow(
+                    [
+                        density_name,
+                        "自适应阈值",
+                        f"S_min={adaptive_data['s_min']:.3f}, S_max={adaptive_data['s_max']:.2f}",
+                        f"{adaptive_data['cost']:.4f}",
+                        f"{adaptive_data['precision']:.2f}",
+                        f"{adaptive_data['recall']:.2f}",
+                        f"coord_bins={num_bins_coord}, radius_bins={num_bins_radius}, "
+                        f"update_prob={update_prob}, consider_radius={consider_radius}",
+                    ]
+                )
+
+    print(f"✅ 结果已保存到: {output_csv}")
+
+    # 同时保存详细的所有测试结果
+    detailed_csv = f"result_files/s_params_sphere_detailed_{num_bins_coord}coord_{num_bins_radius}radius_{radius_info}.csv"
+    print(f"正在保存详细结果到: {detailed_csv}")
+
+    with open(detailed_csv, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+
+        # 写入表头
+        writer.writerow(
+            ["密度", "策略类型", "参数值", "平均成本", "精确率(%)", "召回率(%)"]
+        )
+
+        # 写入固定阈值策略的所有测试结果
+        for density_name in ["low", "mid", "high"]:
+            fixed_data = all_results[density_name]["fixed"]
+            for threshold, cost, prec, rec in fixed_data["all_results"]:
+                writer.writerow(
+                    [
+                        density_name,
+                        "固定阈值",
+                        f"{threshold:.4f}",
+                        f"{cost:.4f}",
+                        f"{prec:.2f}",
+                        f"{rec:.2f}",
+                    ]
+                )
+
+            # 如果有自适应策略的详细结果，也写入
+            if "adaptive" in all_results[density_name]:
+                adaptive_data = all_results[density_name]["adaptive"]
+                for s_min, s_max, cost, prec, rec in adaptive_data["all_results"]:
+                    writer.writerow(
+                        [
+                            density_name,
+                            "自适应阈值",
+                            f"S_min={s_min:.3f}, S_max={s_max:.2f}",
+                            f"{cost:.4f}",
+                            f"{prec:.2f}",
+                            f"{rec:.2f}",
+                        ]
+                    )
+
+    print(f"✅ 详细结果已保存到: {detailed_csv}")
 
 
 if __name__ == "__main__":
