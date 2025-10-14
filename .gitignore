@@ -7,3 +7,7 @@ prediction_approaches/*.png
 motion_planning_prediction/*log*
 trace_generation/bit_planning/maze_files/*.pkl
 prediction_approaches/result_files/*.csv
+trace_generation/bit_planning/logfiles_BIT_link/*.pkl
+trace_generation/bit_planning/obstacle_config_pairs/*.pkl
+trace_generation/bit_planning/obstacle_file/*.pkl
+trace_generation/collision_results/*.pkl

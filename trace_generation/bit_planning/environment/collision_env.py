@@ -60,9 +60,9 @@ class CollisionEnv:
     
     def close(self):
         """关闭配置输出文件句柄和PyBullet连接"""
-        if self.config_output_file is not None and len(self.config_list) > 0:
-            with open(self.config_output_file, 'wb') as f:
-                pickle.dump(self.config_list, f)
+        # if self.config_output_file is not None and len(self.config_list) > 0:
+        #     with open(self.config_output_file, 'wb') as f:
+        #         pickle.dump(self.config_list, f)
         p.disconnect()
     
     def uniform_sample(self, n=1):
@@ -187,10 +187,8 @@ class CollisionEnv:
         return (state >= self.lower_bounds).all() and (state <= self.upper_bounds).all()
 
     def _point_in_free_space(self, state):
-        """检查单个配置是否无碰撞,如果设置了config_output_file则记录配置"""
-        if self.config_output_file is not None:
-            self.config_list.append(state.copy())
-        
+        """检查单个配置是否无碰撞"""
+        self.config_list.append(state.copy())
         if not self._valid_state(state):
             return False
         for i in range(p.getNumJoints(self.robotId)):

@@ -18,7 +18,7 @@ sphere_poses = sf.compute_sphere_poses()
 import numpy as np
 import pybullet as p
 from typing import Dict, List
-from sphere_visualizer import SphereConfig
+from trace_generation.unused_files.sphere_visualizer import SphereConfig
 
 
 class SpherePose:
@@ -237,7 +237,7 @@ class SphereForwardKinematics:
 def test_sphere_forward_kinematics():
     """测试球体正向运动学"""
     import pybullet_data
-    from sphere_visualizer import SphereYAMLParser
+    from trace_generation.unused_files.sphere_visualizer import SphereYAMLParser
 
     # 连接PyBullet
     p.connect(p.DIRECT)  # 无GUI模式

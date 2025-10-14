@@ -77,8 +77,9 @@
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}/trace_generation/bit_planning",
       "args": [
+        "--robot-file", "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/franka_description/franka_panda.urdf",
         "--num-problems", "5",
-        "--num-obstacles", "8",
+        "--num-obstacles", "0",
         "--max-time", "30.0",
         "--output-file", "maze_files/debug_test.pkl"
       ]
@@ -91,8 +92,9 @@
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}/trace_generation/bit_planning",
       "args": [
+        "--robot-file", "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/franka_description/franka_panda.urdf",
         "--num-problems", "1",
-        "--num-obstacles", "8",
+        "--num-obstacles", "3",
         "--max-time", "30.0",
         "--safe-zone-radius", "0.5",
         "--visualize"

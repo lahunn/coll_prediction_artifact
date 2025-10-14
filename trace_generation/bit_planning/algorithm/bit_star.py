@@ -421,7 +421,7 @@ class BITStar:
             refine_time_budget = 10  # 默认精化时间10秒
 
         # 初始化规划环境：添加起点和终点，设置采样空间
-        print("Before planning setup")
+        print("start a new plan")
         self.setup_planning()
         init_time = time()  # 记录规划开始时间
 

@@ -18,12 +18,11 @@ import pickle
 import numpy as np
 import argparse
 from tqdm import tqdm
-import pybullet as p
 
 # 添加项目路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from environment.robot_env import RobotEnv
+from environment.collision_env import CollisionEnv
 from algorithm.bit_star import BITStar
 
 
@@ -92,7 +91,7 @@ def generate_single_problem(
 ):
     """生成单个路径规划问题"""
     if planner is None:
-        sys.exit(f"错误：必须提供规划器实例")
+        sys.exit("错误：必须提供规划器实例")
 
     for attempt in range(max_sample_attempts):
         start = env.uniform_sample()
@@ -109,7 +108,7 @@ def generate_single_problem(
         env.goal_state = goal
         planner.reset(start, goal)
 
-        samples, edges, collision_count, cost, num_samples, planning_time = (
+        samples, edges, cost, num_samples, planning_time = (
             planner.plan(pathLengthLimit=float("inf"), time_budget=max_planning_time)
         )
 
@@ -154,25 +153,26 @@ def reconstruct_path(edges, start, goal):
 
 def generate_problem_dataset(
     robot_file,
+    robot_name,
     num_problems=3000,
     num_obstacles=10,
     output_file=None,
     max_planning_time=60.0,
-    workspace_range=(-1.5, 1.5),
+    workspace_range=(-2.0, 2.0),
     voxel_size_range=(0.05, 0.12),
-    safe_zone_radius=0.4,
+    safe_zone_radius=0.5,
     visualize=False,
 ):
     """生成完整的问题数据集"""
+    robot_name = robot_name
+    # 不再传递config_output_file,使用内存记录
     print(f"机器人: {robot_file}, 问题数: {num_problems}, 障碍物: {num_obstacles}")
-
-    env = RobotEnv(GUI=visualize, robot_file=robot_file)
+    env = CollisionEnv(GUI=visualize, robot_file=robot_file, config_output_file="dummy")
     config_dim = env.config_dim
-
+    
     if output_file is None:
-        robot_name = robot_file.split("/")[-1].split(".")[0]
         output_file = f"maze_files/{robot_name}_{config_dim}_{num_problems}.pkl"
-
+    
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
 
     problems = []
@@ -189,6 +189,12 @@ def generate_problem_dataset(
 
     planner = BITStar(env)
     pbar = tqdm(total=num_problems, desc="生成问题", unit="问题")
+    
+    # 创建保存目录
+    obstacle_config_dir = "/home/lanh/project/robot_sim/coll_prediction_artifact/trace_generation/bit_planning/obstacle_config_pairs"
+    os.makedirs(obstacle_config_dir, exist_ok=True)
+    
+    base_filename = os.path.basename(output_file).replace('.pkl', '')
 
     while success_count < num_problems:
         env.randomize_obstacle_poses(
@@ -197,6 +203,9 @@ def generate_problem_dataset(
             safe_zone_radius=safe_zone_radius,
             max_attempts_per_obstacle=100
         )
+        
+        # 在生成问题前重置config_list
+        env.config_list = []
 
         problem = generate_single_problem(
             env, env.obstacles, max_planning_time=max_planning_time, visualize=visualize, planner=planner
@@ -205,17 +214,36 @@ def generate_problem_dataset(
         if problem is not None:
             problems.append(problem)
             success_count += 1
+            
+            # 立即保存这次的障碍物-配置对到独立文件
+            pair_filename = f"{base_filename}_{success_count:04d}.pkl"
+            pair_filepath = os.path.join(obstacle_config_dir, pair_filename)
+            
+            obstacle_config_pair = {
+                'obstacles': problem[0],  # 障碍物列表
+                'configs': env.config_list.copy()  # 这次规划使用的所有配置
+            }
+            
+            with open(pair_filepath, 'wb') as f:
+                pickle.dump(obstacle_config_pair, f)
+            
             pbar.update(1)
-            pbar.set_postfix({"成功": success_count, "路径长度": len(problem[3])})
+            pbar.set_postfix({"成功": success_count, "路径长度": len(problem[3]), "配置数": len(env.config_list)})
 
     pbar.close()
     env.cleanup_obstacles()
+    env.close()
 
     with open(output_file, "wb") as f:
         pickle.dump(problems, f)
 
-    path_lengths = [len(p[3]) for p in problems]
+    # 统计信息
+    path_lengths = [len(prob[3]) for prob in problems]
+    
     print(f"\n完成! 保存到: {output_file}")
+    print(f"障碍物-配置配对文件保存到: {obstacle_config_dir}/")
+    print(f"  文件数量: {success_count}")
+    print(f"  文件命名格式: {base_filename}_XXXX.pkl (例: {base_filename}_0001.pkl)")
     print(f"路径长度 - 平均: {np.mean(path_lengths):.2f}, 最小: {np.min(path_lengths)}, 最大: {np.max(path_lengths)}")
 
     return problems
@@ -225,6 +253,7 @@ def main():
     parser = argparse.ArgumentParser(description="生成机器人路径规划问题数据集")
 
     parser.add_argument("--robot-file", type=str, default="kuka_iiwa/model_0.urdf")
+    parser.add_argument("--robot-name", type=str, default="kuka_iiwa")
     parser.add_argument("--num-problems", type=int, default=3000)
     parser.add_argument("--num-obstacles", type=int, default=10)
     parser.add_argument("--output-file", type=str, default=None)
@@ -240,6 +269,7 @@ def main():
 
     generate_problem_dataset(
         robot_file=args.robot_file,
+        robot_name=args.robot_name,
         num_problems=args.num_problems,
         num_obstacles=args.num_obstacles,
         output_file=args.output_file,

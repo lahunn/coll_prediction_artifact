@@ -24,15 +24,17 @@ mkdir -p maze_files
 # 生成 Kuka 7DOF 数据集
 echo ""
 echo "========================================================================"
-echo "生成 Kuka 7DOF 数据集"
+echo "生成 franka 数据集"
 echo "========================================================================"
+# cd /home/lanh/project/robot_sim/coll_prediction_artifact/trace_generation/bit_planning
 python generate_problem_dataset.py \
-    --robot-file kuka_iiwa/model_0.urdf \
+    --robot-file /home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/franka_description/franka_panda.urdf \
+    --robot-name franka \
     --num-problems 30 \
     --num-obstacles 10 \
-    --max-time 60.0 \
-    --workspace-min -0.8 \
-    --workspace-max 0.8 \
+    --max-time 6.0 \
+    --workspace-min -2.0 \
+    --workspace-max 2.0 \
     --voxel-size-min 0.05 \
     --voxel-size-max 0.12
 
