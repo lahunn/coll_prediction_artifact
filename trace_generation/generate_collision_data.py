@@ -133,7 +133,12 @@ def main():
 
     # --- Pre-create PyBullet bodies for spheres ---
     # We need a sample configuration to know the number and radii of spheres
-    sample_config = configs[0] if configs else [0] * p.getNumJoints(sim.robot_id)
+    # configs是边的列表,configs[0]是第一条边的配置数组,configs[0][0]是第一条边的第一个配置
+    if configs and len(configs) > 0 and len(configs[0]) > 0:
+        sample_config = configs[0][0]  # 第一条边的第一个配置
+    else:
+        sample_config = [0] * p.getNumJoints(sim.robot_id)
+    
     joint_config_sample = torch.tensor(sample_config, dtype=torch.float32).unsqueeze(0).cuda()
     world_spheres_sample = sphere_analyzer.get_world_spheres(joint_config_sample)
 
@@ -144,45 +149,60 @@ def main():
         body = p.createMultiBody(baseMass=0, baseCollisionShapeIndex=col_shape)
         sphere_body_ids.append(body)
 
-    obb_results = []
-    sphere_results = []
+    # configs是边的列表,每个元素是一条边上的配置数组
+    obb_results = []  # 按edge组织: [[edge1_obbs], [edge2_obbs], ...]
+    sphere_results = []  # 按edge组织: [[edge1_spheres], [edge2_spheres], ...]
 
-    total_configs = len(configs)
-    print(f"开始处理 {total_configs} 个配置...")
+    total_edges = len(configs)
+    print(f"开始处理 {total_edges} 条边...")
     
-    for idx, config in enumerate(configs, 1):
+    for edge_idx, edge_configs in enumerate(configs, 1):
         # 简洁的进度条
-        if idx % 10 == 0 or idx == total_configs:
-            progress = idx / total_configs * 100
-            print(f"进度: {idx}/{total_configs} ({progress:.1f}%)", flush=True)
+        if edge_idx % 10 == 0 or edge_idx == total_edges:
+            progress = edge_idx / total_edges * 100
+            print(f"进度: {edge_idx}/{total_edges} ({progress:.1f}%)", flush=True)
         
-        sim.set_robot_config(config)
+        # 为这条边创建结果列表
+        edge_obb_results = []
+        edge_sphere_results = []
+        
+        # 处理这条边上的每个配置
+        for config in edge_configs:
+            sim.set_robot_config(config)
 
-        # --- OBB collision detection ---
-        obb_poses = obb_fk.compute_obb_poses(obb_templates)
-        for i, obb_pose in enumerate(obb_poses):
-            p.resetBasePositionAndOrientation(obb_body_ids[i], obb_pose['position'], obb_pose['quaternion'])
-            is_colliding = sim.check_collision_for_body(obb_body_ids[i])
+            # --- OBB collision detection ---
+            obb_poses = obb_fk.compute_obb_poses(obb_templates)
+            config_obb_results = []
+            for i, obb_pose in enumerate(obb_poses):
+                p.resetBasePositionAndOrientation(obb_body_ids[i], obb_pose['position'], obb_pose['quaternion'])
+                is_colliding = sim.check_collision_for_body(obb_body_ids[i])
 
-            obb_results.append({
-                'center': obb_pose['position'],
-                'orientation': obb_pose['quaternion'],
-                'collision': is_colliding
-            })
+                config_obb_results.append({
+                    'center': obb_pose['position'],
+                    'orientation': obb_pose['quaternion'],
+                    'collision': is_colliding
+                })
+            edge_obb_results.append(config_obb_results)
 
-        # --- Sphere collision detection ---
-        joint_config = torch.tensor(config, dtype=torch.float32).unsqueeze(0).cuda()
-        world_spheres = sphere_analyzer.get_world_spheres(joint_config)
-        for i, sphere in enumerate(world_spheres):
-            pos = sphere[:3].tolist()
-            p.resetBasePositionAndOrientation(sphere_body_ids[i], pos, [0,0,0,1]) # Spheres have no orientation
-            is_colliding = sim.check_collision_for_body(sphere_body_ids[i])
+            # --- Sphere collision detection ---
+            joint_config = torch.tensor(config, dtype=torch.float32).unsqueeze(0).cuda()
+            world_spheres = sphere_analyzer.get_world_spheres(joint_config)
+            config_sphere_results = []
+            for i, sphere in enumerate(world_spheres):
+                pos = sphere[:3].tolist()
+                p.resetBasePositionAndOrientation(sphere_body_ids[i], pos, [0,0,0,1])
+                is_colliding = sim.check_collision_for_body(sphere_body_ids[i])
 
-            sphere_results.append({
-                'center': pos,
-                'radius': sphere[3].item(),
-                'collision': is_colliding
-            })
+                config_sphere_results.append({
+                    'center': pos,
+                    'radius': sphere[3].item(),
+                    'collision': is_colliding
+                })
+            edge_sphere_results.append(config_sphere_results)
+        
+        # 将这条边的结果添加到总结果中
+        obb_results.append(edge_obb_results)
+        sphere_results.append(edge_sphere_results)
 
     print("处理完成! 保存结果...")
     

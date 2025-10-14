@@ -188,7 +188,6 @@ class CollisionEnv:
 
     def _point_in_free_space(self, state):
         """检查单个配置是否无碰撞"""
-        self.config_list.append(state.copy())
         if not self._valid_state(state):
             return False
         for i in range(p.getNumJoints(self.robotId)):
@@ -211,8 +210,16 @@ class CollisionEnv:
         disp = new_state - state
         d = np.linalg.norm(new_state - state)
         K = int(d / RRT_EPS)
+        # 收集这条边上所有需要检查的点
+        edge_configs = [state.copy()]
         for k in range(0, K):
             c = state + k * 1.0 / K * disp
+            edge_configs.append(c.copy())
             if not self._point_in_free_space(c):
+                # 即使碰撞也保存这条边的配置信息
+                self.config_list.append(np.array(edge_configs))
                 return False
+        edge_configs.append(new_state.copy())
+        # 边检查通过,保存所有检查过的配置
+        self.config_list.append(np.array(edge_configs))
         return True
