@@ -170,27 +170,61 @@ class BITStar:
         return x
 
     def informed_sample(self, c_best, sample_num, vertices):
-        if c_best < float("inf"):
-            c_b = math.sqrt(c_best**2 - self.c_min**2) / 2.0
-            r = [c_best / 2.0] + [c_b] * (self.dimension - 1)
-            L = np.diag(r)
-        sample_array = []
-        cur_num = 0
-        while cur_num < sample_num:
-            if c_best < float("inf"):
-                x_ball = self.sample_unit_ball()
-                random_point = tuple(
-                    np.dot(np.dot(self.C, L), x_ball) + self.center_point
-                )
-            else:
-                random_point = self.get_random_point()
-            # print("sampling in informed sample")
-            feas = self.is_point_free(random_point)
-            if feas:
-                sample_array.append(random_point)
-                cur_num += 1
+      if c_best < float("inf"):
+          c_b = math.sqrt(c_best**2 - self.c_min**2) / 2.0
+          r = [c_best / 2.0] + [c_b] * (self.dimension - 1)
+          L = np.diag(r)
+          
+          # 预计算椭圆体的AABB边界
+          ellipsoid_radii = np.abs(self.C @ L @ np.eye(self.dimension))
+          ellipsoid_radii = np.max(np.abs(ellipsoid_radii), axis=1)
+          ellipsoid_bounds_min = self.center_point - ellipsoid_radii
+          ellipsoid_bounds_max = self.center_point + ellipsoid_radii
+          
+          # 计算与关节限位的交集
+          effective_bounds_min = np.maximum(ellipsoid_bounds_min, self.bounds[:, 0])
+          effective_bounds_max = np.minimum(ellipsoid_bounds_max, self.bounds[:, 1])
+          
+          # 检查交集是否为空
+          if np.any(effective_bounds_min >= effective_bounds_max):
+              # 椭圆体与关节限位无交集，降级为全空间采样
+              use_ellipsoid = False
+          else:
+              use_ellipsoid = True
+      else:
+          use_ellipsoid = False
+      
+      sample_array = []
+      cur_num = 0
+      max_attempts = sample_num * 1000
+      attempts = 0
+      
+      while cur_num < sample_num and attempts < max_attempts:
+          attempts += 1
+          
+          if use_ellipsoid:
+              # 在有效边界内采样，然后检查是否在椭圆内
+              random_point = effective_bounds_min + np.random.random(self.dimension) * (effective_bounds_max - effective_bounds_min)
+              
+              # 检查是否在椭圆体内
+              x_centered = random_point - self.center_point
+              x_transformed = np.linalg.solve(self.C @ L, x_centered)
+              if np.linalg.norm(x_transformed) > 1.0:
+                  continue
+          else:
+              random_point = self.bounds[:, 0] + np.random.random(self.dimension) * self.ranges
+          
+          random_point = tuple(random_point)
+          feas = self.is_point_free(random_point)
+          if feas:
+              sample_array.append(random_point)
+              cur_num += 1
+      
+      return sample_array
 
-        return sample_array
+    def _in_bounds(self, point):
+        """检查配置是否在关节限位范围内"""
+        return np.all(point >= self.bounds[:, 0]) and np.all(point <= self.bounds[:, 1])
 
     def get_random_point(self):
         point = self.bounds[:, 0] + np.random.random(self.dimension) * self.ranges
@@ -379,9 +413,6 @@ class BITStar:
             4. 保存边信息和碰撞信息到pickle文件
             5. 返回规划结果
         """
-        # 记录初始碰撞检测次数，用于计算本次规划的碰撞检测开销
-        collision_checks = self.env.collision_check_count
-        print("collision_checks", collision_checks)
 
         # 设置时间预算的默认值
         if time_budget is None:
@@ -508,7 +539,6 @@ class BITStar:
         return (
             self.samples,  # 所有采样点
             self.edges,  # 树的边字典(child->parent)
-            self.env.collision_check_count - collision_checks,  # 本次规划的碰撞检测次数
             self.g_scores[self.goal],  # 最终路径代价
             self.T,  # 总采样数
             time() - init_time,  # 规划用时(秒)
