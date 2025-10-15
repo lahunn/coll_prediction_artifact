@@ -36,7 +36,7 @@ for benchid in tqdm(benchrange):
 
     edge_link_data, edge_link_coll_data = su.load_data(planner_type, benchid, "nDOF")
 
-    if edge_link_data is None:
+    if edge_link_data is None or edge_link_coll_data is None:
         continue
 
     for edge, edge_coll in zip(edge_link_data, edge_link_coll_data):

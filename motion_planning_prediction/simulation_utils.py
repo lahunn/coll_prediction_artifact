@@ -3,6 +3,7 @@ import random
 import pickle
 import sys
 
+
 def reutrn_keyy(code):
     """Creates a hash key from a quantized code."""
     bitsize = len(code)
@@ -12,6 +13,7 @@ def reutrn_keyy(code):
             keyy = keyy + "0"
         keyy = keyy + str(code[j])
     return keyy
+
 
 def csp_rearrange(edge, edgeyarr, groupsize=8):
     """
@@ -33,6 +35,7 @@ def csp_rearrange(edge, edgeyarr, groupsize=8):
             group.append(link)
             grouparr.append(linkcoll)
     return group, grouparr
+
 
 def load_data(planner_type, benchid, dimension):
     """
@@ -69,18 +72,30 @@ def load_data(planner_type, benchid, dimension):
     except FileNotFoundError:
         return None, None
 
+
 def load_sphere_data(benchid, data_folder):
     """
     Loads sphere collision data from a pickle file.
+    Format: (sphere_link_data, sphere_link_coll_data)
     """
     filename = f"{data_folder}/obstacles_{benchid}_sphere.pkl"
     try:
         with open(filename, "rb") as f:
-            qarr_sphere, rarr_sphere, yarr_sphere = pickle.load(f)
-            return qarr_sphere, rarr_sphere, yarr_sphere
+            data = pickle.load(f)
+            # 新格式: (sphere_link_data, sphere_link_coll_data)
+            if isinstance(data, tuple) and len(data) == 2:
+                return data
+            # 兼容旧格式: (qarr, rarr, yarr)
+            elif isinstance(data, tuple) and len(data) == 3:
+                print(f"Warning: Old format detected in {filename}, converting...", file=sys.stderr)
+                qarr_sphere, rarr_sphere, yarr_sphere = data
+                return qarr_sphere, yarr_sphere  # 返回坐标和碰撞标签
+            else:
+                return None, None
     except FileNotFoundError:
         print(f"Warning: Sphere data file not found at {filename}", file=sys.stderr)
-        return None, None, None
+        return None, None
+
 
 def update_collision_dict(colldict, hash_key, is_free, sample_rate):
     """
@@ -99,6 +114,7 @@ def update_collision_dict(colldict, hash_key, is_free, sample_rate):
             colldict[hash_key][is_free] += 1
     return colldict
 
+
 def predict_collision(colldict, hash_key, threshold):
     """
     Predicts collision based on the history dictionary.
@@ -107,11 +123,14 @@ def predict_collision(colldict, hash_key, threshold):
         if colldict[hash_key][0] > colldict[hash_key][1] * threshold:
             return True  # Predict collision
         else:
-            return False # Predict free
+            return False  # Predict free
     else:
-        return False # Predict free for unseen configurations
+        return False  # Predict free for unseen configurations
 
-def simulate_parallel_collision_detection(linklist, linklist_coll, colldict, threshold, sample_rate, bins, qnoncoll_len=56, qcoll_len=8, cycle_check=40):
+
+def simulate_parallel_collision_detection(
+    linklist, linklist_coll, colldict, threshold, sample_rate, bins, qnoncoll_len=56, qcoll_len=8, cycle_check=40
+):
     """
     Simulates the parallel collision detection process using OOCDs and prediction.
     """
@@ -142,7 +161,9 @@ def simulate_parallel_collision_detection(linklist, linklist_coll, colldict, thr
                         first_two_checked = cycle + cycle_check
                     oocds[oocd_id] = [qcoll[0][0], qcoll[0][1], 1, cycle + cycle_check]
                     del qcoll[0]
-                elif len(qnoncoll) == qnoncoll_len or (links_remaining == 0 and len(qnoncoll) > 0) and first_two_checked < cycle:
+                elif len(qnoncoll) == qnoncoll_len or (
+                    links_remaining == 0 and len(qnoncoll) > 0
+                ) and first_two_checked < cycle:
                     oocds[oocd_id] = [qnoncoll[0][0], qnoncoll[0][1], 1, cycle + cycle_check]
                     del qnoncoll[0]
                 else:

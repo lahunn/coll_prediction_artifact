@@ -21,7 +21,7 @@ fi
 # 确保输出目录存在
 mkdir -p maze_files
 
-# 生成 Kuka 7DOF 数据集
+# 生成数据集
 echo ""
 echo "========================================================================"
 echo "生成 franka 数据集"
@@ -39,9 +39,9 @@ python generate_problem_dataset.py \
     --voxel-size-max 0.12
 
 if [ $? -eq 0 ]; then
-    echo "✓ Kuka 7DOF 数据集生成成功"
+    echo "✓ Franka 数据集生成成功"
 else
-    echo "✗ Kuka 7DOF 数据集生成失败"
+    echo "✗ Franka 数据集生成失败"
 fi
 
 echo ""
