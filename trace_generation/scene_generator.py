@@ -2,6 +2,7 @@ import random
 import os.path
 import tqdm
 import sys
+from trace_generation.workspace_bound.workspace_analyzer import WorkspaceAnalyzer
 
 # 配置参数
 random.seed(1)
@@ -27,32 +28,27 @@ def get_robot_workspace_bounds(robot_urdf_path):
     # 生成工作空间文件名
     robot_name = os.path.splitext(os.path.basename(robot_urdf_path))[0]
     workspace_file = f"/home/lanh/project/robot_sim/coll_prediction_artifact/trace_generation/workspace_bound/{robot_name}_workspace.json"
-    workspace_bounds = None
     # 使用默认的保守估计
-    # workspace_bounds = {
-    #     "x_start": -1.2,
-    #     "x_end": 1.2,
-    #     "y_start": -1.2,
-    #     "y_end": 1.2,
-    #     "z_start": 0.1,
-    #     "z_end": 1.2,
-    # }
+    workspace_bounds = {
+        "x_start": -1.2,
+        "x_end": 1.2,
+        "y_start": -1.2,
+        "y_end": 1.2,
+        "z_start": 0.1,
+        "z_end": 1.2,
+    }
 
-    if workspace_bounds is None:
-        # 动态导入并运行工作空间分析器
-        try:
-            from workspace_analyzer import WorkspaceAnalyzer
-
-            analyzer = WorkspaceAnalyzer(robot_urdf_path)
-            if analyzer.load_robot():
-                positions = analyzer.sample_workspace(num_samples=1000)
-                workspace_bounds = analyzer.analyze_workspace_bounds(positions)
-                analyzer.save_workspace_bounds(workspace_bounds, workspace_file)
-            analyzer.disconnect()
-
-        except Exception as e:
-            print(f"工作空间分析失败: {e}")
-            print("使用默认工作空间范围")
+    analyzer = WorkspaceAnalyzer(robot_urdf_path)
+    if analyzer.load_robot():
+        positions = analyzer.sample_workspace(num_samples=1000)
+        bounds = analyzer.analyze_workspace_bounds(positions)
+        if bounds is not None:
+            workspace_bounds = bounds
+            analyzer.save_workspace_bounds(workspace_bounds, workspace_file)
+        else:
+            print("工作空间分析返回None，使用默认范围")
+    else:
+        print("机器人加载失败，使用默认工作空间范围")
 
     return workspace_bounds
 
@@ -139,9 +135,7 @@ def write_mujoco_header(f, robot_urdf_path):
     f.write("  </asset>\n\n")
     f.write("  <worldbody>\n")
     f.write("    <!-- Ground plane -->\n")
-    f.write(
-        '    <geom name="ground" type="plane" size="3 3 0.1" material="ground_mat"/>\n\n'
-    )
+    f.write('    <geom name="ground" type="plane" size="3 3 0.1" material="ground_mat"/>\n\n')
     # f.write("    <!-- Robot -->\n")
     # f.write(f'    <body name="robot" file="{robot_urdf_path}"/>\n\n')
     f.write("    <!-- Obstacles -->\n")
@@ -149,9 +143,7 @@ def write_mujoco_header(f, robot_urdf_path):
 
 def write_mujoco_obstacle(f, obstacle_id, scale, position, color):
     """写入单个MuJoCo格式的障碍物"""
-    f.write(
-        f'    <body name="obstacle_{obstacle_id}" pos="{position[0]:.6f} {position[1]:.6f} {position[2]:.6f}">\n'
-    )
+    f.write(f'    <body name="obstacle_{obstacle_id}" pos="{position[0]:.6f} {position[1]:.6f} {position[2]:.6f}">\n')
     f.write(
         f'      <geom name="obs_{obstacle_id}" type="box" size="{scale[0] / 2:.6f} {scale[1] / 2:.6f} {scale[2] / 2:.6f}" rgba="{color} 0.8"/>\n'
     )
@@ -212,15 +204,9 @@ for num_ob in [3, 6, 9, 12]:
                 workspace_z_range = zend - zstart
 
                 # 障碍物尺寸为工作空间的5%-20%
-                xscale = random.uniform(
-                    workspace_x_range * 0.05, workspace_x_range * 0.2
-                )
-                yscale = random.uniform(
-                    workspace_y_range * 0.05, workspace_y_range * 0.2
-                )
-                zscale = random.uniform(
-                    workspace_z_range * 0.05, workspace_z_range * 0.2
-                )
+                xscale = random.uniform(workspace_x_range * 0.05, workspace_x_range * 0.2)
+                yscale = random.uniform(workspace_y_range * 0.05, workspace_y_range * 0.2)
+                zscale = random.uniform(workspace_z_range * 0.05, workspace_z_range * 0.2)
 
                 # 确保障碍物位置在工作空间内
                 xpos = random.uniform(xstart + xscale / 2, xend - xscale / 2)
@@ -233,24 +219,16 @@ for num_ob in [3, 6, 9, 12]:
                 obs_zmin, obs_zmax = zpos - zscale / 2, zpos + zscale / 2
 
                 # AABB (轴对齐包围盒) 重叠测试
-                x_overlap = (
-                    obs_xmin < KEEPOUT_BOX["x"][1] and obs_xmax > KEEPOUT_BOX["x"][0]
-                )
-                y_overlap = (
-                    obs_ymin < KEEPOUT_BOX["y"][1] and obs_ymax > KEEPOUT_BOX["y"][0]
-                )
-                z_overlap = (
-                    obs_zmin < KEEPOUT_BOX["z"][1] and obs_zmax > KEEPOUT_BOX["z"][0]
-                )
+                x_overlap = (obs_xmin < KEEPOUT_BOX["x"][1] and obs_xmax > KEEPOUT_BOX["x"][0])
+                y_overlap = (obs_ymin < KEEPOUT_BOX["y"][1] and obs_ymax > KEEPOUT_BOX["y"][0])
+                z_overlap = (obs_zmin < KEEPOUT_BOX["z"][1] and obs_zmax > KEEPOUT_BOX["z"][0])
 
                 if not (x_overlap and y_overlap and z_overlap):
                     # 如果不重叠，则此障碍物位置有效，跳出重试循环
                     break
             else:
                 # 如果循环完成（即达到最大重试次数）而没有break
-                print(
-                    f"\n警告: 场景 {i} 中, 无法为障碍物 {j} 找到避让区域外的位置 (已尝试 {max_retries} 次). 跳过此障碍物."
-                )
+                print(f"\n警告: 场景 {i} 中, 无法为障碍物 {j} 找到避让区域外的位置 (已尝试 {max_retries} 次). 跳过此障碍物.")
                 continue  # 跳到下一个障碍物j
 
             # --- 修改结束 ---
@@ -264,9 +242,7 @@ for num_ob in [3, 6, 9, 12]:
                 color[(j) % 3],
             )
 
-            temp = find_collision(
-                xpos, ypos, zpos, xpos + xscale, ypos + yscale, zpos + zscale
-            )
+            temp = find_collision(xpos, ypos, zpos, xpos + xscale, ypos + yscale, zpos + zscale)
             list_voxels = list_voxels + temp
 
         uniq_voxels = remove_dup(list_voxels)
