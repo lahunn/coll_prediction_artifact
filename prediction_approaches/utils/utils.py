@@ -122,5 +122,35 @@ def calculate_expected_checks(R, C, A, N):
         term2 = 0.0
     else:
         term2 = numerator_term2 / P2
-        
     return term1 + term2
+
+def calculate_baseline_expectation(N: int, R: float) -> float:
+    """
+    计算在无排序策略下，执行的碰撞检测任务总次数的期望。
+
+    该模型假设每个检测任务都是独立的，且具有相同的碰撞概率。
+    一旦检测到碰撞，整个过程即停止。
+
+    参数:
+    N (int): 总的碰撞检测任务数量。必须是正整数。
+    P (float): 任何一个任务实际为碰撞的先验概率。必须在 [0.0, 1.0] 范围内。
+
+    返回:
+    float: 执行的碰撞检测任务总次数的期望值。
+    """
+    
+    # --- 输入验证 ---
+    if not 0.0 <= R <= 1.0:
+        raise ValueError("概率 P 必须在 [0.0, 1.0] 范围内。")
+        
+    # --- 边界情况处理 ---
+    # 如果碰撞概率为 0，那么永远不会发生碰撞，
+    # 必须执行完所有 N 次检测才能结束。
+    if R == 0.0:
+        return float(N)
+        
+    # --- 应用主公式 ---
+    # E = (1 - (1-P)^N) / P
+    expected_value = (1 - (1 - R)**N) / R
+    
+    return expected_value

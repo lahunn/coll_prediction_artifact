@@ -11,3 +11,6 @@ trace_generation/bit_planning/logfiles_BIT_link/*.pkl
 trace_generation/bit_planning/obstacle_config_pairs/*.pkl
 trace_generation/bit_planning/obstacle_file/*.pkl
 trace_generation/collision_results/*.pkl
+prediction_approaches/plots/*.png
+prediction_approaches/utils/analysis_results/*.png
+prediction_approaches/figs/*.png
