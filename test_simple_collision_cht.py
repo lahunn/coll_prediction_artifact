@@ -46,23 +46,38 @@ class SimpleCollisionCHTTrainer:
         # 定义空间采样范围
         self.position_range = [-2.0, 2.0]  # x, y, z范围
         
-    def load_obstacles(self, scene_file=None):
-        """加载障碍物环境"""
+    def load_obstacles(self, scene_file=None, density=None, num_obstacles=None):
+        """加载障碍物环境
+
+        density: 可选, 'low'|'mid'|'high' 映射到默认障碍物数量
+        num_obstacles: 可直接传入整数覆盖密度设置
+        """
         if scene_file:
             # 如果提供了场景文件,从文件加载
             print(f"正在加载场景: {scene_file}")
             # 这里简化处理,实际可以用XML解析
             pass
-        else:
-            # 创建简单的障碍物环境
-            print("创建简单障碍物环境...")
-            self._create_simple_obstacles()
+            return
+
+        # 解析密度参数
+        if num_obstacles is None:
+            if isinstance(density, str):
+                mapping = {"low": 5, "mid": 10, "high": 20}
+                num_obstacles = mapping.get(density, 10)
+            elif isinstance(density, int):
+                num_obstacles = density
+            else:
+                num_obstacles = 10
+
+        print(f"创建简单障碍物环境... (num_obstacles={num_obstacles})")
+        self._create_simple_obstacles(num_obstacles=num_obstacles)
     
-    def _create_simple_obstacles(self):
-        """创建简单的障碍物环境"""
-        # 创建几个随机位置的长方体障碍物
-        num_obstacles = 10
-        
+    def _create_simple_obstacles(self, num_obstacles=10):
+        """创建简单的障碍物环境
+
+        num_obstacles: 障碍物数量
+        """
+        # 创建指定数量的随机位置的长方体障碍物
         for i in range(num_obstacles):
             # 随机大小
             half_extents = np.random.uniform(0.1, 0.5, 3)
@@ -451,41 +466,95 @@ def main():
     print("=" * 70)
     print("简单的球体和OBB碰撞检测与CHT训练程序")
     print("=" * 70)
-    
-    # 创建训练器(不使用GUI以提高速度)
-    trainer = SimpleCollisionCHTTrainer(use_gui=False)
-    
-    # 加载障碍物环境
-    trainer.load_obstacles()
-    
-    # 训练CHT
-    results = trainer.train_cht(
-        num_iterations=200000,
-        num_bins_pos=32,  # 位置量化精度
-        num_bins_ori=16,  # 姿态量化精度
-        training_ratio=0.8  # 80%用于训练,20%用于测试
-    )
-    
-    sphere_strategy, obb_strategy = results[0], results[1]
-    sphere_train_data, obb_train_data = results[2], results[3]
-    sphere_test_data, obb_test_data = results[4], results[5]
-    
-    # 保存结果(可选)
-    print("\n保存训练结果...")
-    with open("simple_cht_training_results.pkl", "wb") as f:
-        pickle.dump({
-            'sphere_train_data': sphere_train_data,
-            'sphere_test_data': sphere_test_data,
-            'obb_train_data': obb_train_data,
-            'obb_test_data': obb_test_data,
-            'sphere_strategy': sphere_strategy.colldict,
-            'obb_strategy': obb_strategy.colldict
-        }, f)
-    print("结果已保存到: simple_cht_training_results.pkl")
-    
-    # 断开连接
-    trainer.disconnect()
-    
+    # 我们将在三种密度下运行实验: low/mid/high
+    densities = {"low": 5, "mid": 10, "high": 20}
+
+    summary = []
+
+    # 为每个密度创建独立的trainer并运行实验
+    for name, n_obs in densities.items():
+        print(f"\n=== 运行密度: {name} (obstacles={n_obs}) ===")
+        trainer = SimpleCollisionCHTTrainer(use_gui=False)
+        trainer.load_obstacles(density=name)
+
+        results = trainer.train_cht(
+            num_iterations=20000,
+            num_bins_pos=32,
+            num_bins_ori=16,
+            training_ratio=0.8
+        )
+
+        sphere_strategy, obb_strategy = results[0], results[1]
+        sphere_train_data, obb_train_data = results[2], results[3]
+        sphere_test_data, obb_test_data = results[4], results[5]
+
+        # 计算简要指标并加入汇总
+        def compute_metrics_from_test(test_data):
+            tp = sum(1 for d in test_data if d['collision'] and d['prediction'])
+            fp = sum(1 for d in test_data if (not d['collision']) and d['prediction'])
+            tn = sum(1 for d in test_data if (not d['collision']) and (not d['prediction']))
+            fn = sum(1 for d in test_data if d['collision'] and (not d['prediction']))
+            total = len(test_data)
+            precision = (tp / (tp + fp) * 100) if (tp + fp) > 0 else 0
+            recall = (tp / (tp + fn) * 100) if (tp + fn) > 0 else 0
+            accuracy = ((tp + tn) / total * 100) if total > 0 else 0
+            coll_rate = (sum(1 for d in test_data if d['collision']) / total * 100) if total > 0 else 0
+            return {
+                'tp': tp, 'fp': fp, 'tn': tn, 'fn': fn,
+                'precision': precision, 'recall': recall, 'accuracy': accuracy, 'coll_rate': coll_rate,
+                'total': total
+            }
+
+        sph_metrics = compute_metrics_from_test(sphere_test_data)
+        obb_metrics = compute_metrics_from_test(obb_test_data)
+
+        summary.append({
+            'density': name,
+            'n_obstacles': n_obs,
+            'sphere': sph_metrics,
+            'obb': obb_metrics
+        })
+
+        # 保存每个密度的原始结果文件
+        outname = f"simple_cht_results_{name}.pkl"
+        with open(outname, 'wb') as f:
+            pickle.dump({
+                'sphere_train_data': sphere_train_data,
+                'sphere_test_data': sphere_test_data,
+                'obb_train_data': obb_train_data,
+                'obb_test_data': obb_test_data,
+                'sphere_strategy': sphere_strategy.colldict,
+                'obb_strategy': obb_strategy.colldict
+            }, f)
+        print(f"结果已保存到: {outname}")
+
+        trainer.disconnect()
+
+    # 打印汇总表
+    print("\n=== 实验汇总 ===")
+    for rec in summary:
+        print(f"密度: {rec['density']} (obstacles={rec['n_obstacles']})")
+        s = rec['sphere']
+        o = rec['obb']
+        print(f"  球体 -> Precision: {s['precision']:.2f}%, Recall: {s['recall']:.2f}%, Accuracy: {s['accuracy']:.2f}%, CollRate: {s['coll_rate']:.2f}% (N={s['total']})")
+        print(f"  OBB   -> Precision: {o['precision']:.2f}%, Recall: {o['recall']:.2f}%, Accuracy: {o['accuracy']:.2f}%, CollRate: {o['coll_rate']:.2f}% (N={o['total']})")
+
+    # 同时写入CSV
+    try:
+        import csv
+        csvname = 'simple_cht_summary.csv'
+        with open(csvname, 'w', newline='') as cf:
+            writer = csv.writer(cf)
+            writer.writerow(['density','n_obstacles','geom','precision','recall','accuracy','coll_rate','total','tp','fp','tn','fn'])
+            for rec in summary:
+                s = rec['sphere']
+                o = rec['obb']
+                writer.writerow([rec['density'], rec['n_obstacles'], 'sphere', f"{s['precision']:.2f}", f"{s['recall']:.2f}", f"{s['accuracy']:.2f}", f"{s['coll_rate']:.2f}", s['total'], s['tp'], s['fp'], s['tn'], s['fn']])
+                writer.writerow([rec['density'], rec['n_obstacles'], 'obb', f"{o['precision']:.2f}", f"{o['recall']:.2f}", f"{o['accuracy']:.2f}", f"{o['coll_rate']:.2f}", o['total'], o['tp'], o['fp'], o['tn'], o['fn']])
+        print(f"汇总已保存到: {csvname}")
+    except Exception as e:
+        print("保存CSV时出错:", e)
+
     print("\n程序执行完成!")
 
 
