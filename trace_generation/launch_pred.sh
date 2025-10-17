@@ -17,7 +17,7 @@ do
     do  
         echo "  Processing density: ${j}"
         
-        # 生成 OBB 数据 (原有功能)
+        # 生成 OBB 数据 和 球体数据
         echo "    Generating OBB data..."
         python pred_trace_generation.py 1000 scene_benchmarks/${j} ${i}
         

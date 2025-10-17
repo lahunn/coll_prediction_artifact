@@ -45,7 +45,7 @@ def find_sim_cost(R, C, A, N):
             for i in non_pred:
                 runs += 1
                 # 如果预测为不碰撞，实际发生碰撞的概率为 R*(1-C/A)
-                if random.random() <= (R * (1 - C / A)):
+                if random.random() <= (R * (1 - C) / (1 - C * R / A)):
                     coll = 1
                     break
         all_runs += runs

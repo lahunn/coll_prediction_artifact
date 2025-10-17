@@ -561,11 +561,10 @@ def calculate_link_obbs(robot_urdf_path, coacd_params=None, verbose=True):
                             f"Processing virtual link '{link_name}' (no collision geometry)..."
                         )
 
-                    obbs.append(_create_zero_obb(link_name))
-
-                    if verbose:
-                        print(f"  Created zero-size OBB for virtual link {link_name}")
-                    continue
+                    # obbs.append(_create_zero_obb(link_name))
+                    # if verbose:
+                    #     print(f"  Created zero-size OBB for virtual link {link_name}")
+                    # continue
 
                 if verbose:
                     print(f"Processing link '{link_name}'...")
