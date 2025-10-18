@@ -2,7 +2,7 @@
 # 通过离散化球体位置和半径空间并构建哈希表来预测机器人运动轨迹的碰撞风险
 # 使用球体的位置坐标(x,y,z)和半径作为哈希键值
 # 使用命令行参数: <密度等级> <坐标量化位数> <半径量化位数> <碰撞阈值> <自由样本采样率>
-
+# 示例: python coord_hashing_sphere.py mid 8 6 0.1 0.3
 import sys
 import numpy as np
 import matplotlib.pyplot as plt

@@ -16,10 +16,10 @@ do
     for j in dens3 dens6 dens9 dens12
     do  
         echo "  Processing density: ${j}"
-        
-        # 生成 OBB 数据 和 球体数据
+      
+        # 生成 OBB 数据 和 Sphere 数据
         echo "    Generating OBB data..."
-        python pred_trace_generation.py 1000 scene_benchmarks/${j} ${i}
+        python pred_trace_generation.py 5000 scene_benchmarks/${j} ${i}
         
         echo "    Completed ${j} environment ${i}"
     done

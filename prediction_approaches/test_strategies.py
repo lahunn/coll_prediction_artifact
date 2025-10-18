@@ -30,11 +30,11 @@ def load_benchmark_data(benchid, density="low"):
     benchidstr = str(benchid)
 
     if density == "low":
-        trace_path = f"../trace_generation/scene_benchmarks/dens6_rs/obstacles_{benchidstr}_coord.pkl"
+        trace_path = f"../trace_generation/scene_benchmarks/dens3_rs/obstacles_{benchidstr}_coord.pkl"
     elif density == "mid":
-        trace_path = f"../trace_generation/scene_benchmarks/dens9_rs/obstacles_{benchidstr}_coord.pkl"
+        trace_path = f"../trace_generation/scene_benchmarks/dens6_rs/obstacles_{benchidstr}_coord.pkl"
     else:
-        trace_path = f"../trace_generation/scene_benchmarks/dens12_rs/obstacles_{benchidstr}_coord.pkl"
+        trace_path = f"../trace_generation/scene_benchmarks/dens9_rs/obstacles_{benchidstr}_coord.pkl"
 
     if not os.path.exists(trace_path):
         return None

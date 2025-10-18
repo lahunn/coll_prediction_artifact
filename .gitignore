@@ -14,3 +14,4 @@ trace_generation/collision_results/*.pkl
 prediction_approaches/plots/*.png
 prediction_approaches/utils/analysis_results/*.png
 prediction_approaches/figs/*.png
+prediction_approaches/plot/figs/*
