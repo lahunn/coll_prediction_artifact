@@ -2,17 +2,22 @@ import random
 import os.path
 import tqdm
 import sys
-from trace_generation.workspace_bound.workspace_analyzer import WorkspaceAnalyzer
+from workspace_bound.workspace_analyzer import WorkspaceAnalyzer
 
 # 配置参数
 random.seed(1)
 
-# 根据命令行参数确定机器人URDF路径
+# 根据命令行参数确定机器人URDF路径和场景数量
 ROBOT_URDF_PATH = "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/franka_description/franka_panda.urdf"  # 默认Jaco机器人
+num_problems = 100  # 默认生成100个场景
+
 if len(sys.argv) > 1:
     ROBOT_URDF_PATH = sys.argv[1]  # 允许通过命令行指定URDF路径
+if len(sys.argv) > 2:
+    num_problems = int(sys.argv[2])  # 允许通过命令行指定场景数量
 
 print(f"使用机器人: {ROBOT_URDF_PATH}")
+print(f"生成场景数量: {num_problems}")
 
 
 def get_robot_workspace_bounds(robot_urdf_path):
@@ -168,6 +173,7 @@ print(f"  X: {KEEPOUT_BOX['x']}")
 print(f"  Y: {KEEPOUT_BOX['y']}")
 print(f"  Z: {KEEPOUT_BOX['z']}")
 
+
 voxel_dict = {}
 color = ["0.2 0.2 0.0", "0.5 0.5 0.0", "0.8 0.8 0.0"]
 for num_ob in [3, 6, 9, 12]:
@@ -175,19 +181,19 @@ for num_ob in [3, 6, 9, 12]:
         for j in range(0, len(ylist)):
             for k in range(0, len(xlist)):
                 voxel_dict[(k, j, i1)] = 0
-    os.makedirs("scene_benchmarks/dens" + str(num_ob), exist_ok=True)
+    os.makedirs("../trace_files/scene_benchmarks/dens" + str(num_ob), exist_ok=True)
     # os.makedirs("voxel_object_collision/jaco/dens"+str(num_ob), exist_ok=True)
     # fvoxel=open("voxel_object_collision/jaco/dens"+str(num_ob)+"/summary.txt","w")
     print(num_ob)
     sum_voxels = 0
-    for i in tqdm.tqdm(range(0, 100)):
+    for i in tqdm.tqdm(range(0, num_problems)):
         # num_ob = int(sys.argv[1])  # int(random.uniform(4,4))
         list_voxels = []
         # fv= open("voxel_object_collision/jaco/dens"+str(num_ob)+"/scene_"+str(i)+".txt","w")
 
         # MuJoCo格式文件
         f = open(
-            "scene_benchmarks/dens" + str(num_ob) + "/obstacles_" + str(i) + ".xml",
+            "../trace_files/scene_benchmarks/dens" + str(num_ob) + "/obstacles_" + str(i) + ".xml",
             "w",
         )
         write_mujoco_header(f, ROBOT_URDF_PATH)

@@ -26,7 +26,7 @@ import random
 import time
 import obb_calculator
 from obb_forward_kinematics import OBBForwardKinematics
-from robot_sphere_analyzer import RobotSphereAnalyzer
+from sphere_as.robot_sphere_analyzer import RobotSphereAnalyzer
 import torch
 
 
@@ -938,6 +938,18 @@ def find_valid_collision_links(sim):
 
     print(f"Found {len(valid_collision_links)} real collision links")
     print(f"Real collision links: {valid_collision_links}")
+    
+    # 输出连杆名称
+    link_names = []
+    for link_id in valid_collision_links:
+        if link_id == -1:
+            link_names.append("base_link")
+        else:
+            joint_info = p.getJointInfo(sim.robot_id, link_id, physicsClientId=sim.physics_client)
+            link_name = joint_info[12].decode('utf-8')  # linkName is at index 12
+            link_names.append(link_name)
+    print(f"Link names: {link_names}")
+    
     return valid_collision_links
 
 

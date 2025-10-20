@@ -9,7 +9,7 @@ import sys
 
 import obb_calculator
 from obb_forward_kinematics import OBBForwardKinematics
-from robot_sphere_analyzer import RobotSphereAnalyzer
+from trace_generation.sphere_as.robot_sphere_analyzer import RobotSphereAnalyzer
 
 
 class PyBulletRobotSimulator:

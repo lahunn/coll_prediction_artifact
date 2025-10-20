@@ -1,0 +1,90 @@
+#!/bin/bash
+
+# ==============================================================================
+# 脚本: run_coord_cost_analysis.sh
+# 功能: 遍历 coord_hashing.py 的不同参数设置，评估其对预测性能和计算成本的影响。
+#
+# 该脚本会自动运行一系列实验，并将结果保存到CSV文件中，
+# 包括精确率、召回率、预期计算成本、baseline成本和加速比。
+# ==============================================================================
+
+# --- 配置 ---
+
+# 定义结果输出文件
+OUTPUT_FILE="../result_files/coord_hashing_cost_results.csv"
+
+# 定义要测试的参数范围
+DENSITY_LEVELS=("dens3" "dens6" "dens9" "dens12")       # 目标场景密度
+QUANTIZE_BITS_LIST=(3 4 5 6 7 8)                        # 坐标量化位数
+THRESHOLDS=(0.0 0.03125 0.0625 0.125 0.25 0.5 1.0 2.0 4.0)  # 碰撞阈值
+SAMPLE_RATES=(0.01 0.05 0.1 0.3 0.5 0.8 1.0)           # 自由样本采样率
+
+# --- 执行 ---
+
+# 检查Python脚本是否存在
+if [ ! -f "coord_hashing.py" ]; then
+    echo "错误: 脚本 'coord_hashing.py' 未找到"
+    exit 1
+fi
+
+# 创建result_files目录（如果不存在）
+mkdir -p ../result_files
+
+# 写入CSV文件的表头
+echo "Density,QuantBits,Threshold,SampleRate,Precision,Recall,PredCost,BaselineCost,Speedup" > "$OUTPUT_FILE"
+
+echo "🚀 开始OBB碰撞预测参数扫描 (包含成本分析)"
+echo "   结果将保存到 $OUTPUT_FILE"
+echo ""
+
+# 计数器
+total_combinations=$((${#DENSITY_LEVELS[@]} * ${#QUANTIZE_BITS_LIST[@]} * ${#THRESHOLDS[@]} * ${#SAMPLE_RATES[@]}))
+current=0
+
+# 使用嵌套循环遍历所有参数组合
+for density in "${DENSITY_LEVELS[@]}"; do
+  echo "📊 处理密度级别: $density"
+  
+  for quant_bits in "${QUANTIZE_BITS_LIST[@]}"; do
+    for threshold in "${THRESHOLDS[@]}"; do
+      for sample_rate in "${SAMPLE_RATES[@]}"; do
+        
+        current=$((current + 1))
+        
+        # 显示进度（每20个输出一次）
+        if [ $((current % 20)) -eq 0 ] || [ $current -eq 1 ]; then
+          echo "  [$current/$total_combinations] 量化位数=$quant_bits, 阈值=$threshold, 采样率=$sample_rate"
+        fi
+
+        # 执行Python脚本并捕获输出
+        result=$(python coord_hashing.py "$density" "$quant_bits" "$threshold" "$sample_rate" 2>&1)
+
+        # 检查是否执行成功
+        if [ $? -eq 0 ]; then
+          # 清理输出，移除百分号和多余空格
+          cleaned_result=$(echo "$result" | sed 's/%, /,/g' | sed 's/%//g' | sed 's/ //g')
+          echo "$cleaned_result" >> "$OUTPUT_FILE"
+        else
+          echo "  ⚠️  警告: 参数组合执行失败 ($density, $quant_bits, $threshold, $sample_rate)"
+          echo "  错误信息: $result"
+        fi
+
+      done
+    done
+  done
+  
+  echo "  ✓ 完成密度级别 $density 的所有测试"
+  echo ""
+done
+
+echo ""
+echo "✅ 参数扫描完成!"
+echo "📄 结果已保存到: $OUTPUT_FILE"
+echo "📊 总共测试了 $total_combinations 个参数组合"
+
+# 显示文件大小
+if [ -f "$OUTPUT_FILE" ]; then
+  file_size=$(du -h "$OUTPUT_FILE" | cut -f1)
+  line_count=$(wc -l < "$OUTPUT_FILE")
+  echo "📈 结果文件大小: $file_size, 包含 $line_count 行数据"
+fi

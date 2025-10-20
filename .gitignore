@@ -15,3 +15,8 @@ prediction_approaches/plots/*.png
 prediction_approaches/utils/analysis_results/*.png
 prediction_approaches/figs/*.png
 prediction_approaches/plot/figs/*
+trace_generation/scene_benchmarks/dens*/*.xml
+trace_generation/scene_benchmarks/dens*/*.pkl
+trace_generation/sphere_as/*.json
+trace_generation/sphere_as/*.png
+

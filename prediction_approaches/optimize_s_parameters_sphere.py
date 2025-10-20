@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
 球体碰撞预测的S参数优化脚本
-在不同障碍物密度下寻找最佳的S参数（阈值），以计算成本作为优化目标
+在不同障碍物密度下寻找最佳的S参数阈值以,计算成本作为优化目标
 """
+# 用法 python optimize_s_parameters_sphere.py <coord_bin_bits> <radius_bin_bits> [update_prob] [consider_radius]
 # 示例 python optimize_s_parameters_sphere.py 4 0 0.5 0
 import sys
 import os
@@ -11,13 +12,12 @@ import pickle
 import csv
 from collision_prediction_strategies import (
     FixedThresholdStrategy,
-    AdaptiveThresholdStrategy,
     evaluate_strategy_on_spheres,
 )
 from utils.utils import calculate_expected_checks, calculate_baseline_expectation
 
 
-sphere_num = 63
+sphere_num = 61
 sphere_cost = 18
 
 
@@ -209,95 +209,6 @@ def evaluate_fixed_threshold_sphere(
     return avg_cost, avg_baseline_cost, prec, rec, avg_collision_ratio
 
 
-def evaluate_adaptive_threshold_sphere(
-    s_min,
-    s_max,
-    density,
-    bench_ids,
-    num_bins_coord,
-    num_bins_radius,
-    update_prob,
-    consider_radius=False,
-):
-    """
-    评估自适应阈值策略在球体数据上的性能
-
-    Args:
-        s_min: 最小敏感度
-        s_max: 最大敏感度
-        density: 密度级别
-        bench_ids: 场景ID列表
-        num_bins_coord: 坐标分桶数量
-        num_bins_radius: 半径分桶数量
-        update_prob: 更新概率
-        consider_radius: 是否考虑半径
-
-    Returns:
-        tuple: (平均成本, 平均baseline成本, 平均精确率, 平均召回率, 平均碰撞概率)
-    """
-    # 计算分桶边界
-    x_bins, y_bins, z_bins, r_bins = compute_sphere_bins(
-        density, num_bins_coord, num_bins_radius
-    )
-
-    strategy = AdaptiveThresholdStrategy(
-        s_min=s_min, s_max=s_max, update_prob=update_prob
-    )
-    all_costs = []
-    all_baseline_costs = []
-    all_collision_ratios = []
-
-    for benchid in bench_ids:
-        data = load_sphere_benchmark_data(benchid, density)
-        if data is None:
-            continue
-
-        qarr_sphere, rarr_sphere, yarr_sphere = data
-        position_quant, radius_quant = quantize_sphere_data(
-            qarr_sphere, rarr_sphere, x_bins, y_bins, z_bins, r_bins
-        )
-
-        # 评估策略
-        evaluate_strategy_on_spheres(
-            strategy,
-            position_quant,
-            radius_quant,
-            yarr_sphere.flatten(),
-            consider_radius=consider_radius,
-        )
-
-        # 计算成本
-        prec, rec = strategy.get_metrics()
-        collision_ratio = strategy.get_collision_ratio()
-
-        if prec > 0 and rec > 0 and collision_ratio > 0:
-            # 使用 calculate_expected_checks 计算预测器成本
-            expected_checks = calculate_expected_checks(
-                R=collision_ratio, C=rec / 100.0, A=prec / 100.0, N=sphere_num
-            )
-            cost = expected_checks * sphere_cost
-            all_costs.append(cost)
-            
-            # 使用 calculate_baseline_expectation 计算baseline成本
-            baseline_checks = calculate_baseline_expectation(N=sphere_num, R=collision_ratio)
-            baseline_cost = baseline_checks * sphere_cost
-            all_baseline_costs.append(baseline_cost)
-            
-            # 收集碰撞概率
-            all_collision_ratios.append(collision_ratio)
-
-        # 重置以准备下一个场景
-        strategy.reset_collision_history()
-        strategy.reset_statistics()
-
-    avg_cost = np.mean(all_costs) if all_costs else float("inf")
-    avg_baseline_cost = np.mean(all_baseline_costs) if all_baseline_costs else float("inf")
-    avg_collision_ratio = np.mean(all_collision_ratios) if all_collision_ratios else 0.0
-    final_prec, final_rec = strategy.get_metrics()
-
-    return avg_cost, avg_baseline_cost, final_prec, final_rec, avg_collision_ratio
-
-
 def optimize_fixed_threshold_sphere(
     density,
     bench_ids,
@@ -372,89 +283,6 @@ def optimize_fixed_threshold_sphere(
     return best_threshold, best_cost, best_baseline_cost, best_prec, best_rec, best_collision_ratio, results
 
 
-def optimize_adaptive_threshold_sphere(
-    density,
-    bench_ids,
-    num_bins_coord,
-    num_bins_radius,
-    update_prob,
-    consider_radius=False,
-):
-    """
-    优化球体数据上自适应阈值策略的S_min和S_max参数
-
-    Args:
-        density: 密度级别
-        bench_ids: 场景ID列表
-        num_bins_coord: 坐标分桶数量
-        num_bins_radius: 半径分桶数量
-        update_prob: 更新概率
-        consider_radius: 是否考虑半径
-
-    Returns:
-        tuple: (最佳s_min, 最佳s_max, 最低成本, baseline成本, 精确率, 召回率, 碰撞概率, 所有结果)
-    """
-    print(f"\n优化自适应阈值策略 (球体) - {density}密度")
-    print("-" * 70)
-
-    # 搜索空间
-    s_min_candidates = [0.001, 0.005, 0.01, 0.02, 0.05, 0.1]
-    s_max_candidates = [0.5, 0.8, 1.0, 1.5, 2.0, 3.0]
-
-    best_s_min = None
-    best_s_max = None
-    best_cost = float("inf")
-    best_baseline_cost = float("inf")
-    best_prec = 0
-    best_rec = 0
-    best_collision_ratio = 0.0
-
-    results = []
-
-    for s_min in s_min_candidates:
-        for s_max in s_max_candidates:
-            # s_max必须大于s_min
-            if s_max <= s_min:
-                continue
-
-            avg_cost, avg_baseline_cost, prec, rec, collision_ratio = evaluate_adaptive_threshold_sphere(
-                s_min,
-                s_max,
-                density,
-                bench_ids,
-                num_bins_coord,
-                num_bins_radius,
-                update_prob,
-                consider_radius,
-            )
-
-            results.append((s_min, s_max, avg_cost, avg_baseline_cost, prec, rec, collision_ratio))
-
-            print(
-                f"  S_min={s_min:6.3f}, S_max={s_max:5.2f}, 平均成本={avg_cost:7.4f}, "
-                f"baseline成本={avg_baseline_cost:7.4f}, "
-                f"精确率={prec:6.2f}%, 召回率={rec:6.2f}%, 碰撞率={collision_ratio:.4f}"
-            )
-
-            if avg_cost < best_cost:
-                best_cost = avg_cost
-                best_baseline_cost = avg_baseline_cost
-                best_s_min = s_min
-                best_s_max = s_max
-                best_prec = prec
-                best_rec = rec
-                best_collision_ratio = collision_ratio
-
-    print(f"\n✅ 最佳自适应参数: S_min={best_s_min:.3f}, S_max={best_s_max:.2f}")
-    print(f"   最低成本: {best_cost:.4f}")
-    print(f"   Baseline成本: {best_baseline_cost:.4f}")
-    print(f"   精确率: {best_prec:.2f}%")
-    print(f"   召回率: {best_rec:.2f}%")
-    print(f"   碰撞率: {best_collision_ratio:.4f}")
-
-    return best_s_min, best_s_max, best_cost, best_baseline_cost, best_prec, best_rec, best_collision_ratio, results
-
-
 def main():
     """主函数"""
     # 解析命令行参数
@@ -472,6 +300,7 @@ def main():
 
     num_bins_coord = 2**coord_bin_bits
     num_bins_radius = 2**radius_bin_bits
+    num_problems = 100
 
     print("=" * 70)
     print("球体碰撞预测的S参数优化 - 基于计算成本")
@@ -486,9 +315,9 @@ def main():
 
     # 定义不同密度的场景ID范围
     densities = {
-        "low": list(range(0, 100)),  # 场景0-99 (低密度)
-        "mid": list(range(0, 100)),  # 场景0-99 (中等密度)
-        "high": list(range(0, 100)),  # 场景0-99 (高密度)
+        "low": list(range(0, num_problems)),  # 场景0-99 (低密度)
+        "mid": list(range(0, num_problems)),  # 场景0-99 (中等密度)
+        "high": list(range(0, num_problems)),  # 场景0-99 (高密度)
     }
 
     all_results = {}
@@ -517,20 +346,6 @@ def main():
             update_prob,
             consider_radius,
         )
-
-        # 优化自适应阈值策略（如果需要）
-        # (
-        #     best_s_min,
-        #     best_s_max,
-        #     best_adaptive_cost,
-        #     best_adaptive_baseline_cost,
-        #     best_adaptive_prec,
-        #     best_adaptive_rec,
-        #     best_adaptive_collision_ratio,
-        #     adaptive_results,
-        # ) = optimize_adaptive_threshold_sphere(
-        #     density_name, bench_ids, num_bins_coord, num_bins_radius, update_prob, consider_radius
-        # )
 
         # 保存结果
         all_results[density_name] = {
@@ -567,29 +382,6 @@ def main():
         print(f"  召回率: {fixed_data['recall']:.2f}%")
         print(f"  碰撞率: {fixed_data['collision_ratio']:.4f}")
 
-        # 如果有自适应策略结果，也输出
-        if "adaptive" in all_results[density_name]:
-            adaptive_data = all_results[density_name]["adaptive"]
-            print("\n自适应阈值策略:")
-            print(
-                f"  最佳参数: S_min={adaptive_data['s_min']:.3f}, S_max={adaptive_data['s_max']:.2f}"
-            )
-            print(f"  平均成本: {adaptive_data['cost']:.4f}")
-            print(f"  Baseline成本: {adaptive_data['baseline_cost']:.4f}")
-            if adaptive_data['baseline_cost'] > 0:
-                speedup = adaptive_data['baseline_cost'] / adaptive_data['cost']
-                print(f"  加速比: {speedup:.2f}x")
-            print(f"  精确率: {adaptive_data['precision']:.2f}%")
-            print(f"  召回率: {adaptive_data['recall']:.2f}%")
-            print(f"  碰撞率: {adaptive_data['collision_ratio']:.4f}")
-
-            # 计算改善
-            if fixed_data["cost"] > 0:
-                improvement = (
-                    (fixed_data["cost"] - adaptive_data["cost"]) / fixed_data["cost"]
-                ) * 100
-                print(f"\n  自适应策略成本改善: {improvement:.2f}%")
-
     # 输出CSV格式的最优参数
     print("\n" + "=" * 70)
     print("最优参数 (CSV格式)")
@@ -605,17 +397,6 @@ def main():
             f"{fixed_data['precision']:.2f},{fixed_data['recall']:.2f},"
             f"{fixed_data['collision_ratio']:.4f}"
         )
-
-        # 如果有自适应策略结果，也输出
-        if "adaptive" in all_results[density_name]:
-            adaptive_data = all_results[density_name]["adaptive"]
-            speedup = adaptive_data['baseline_cost'] / adaptive_data['cost'] if adaptive_data['cost'] > 0 else 0
-            print(
-                f'{density_name},自适应阈值,"{adaptive_data["s_min"]:.3f},{adaptive_data["s_max"]:.2f}",'
-                f"{adaptive_data['cost']:.4f},{adaptive_data['baseline_cost']:.4f},{speedup:.2f},"
-                f"{adaptive_data['precision']:.2f},{adaptive_data['recall']:.2f},"
-                f"{adaptive_data['collision_ratio']:.4f}"
-            )
 
     print("\n" + "=" * 70)
     print("✅ 优化完成!")
@@ -669,26 +450,6 @@ def main():
                 ]
             )
 
-            # 如果有自适应策略结果，也写入
-            if "adaptive" in all_results[density_name]:
-                adaptive_data = all_results[density_name]["adaptive"]
-                speedup = adaptive_data['baseline_cost'] / adaptive_data['cost'] if adaptive_data['cost'] > 0 else 0
-                writer.writerow(
-                    [
-                        density_name,
-                        "自适应阈值",
-                        f"S_min={adaptive_data['s_min']:.3f}, S_max={adaptive_data['s_max']:.2f}",
-                        f"{adaptive_data['cost']:.4f}",
-                        f"{adaptive_data['baseline_cost']:.4f}",
-                        f"{speedup:.2f}",
-                        f"{adaptive_data['precision']:.2f}",
-                        f"{adaptive_data['recall']:.2f}",
-                        f"{adaptive_data['collision_ratio']:.4f}",
-                        f"coord_bins={num_bins_coord}, radius_bins={num_bins_radius}, "
-                        f"update_prob={update_prob}, consider_radius={consider_radius}",
-                    ]
-                )
-
     print(f"✅ 结果已保存到: {output_csv}")
 
     # 同时保存详细的所有测试结果
@@ -721,25 +482,6 @@ def main():
                         f"{collision_ratio:.4f}",
                     ]
                 )
-
-            # 如果有自适应策略的详细结果，也写入
-            if "adaptive" in all_results[density_name]:
-                adaptive_data = all_results[density_name]["adaptive"]
-                for s_min, s_max, cost, baseline_cost, prec, rec, collision_ratio in adaptive_data["all_results"]:
-                    speedup = baseline_cost / cost if cost > 0 else 0
-                    writer.writerow(
-                        [
-                            density_name,
-                            "自适应阈值",
-                            f"S_min={s_min:.3f}, S_max={s_max:.2f}",
-                            f"{cost:.4f}",
-                            f"{baseline_cost:.4f}",
-                            f"{speedup:.2f}",
-                            f"{prec:.2f}",
-                            f"{rec:.2f}",
-                            f"{collision_ratio:.4f}",
-                        ]
-                    )
 
     print(f"✅ 详细结果已保存到: {detailed_csv}")
 

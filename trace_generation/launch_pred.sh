@@ -5,8 +5,10 @@ echo "Starting data generation pipeline..."
 # 生成场景文件
 # echo "Step 1: Generating scene files..."
 ROBOT_URDF="/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/franka_description/franka_panda.urdf" 
+NUM_PROBLEMS=100
+NUM_SAMPLES=3000
 
-python scene_generator.py  $ROBOT_URDF
+python scene_generator.py  $ROBOT_URDF $NUM_PROBLEMS
 
 # 生成 OBB 和球体数据
 echo "Step 2: Generating collision detection data..."
@@ -19,7 +21,7 @@ do
       
         # 生成 OBB 数据 和 Sphere 数据
         echo "    Generating OBB data..."
-        python pred_trace_generation.py 5000 scene_benchmarks/${j} ${i}
+        python pred_trace_generation.py $NUM_SAMPLES ../trace_files/scene_benchmarks/${j} ${i}
         
         echo "    Completed ${j} environment ${i}"
     done
