@@ -78,6 +78,8 @@ def main():
     )
 
     # 主循环：遍历num_problems个基准场景进行评估
+    all_labels = []  # 收集所有问题的标签
+    
     for benchid in range(0, num_problems):
         strategy.reset_collision_history()
 
@@ -89,14 +91,19 @@ def main():
         xtest_pred, dirr_pred, label_pred = pickle.load(f)
         f.close()
         
+        all_labels.append(label_pred)
+        
         code_pred_quant = np.digitize(xtest_pred, bins, right=True)
         evaluate_strategy_on_trajectory(
             strategy, code_pred_quant, label_pred, group_size=num_links
         )
 
+    # 合并所有标签
+    all_labels = np.concatenate(all_labels)
+    
     # 输出最终评估指标
     precision, recall, ele_precision, ele_recall = strategy.get_metrics()
-    all_collision_ratio, ele_collision_ratio = strategy.get_collision_ratio()
+    all_collision_ratio, ele_collision_ratio = strategy.get_collision_ratio(all_labels)
     
     # 计算预期成本（姿态级）
     if precision > 0 and recall > 0 and all_collision_ratio > 0:

@@ -57,9 +57,7 @@ def main():
     """主函数"""
     # 解析命令行参数
     if len(sys.argv) != 7:
-        print(
-            "用法: python coord_hashing_sphere.py <密度等级> <坐标量化位数> <半径量化位数> <碰撞阈值> <自由样本采样率> <问题数量>"
-        )
+        print("用法: python coord_hashing_sphere.py <密度等级> <坐标量化位数> <半径量化位数> <碰撞阈值> <自由样本采样率> <问题数量>")
         print("示例: python coord_hashing_sphere.py dens6 8 6 0.1 0.3 100")
         sys.exit(1)
 
@@ -92,20 +90,16 @@ def main():
     all_positions = np.vstack(all_positions)
     all_radii = np.concatenate(all_radii)
 
-    # 计算每个坐标轴的范围
-    x_min, x_max = np.min(all_positions[:, 0]), np.max(all_positions[:, 0])
-    y_min, y_max = np.min(all_positions[:, 1]), np.max(all_positions[:, 1])
-    z_min, z_max = np.min(all_positions[:, 2]), np.max(all_positions[:, 2])
+    # 计算坐标范围（统一量化）
+    coord_min, coord_max = np.min(all_positions), np.max(all_positions)
     r_min, r_max = np.min(all_radii), np.max(all_radii)
 
     # 计算分桶数量
     binnumber_coord = 2**coord_quantize_bits
     binnumber_radius = 2**radius_quantize_bits
 
-    # 创建各轴独立的分桶边界
-    x_bins = create_bins(x_min, x_max, binnumber_coord)
-    y_bins = create_bins(y_min, y_max, binnumber_coord)
-    z_bins = create_bins(z_min, z_max, binnumber_coord)
+    # 创建统一的坐标分桶边界
+    coord_bins = create_bins(coord_min, coord_max, binnumber_coord)
     r_bins = create_bins(r_min, r_max, binnumber_radius)
 
     # 创建固定阈值策略
@@ -116,6 +110,8 @@ def main():
     )
 
     # 主循环：遍历num_problems个基准场景进行评估
+    all_labels = []  # 收集所有问题的标签
+
     for benchid in range(0, num_problems):
         strategy.reset_collision_history()
 
@@ -131,12 +127,10 @@ def main():
         xtest_pred = qarr_sphere
         radius_pred = rarr_sphere
         label_pred = yarr_sphere.flatten()
+        all_labels.append(label_pred)
 
-        # 对球体位置进行分轴量化离散化
-        code_pred_quant = np.zeros_like(xtest_pred, dtype=int)
-        code_pred_quant[:, 0] = np.digitize(xtest_pred[:, 0], x_bins, right=True)
-        code_pred_quant[:, 1] = np.digitize(xtest_pred[:, 1], y_bins, right=True)
-        code_pred_quant[:, 2] = np.digitize(xtest_pred[:, 2], z_bins, right=True)
+        # 对球体位置进行统一量化离散化
+        code_pred_quant = np.digitize(xtest_pred, coord_bins, right=True)
 
         # 对球体半径进行独立量化离散化
         radius_pred_quant = np.digitize(radius_pred.flatten(), r_bins, right=True)
@@ -150,9 +144,12 @@ def main():
             consider_radius=consider_radius,
         )
 
+    # 合并所有标签
+    all_labels = np.concatenate(all_labels)
+
     # 输出最终评估指标
     precision, recall, ele_precision, ele_recall = strategy.get_metrics()
-    all_collision_ratio, ele_collision_ratio = strategy.get_collision_ratio()
+    all_collision_ratio, ele_collision_ratio = strategy.get_collision_ratio(all_labels)
 
     # 计算预期成本（姿态级）
     if precision > 0 and recall > 0 and all_collision_ratio > 0:
@@ -161,9 +158,7 @@ def main():
         )
         pred_cost = expected_checks * sphere_cost
 
-        baseline_checks = calculate_baseline_expectation(
-            N=sphere_num, R=all_collision_ratio
-        )
+        baseline_checks = calculate_baseline_expectation(N=sphere_num, R=all_collision_ratio)
         baseline_cost = baseline_checks * sphere_cost
 
         speedup = baseline_cost / pred_cost if pred_cost > 0 else 0

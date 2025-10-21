@@ -32,7 +32,7 @@ fi
 mkdir -p ../result_files
 
 # 写入CSV文件的表头
-echo "Density,QuantBits,Threshold,SampleRate,Precision,Recall,CollisionRatio,PredCost,BaselineCost,Speedup" > "$OUTPUT_FILE"
+echo "Density,QuantBits,Threshold,SampleRate,PosePrecision,PoseRecall,PoseCollisionRatio,ElemPrecision,ElemRecall,ElemCollisionRatio,PredCost,BaselineCost,Speedup" > "$OUTPUT_FILE"
 
 echo "🚀 开始OBB碰撞预测参数扫描 (包含成本分析)"
 echo "   结果将保存到 $OUTPUT_FILE"
@@ -62,8 +62,8 @@ for density in "${DENSITY_LEVELS[@]}"; do
 
         # 检查是否执行成功
         if [ $? -eq 0 ]; then
-          # 清理输出，移除百分号和多余空格
-          cleaned_result=$(echo "$result" | sed 's/%, /,/g' | sed 's/%//g' | sed 's/ //g')
+          # 清理输出，移除百分号、标签和多余空格
+          cleaned_result=$(echo "$result" | sed 's/Pose://g' | sed 's/Elem://g' | sed 's/Cost://g' | sed 's/%, /,/g' | sed 's/%//g' | sed 's/ //g')
           echo "$cleaned_result" >> "$OUTPUT_FILE"
         else
           echo "  ⚠️  警告: 参数组合执行失败 ($density, $quant_bits, $threshold, $sample_rate)"
