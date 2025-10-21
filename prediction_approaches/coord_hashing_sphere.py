@@ -151,19 +151,18 @@ def main():
         )
 
     # 输出最终评估指标
-    precision, recall = strategy.get_metrics()
-    collision_ratio = strategy.get_collision_ratio()
+    precision, recall, ele_precision, ele_recall = strategy.get_metrics()
+    all_collision_ratio, ele_collision_ratio = strategy.get_collision_ratio()
 
-    # 计算预期成本
-
-    if precision > 0 and recall > 0 and collision_ratio > 0:
+    # 计算预期成本（姿态级）
+    if precision > 0 and recall > 0 and all_collision_ratio > 0:
         expected_checks = calculate_expected_checks(
-            R=collision_ratio, C=recall / 100.0, A=precision / 100.0, N=sphere_num
+            R=all_collision_ratio, C=recall / 100.0, A=precision / 100.0, N=sphere_num
         )
         pred_cost = expected_checks * sphere_cost
 
         baseline_checks = calculate_baseline_expectation(
-            N=sphere_num, R=collision_ratio
+            N=sphere_num, R=all_collision_ratio
         )
         baseline_cost = baseline_checks * sphere_cost
 
@@ -173,10 +172,12 @@ def main():
         baseline_cost = float("inf")
         speedup = 0
 
+    # 输出姿态级和元素级指标
     print(
         f"{density_level}, {coord_quantize_bits}, {radius_quantize_bits}, {collision_threshold}, {free_sample_rate}, "
-        f"{precision:.2f}%, {recall:.2f}%, {collision_ratio:.2f}%, "
-        f"{pred_cost:.2f}, {baseline_cost:.2f}, {speedup:.2f}"
+        f"Pose: {precision:.2f}%, {recall:.2f}%, {all_collision_ratio:.4f}, "
+        f"Elem: {ele_precision:.2f}%, {ele_recall:.2f}%, {ele_collision_ratio:.4f}, "
+        f"Cost: {pred_cost:.2f}, {baseline_cost:.2f}, {speedup:.2f}"
     )
 
 

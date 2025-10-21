@@ -8,9 +8,12 @@
 import random
 import math
 
+num_obbs = 11
+num_spheres = 61
+
+
 class CollisionPredictionStrategy:
     """碰撞预测策略基类"""
-
     def __init__(self, update_prob=0.5, max_count=255):
         """
         初始化预测策略
@@ -23,10 +26,17 @@ class CollisionPredictionStrategy:
         self.update_prob = update_prob
         self.max_count = max_count  # SRAM位宽限制（如8bit = 255）
 
-        # 统计变量
-        self.all_zerozero = 0  # True Positives
-        self.all_onezero = 0  # False Positives
-        self.all_total_colliding = 0  # 总碰撞数
+        # 姿态级统计变量
+        self.all_zerozero = 0  # True Positives (姿态级)
+        self.all_onezero = 0  # False Positives (姿态级)
+        self.all_total_colliding = 0  # 总碰撞数 (姿态级)
+        self.all_total_checks = 0  # 总检查数 (姿态级)
+
+        # 元素级统计变量 (OBB或sphere级)
+        self.ele_zerozero = 0  # True Positives (元素级)
+        self.ele_onezero = 0  # False Positives (元素级)
+        self.ele_total_colliding = 0  # 总碰撞数 (元素级)
+        self.ele_total_checks = 0  # 总检查数 (元素级)
 
     def predict_collision(self, keyy):
         """
@@ -175,70 +185,58 @@ class CollisionPredictionStrategy:
         # 替换原字典
         self.colldict = new_colldict
 
-    def update_statistics(self, predicted, true_label):
-        """
-        更新统计变量
-
-        Args:
-            predicted: 预测结果 (0=碰撞, 1=自由)
-            true_label: 真实标签 (0=碰撞, 1=自由)
-        """
-        if true_label < 0.5:  # 真实为碰撞
-            self.all_total_colliding += 1
-            if predicted == 0:  # 预测也为碰撞 (TP)
-                self.all_zerozero += 1
-        elif predicted == 0:  # 真实为自由但预测为碰撞 (FP)
-            self.all_onezero += 1
-
     def reset_statistics(self):
         """重置统计变量"""
         self.all_zerozero = 0
         self.all_onezero = 0
         self.all_total_colliding = 0
+        self.all_total_checks = 0
+        self.ele_zerozero = 0
+        self.ele_onezero = 0
+        self.ele_total_colliding = 0
+        self.ele_total_checks = 0
 
     def get_metrics(self):
         """
         计算并返回评估指标
 
         Returns:
-            tuple: (precision, recall)
+            tuple: (precision, recall, ele_precision, ele_recall)
+                   前两个是姿态级指标，后两个是元素级指标
         """
+        # 姿态级指标
         precision = (
-            self.all_zerozero * 100 / (self.all_zerozero + self.all_onezero)
-            if (self.all_zerozero + self.all_onezero) > 0
-            else 0.0
+            self.all_zerozero * 100 / (self.all_zerozero + self.all_onezero) if
+            (self.all_zerozero + self.all_onezero) > 0 else 0.0
         )
-        recall = (
-            self.all_zerozero * 100 / self.all_total_colliding
-            if self.all_total_colliding > 0
-            else 0.0
+        recall = (self.all_zerozero * 100 / self.all_total_colliding if self.all_total_colliding > 0 else 0.0)
+
+        # 元素级指标
+        ele_precision = (
+            self.ele_zerozero * 100 / (self.ele_zerozero + self.ele_onezero) if
+            (self.ele_zerozero + self.ele_onezero) > 0 else 0.0
         )
-        return precision, recall
+        ele_recall = (self.ele_zerozero * 100 / self.ele_total_colliding if self.ele_total_colliding > 0 else 0.0)
+
+        return precision, recall, ele_precision, ele_recall
 
     def get_collision_ratio(self):
         """
-        计算colldict中真实的碰撞比率
-        基于所有记录的样本（碰撞+自由）计算碰撞样本的比例
+        计算真实的碰撞比率
+        基于统计变量直接计算碰撞样本的比例
 
         Returns:
-            float: 碰撞比率 (0.0 到 1.0)
+            tuple: (姿态级碰撞率, 元素级碰撞率)
+                   姿态级碰撞率 = all_total_colliding / all_total_checks
+                   元素级碰撞率 = ele_total_colliding / ele_total_checks
         """
-        if len(self.colldict) == 0:
-            return 0.0
+        # 姿态级碰撞率
+        all_ratio = (self.all_total_colliding / self.all_total_checks if self.all_total_checks > 0 else 0.0)
 
-        total_collision_samples = 0
-        total_free_samples = 0
+        # 元素级碰撞率
+        ele_ratio = (self.ele_total_colliding / self.ele_total_checks if self.ele_total_checks > 0 else 0.0)
 
-        for counts in self.colldict.values():
-            total_collision_samples += counts[0]  # 碰撞次数
-            total_free_samples += counts[1]  # 自由次数
-
-        total_samples = total_collision_samples + total_free_samples
-
-        if total_samples == 0:
-            return 0.0
-
-        return total_collision_samples / total_samples
+        return all_ratio, ele_ratio
 
 
 class FixedThresholdStrategy(CollisionPredictionStrategy):
@@ -246,7 +244,6 @@ class FixedThresholdStrategy(CollisionPredictionStrategy):
     固定阈值策略
     使用固定的敏感度阈值进行碰撞预测
     """
-
     def __init__(self, threshold=0.1, update_prob=0.5, max_count=255):
         """
         初始化固定阈值策略
@@ -289,7 +286,6 @@ class AdaptiveThresholdStrategy(CollisionPredictionStrategy):
     自适应阈值策略
     根据colldict中碰撞占优的条目比例动态调整敏感度阈值
     """
-
     def __init__(self, s_min=0.01, s_max=1.0, update_prob=0.5, max_count=255):
         """
         初始化自适应阈值策略
@@ -315,18 +311,14 @@ class AdaptiveThresholdStrategy(CollisionPredictionStrategy):
             return
 
         # 统计碰撞占优的条目数
-        collision_dominant_count = sum(
-            1 for counts in self.colldict.values() if counts[0] > counts[1]
-        )
+        collision_dominant_count = sum(1 for counts in self.colldict.values() if counts[0] > counts[1])
 
         # 计算碰撞倾向比例
         collision_dominant_ratio = collision_dominant_count / len(self.colldict)
 
         # 线性插值计算当前敏感度
         # 碰撞倾向比例越高，阈值越低（越容易预测为碰撞）
-        self.current_threshold = (
-            self.s_max - (self.s_max - self.s_min) * collision_dominant_ratio
-        )
+        self.current_threshold = (self.s_max - (self.s_max - self.s_min) * collision_dominant_ratio)
 
     def predict_collision(self, keyy):
         """
@@ -358,9 +350,7 @@ class AdaptiveThresholdStrategy(CollisionPredictionStrategy):
         """获取当前colldict中碰撞占优的条目比例"""
         if len(self.colldict) == 0:
             return 0.0
-        collision_dominant_count = sum(
-            1 for counts in self.colldict.values() if counts[0] > counts[1]
-        )
+        collision_dominant_count = sum(1 for counts in self.colldict.values() if counts[0] > counts[1])
         return collision_dominant_count / len(self.colldict)
 
     def __str__(self):
@@ -511,6 +501,7 @@ def generate_sphere_hash_key(position_quant, radius_quant=None, consider_radius=
 #     # 返回所有模拟的平均运行次数
 #     return all_runs / 10000
 
+
 def find_sim_cost(R, C, A, N):
     """
     使用精确的封闭形式公式计算期望的碰撞检测次数。
@@ -533,44 +524,44 @@ def find_sim_cost(R, C, A, N):
     if A == 0 and C * R > 0:
         raise ValueError("当 A=0 时, C*R 必须也为0。")
     # P(Y) = C*R/A 必须小于等于1
-    if C * R > A + 1e-9: # 加上一个小的容差避免浮点数问题
+    if C * R > A + 1e-9:  # 加上一个小的容差避免浮点数问题
         raise ValueError(f"参数组合无效: C*R ({C*R}) 不能大于 A ({A})。")
-        
+
     # --- 边界情况处理 ---
     # 如果实际碰撞概率为0，则永远不会碰撞，必须执行完所有N次检测。
     if R == 0:
         return float(N)
-    
+
     # 如果精确率为0 (且C*R=0)，则所有预测为碰撞的都不是碰撞。
     # 此时组1为空或无用，相当于无策略。
     if A == 0:
         return (1 - (1 - R)**N) / R
 
     # --- 计算中间变量 ---
-    
+
     # 任务被预测为"碰撞"的概率 P(Y)
     prob_predicted_positive = (C * R) / A
 
     # 组2内任务实际为碰撞的概率 P2
     if abs(prob_predicted_positive - 1.0) < 1e-9:
         # 如果所有任务都被预测为碰撞，则组2为空，P2无意义，且第二项为0。
-        P2 = 0 # 设为0以避免除零错误
+        P2 = 0  # 设为0以避免除零错误
     else:
         P2 = ((1 - C) * R) / (1 - prob_predicted_positive)
 
     # --- 计算精确期望 ---
-    
+
     # E = (1 - (1 - CR)^N)/A + ((1 - CR)^N - (1-R)^N)/P2
-    
+
     term1 = (1 - (1 - C * R)**N) / A
-    
+
     # (1 - CR)^N
     term_1_minus_cr_pow_n = (1 - C * R)**N
     # (1 - R)^N
     term_1_minus_r_pow_n = (1 - R)**N
-    
+
     numerator_term2 = term_1_minus_cr_pow_n - term_1_minus_r_pow_n
-    
+
     if abs(P2) < 1e-9:
         # 如果P2为0，意味着组2中没有碰撞。
         # 此时需要检查分子是否也为0。 (1-CR)^N - (1-R)^N 只有在C=1或R=0时为0。
@@ -581,42 +572,44 @@ def find_sim_cost(R, C, A, N):
         term2 = 0.0
     else:
         term2 = numerator_term2 / P2
-        
+
     return term1 + term2
 
 
-def evaluate_strategy_on_trajectory(
-    strategy, code_pred_quant, label_pred, group_size=11
-):
+def evaluate_strategy_on_trajectory(strategy, code_pred_quant, label_pred, group_size=num_obbs):
     """
-    在一条轨迹上评估碰撞预测策略
+    在OBB数据上评估碰撞预测策略
 
     Args:
         strategy: 碰撞预测策略实例
         code_pred_quant: 量化后的配置数据
         label_pred: 真实标签
-        group_size: 分组大小（默认11，对应11个关节）
+        group_size: 分组大小,对应机器人的实际link数
 
     Returns:
         tuple: (预测正确数, 总碰撞数)
     """
     bitsize = len(code_pred_quant[0])
-    correct_predictions = 0
-    total_collisions = 0
 
     # 以group_size为步长遍历所有状态
     for bini in range(0, len(code_pred_quant), group_size):
         predicted = 1  # 默认预测为非碰撞
         true_ans = 1  # 默认真实为非碰撞
 
-        # 检查一个运动轨迹中的group_size个连续状态点
+        # 检查一个运动轨迹中的group_size个OBB
         for i in range(bini, min(bini + group_size, len(code_pred_quant))):
+            # 元素级统计：总检查数
+            strategy.ele_total_checks += 1
+
             # 生成哈希键
             keyy = generate_hash_key(code_pred_quant[i], bitsize)
 
             # 使用策略进行预测
             if strategy.predict_collision(keyy):
                 predicted = 0  # 预测为碰撞
+                # 元素级统计：误报
+                if label_pred[i] > 0.5:
+                    strategy.ele_onezero += 1
 
             # 更新策略的历史记录
             strategy.update_history(keyy, label_pred[i])
@@ -624,24 +617,28 @@ def evaluate_strategy_on_trajectory(
             # 检查真实标签
             if label_pred[i] < 0.5:
                 true_ans = 0  # 真实为碰撞
+                # 元素级统计：真实碰撞
+                strategy.ele_total_colliding += 1
                 if predicted == 0:
-                    correct_predictions += 1
+                    # 元素级统计：正确预测碰撞
+                    strategy.ele_zerozero += 1
                     break  # 提前退出
 
-        # 更新统计
-        strategy.update_statistics(predicted, true_ans)
-
+        # 姿态级统计
+        strategy.all_total_checks += 1
         if true_ans == 0:
-            total_collisions += 1
-
-    return correct_predictions, total_collisions
+            strategy.all_total_colliding += 1
+            if predicted == 0:
+                strategy.all_zerozero += 1
+        elif predicted == 0:
+            strategy.all_onezero += 1
 
 
 def evaluate_strategy_on_spheres(
-    strategy, position_quant, radius_quant, label_pred, consider_radius=False
+    strategy, position_quant, radius_quant, label_pred, consider_radius=False, group_size=num_spheres
 ):
     """
-    在球体数据上评估碰撞预测策略
+    在球体数据上评估碰撞预测策略（分组评估，与OBB方法一致）
 
     Args:
         strategy: 碰撞预测策略实例
@@ -649,48 +646,58 @@ def evaluate_strategy_on_spheres(
         radius_quant: 量化后的球体半径数据 [N] 或 [N, 1]
         label_pred: 真实标签 [N]
         consider_radius: 是否在哈希键中包含半径信息（默认False）
+        group_size: 分组大小，对应机器人一个姿态下的球体数量（默认61）
 
     Returns:
         tuple: (预测正确数, 总碰撞数)
     """
-    correct_predictions = 0
-    total_collisions = 0
 
     # 确保 radius_quant 是一维数组
     if len(radius_quant.shape) > 1:
         radius_quant = radius_quant.flatten()
 
-    # 遍历所有球体样本
-    for i in range(len(position_quant)):
+    # 以group_size为步长遍历所有球体样本（分组评估）
+    for bini in range(0, len(position_quant), group_size):
         predicted = 1  # 默认预测为非碰撞
+        true_ans = 1  # 默认真实为非碰撞
 
-        # 获取真实标签
-        try:
-            true_ans = int(label_pred[i].item())
-        except (AttributeError, TypeError):
-            true_ans = int(label_pred[i])
+        # 检查一个机器人姿态中的group_size个球体
+        for i in range(bini, min(bini + group_size, len(position_quant))):
+            # 元素级统计：总检查数
+            strategy.ele_total_checks += 1
 
-        # 生成球体哈希键
-        keyy = generate_sphere_hash_key(
-            position_quant[i],
-            radius_quant[i] if consider_radius else None,
-            consider_radius=consider_radius,
-        )
+            # 生成球体哈希键
+            keyy = generate_sphere_hash_key(
+                position_quant[i],
+                radius_quant[i] if consider_radius else None,
+                consider_radius=consider_radius,
+            )
 
-        # 使用策略进行预测
-        if strategy.predict_collision(keyy):
-            predicted = 0  # 预测为碰撞
+            # 使用策略进行预测
+            if strategy.predict_collision(keyy):
+                predicted = 0  # 预测为碰撞
+                # 元素级统计：误报
+                if label_pred[i] > 0.5:
+                    strategy.ele_onezero += 1
 
-        # 更新策略的历史记录
-        strategy.update_history(keyy, label_pred[i])
+            # 更新策略的历史记录
+            strategy.update_history(keyy, label_pred[i])
 
-        # 检查是否正确预测
-        if true_ans == 0:  # 真实为碰撞
-            total_collisions += 1
-            if predicted == 0:  # 预测也为碰撞
-                correct_predictions += 1
+            # 检查真实标签
+            if label_pred[i] < 0.5:
+                true_ans = 0  # 真实为碰撞
+                # 元素级统计：真实碰撞
+                strategy.ele_total_colliding += 1
+                if predicted == 0:
+                    # 元素级统计：正确预测碰撞
+                    strategy.ele_zerozero += 1
+                    break  # 提前退出：发现碰撞且预测正确
 
-        # 更新统计
-        strategy.update_statistics(predicted, true_ans)
-
-    return correct_predictions, total_collisions
+        # 姿态级统计
+        strategy.all_total_checks += 1
+        if true_ans == 0:
+            strategy.all_total_colliding += 1
+            if predicted == 0:
+                strategy.all_zerozero += 1
+        elif predicted == 0:
+            strategy.all_onezero += 1
