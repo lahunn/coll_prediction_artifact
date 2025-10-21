@@ -67,7 +67,7 @@ def main():
     collision_threshold = float(sys.argv[4])
     free_sample_rate = float(sys.argv[5])
     num_problems = int(sys.argv[6])
-    consider_radius = True
+    consider_radius = False
 
     # 收集所有场景的数据来确定坐标和半径的范围
     all_positions = []
@@ -152,13 +152,15 @@ def main():
     all_collision_ratio, ele_collision_ratio = strategy.get_collision_ratio(all_labels)
 
     # 计算预期成本（姿态级）
-    if precision > 0 and recall > 0 and all_collision_ratio > 0:
+    if ele_precision > 0 and ele_recall > 0 and ele_collision_ratio > 0:
         expected_checks = calculate_expected_checks(
-            R=all_collision_ratio, C=recall / 100.0, A=precision / 100.0, N=sphere_num
+            R=ele_collision_ratio, C=ele_recall / 100.0, A=ele_precision / 100.0, N=sphere_num
         )
         pred_cost = expected_checks * sphere_cost
 
-        baseline_checks = calculate_baseline_expectation(N=sphere_num, R=all_collision_ratio)
+        baseline_checks = calculate_baseline_expectation(
+            N=sphere_num, R=ele_collision_ratio
+        )
         baseline_cost = baseline_checks * sphere_cost
 
         speedup = baseline_cost / pred_cost if pred_cost > 0 else 0

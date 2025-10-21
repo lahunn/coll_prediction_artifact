@@ -15,9 +15,10 @@ OUTPUT_FILE="../result_files/sphere_hashing_cost_results.csv"
 
 # 定义要测试的参数范围
 DENSITY_LEVELS=("dens3" "dens6" "dens9" "dens12")  # 目标场景密度
-COORD_BITS_LIST=(3 4 5 6)                      # 坐标量化位数
-RADIUS_BITS_LIST=(1 2 3 4)                    # 半径量化位数
-THRESHOLDS=(0.0 0.03125 0.0625 0.125 0.25 0.5 1.0 2.0 4.0)  # 碰撞阈值 (S)
+COORD_BITS_LIST=(3 4)                      # 坐标量化位数
+RADIUS_BITS_LIST=(1)                    # 半径量化位数
+# THRESHOLDS=(0.0 0.03125 0.0625 0.125 0.25 0.5 1.0 2.0 4.0)  # 碰撞阈值
+THRESHOLDS=(0.25 0.5 1.0)  # 碰撞阈值
 SAMPLE_RATES=(1.0)    # 自由样本采样率 (U)
 NUM_PROBLEMS=100                                # 评估的问题数量
 

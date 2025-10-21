@@ -106,13 +106,12 @@ def main():
     all_collision_ratio, ele_collision_ratio = strategy.get_collision_ratio(all_labels)
     
     # 计算预期成本（姿态级）
-    if precision > 0 and recall > 0 and all_collision_ratio > 0:
+    if ele_precision > 0 and ele_recall > 0 and ele_collision_ratio > 0:
         expected_checks = calculate_expected_checks(
-            R=all_collision_ratio, C=recall / 100.0, A=precision / 100.0, N=obb_num
+            R=ele_collision_ratio, C=ele_recall / 100.0, A=ele_precision / 100.0, N=obb_num
         )
         pred_cost = expected_checks * obb_cost
-        
-        baseline_checks = calculate_baseline_expectation(N=obb_num, R=all_collision_ratio)
+        baseline_checks = calculate_baseline_expectation(N=obb_num, R=ele_collision_ratio)
         baseline_cost = baseline_checks * obb_cost
         
         speedup = baseline_cost / pred_cost if pred_cost > 0 else 0
