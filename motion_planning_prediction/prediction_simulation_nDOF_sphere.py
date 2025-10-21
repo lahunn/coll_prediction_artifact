@@ -27,7 +27,9 @@ fall_oracle = 0
 
 # --- Simulation Parameters from Command Line ---
 if len(sys.argv) < 6:
-    print("Usage: python prediction_simulation_nDOF_sphere.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <num_benchmarks>")
+    print(
+        "Usage: python prediction_simulation_nDOF_sphere.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <num_benchmarks>"
+    )
     print("Example: python prediction_simulation_nDOF_sphere.py 0.5 0.1 8 ../trace_files/sphere_data 100")
     sys.exit(1)
 
@@ -39,7 +41,7 @@ num_benchmarks = int(sys.argv[5])
 
 # 从示例数据推断球体数量（假设Kuka有15个球体）
 # 如果需要自适应，可以从第一个文件读取
-num_spheres = 15  # 可以根据实际机器人调整
+num_spheres = 61  # 可以根据实际机器人调整
 qnoncoll_len = num_spheres * qnoncoll_multiplier
 
 print(f"=== 球体碰撞检测预测仿真 ===")
@@ -86,20 +88,14 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
 
         # --- Run Centralized Simulation ---
         edge_query_count, colldict, _ = su.simulate_parallel_collision_detection(
-            linklist,
-            linklist_coll,
-            colldict,
-            threshold,
-            sample_rate,
-            bins,
-            qnoncoll_len=qnoncoll_len
+            linklist, linklist_coll, colldict, threshold, sample_rate, bins, qnoncoll_len=qnoncoll_len
         )
 
         all_prediction += edge_query_count
 
     fall_oracle += all_oracle
     fall_prediction += all_prediction
-    
+
     # 每处理一个benchmark打印一次
     if (benchid + 1) % 10 == 0:
         print(f"[{benchid + 1}/{num_benchmarks}] 预测查询: {all_prediction:.2f}, Oracle查询: {all_oracle}")
