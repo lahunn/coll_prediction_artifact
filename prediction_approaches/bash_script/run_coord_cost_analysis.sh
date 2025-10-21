@@ -5,7 +5,7 @@
 # 功能: 遍历 coord_hashing.py 的不同参数设置，评估其对预测性能和计算成本的影响。
 #
 # 该脚本会自动运行一系列实验，并将结果保存到CSV文件中，
-# 包括精确率、召回率、预期计算成本、baseline成本和加速比。
+# 包括精确率、召回率、碰撞率、预期计算成本、baseline成本和加速比。
 # ==============================================================================
 
 # --- 配置 ---
@@ -15,14 +15,15 @@ OUTPUT_FILE="../result_files/coord_hashing_cost_results.csv"
 
 # 定义要测试的参数范围
 DENSITY_LEVELS=("dens3" "dens6" "dens9" "dens12")       # 目标场景密度
-QUANTIZE_BITS_LIST=(3 4 5 6 7 8)                        # 坐标量化位数
+QUANTIZE_BITS_LIST=(3 4 5 6)                        # 坐标量化位数
 THRESHOLDS=(0.0 0.03125 0.0625 0.125 0.25 0.5 1.0 2.0 4.0)  # 碰撞阈值
-SAMPLE_RATES=(0.01 0.05 0.1 0.3 0.5 0.8 1.0)           # 自由样本采样率
+SAMPLE_RATES=(1.0)           # 自由样本采样率
+NUM_PROBLEMS=100                                         # 评估的问题数量
 
 # --- 执行 ---
 
 # 检查Python脚本是否存在
-if [ ! -f "coord_hashing.py" ]; then
+if [ ! -f "../coord_hashing.py" ]; then
     echo "错误: 脚本 'coord_hashing.py' 未找到"
     exit 1
 fi
@@ -31,7 +32,7 @@ fi
 mkdir -p ../result_files
 
 # 写入CSV文件的表头
-echo "Density,QuantBits,Threshold,SampleRate,Precision,Recall,PredCost,BaselineCost,Speedup" > "$OUTPUT_FILE"
+echo "Density,QuantBits,Threshold,SampleRate,Precision,Recall,CollisionRatio,PredCost,BaselineCost,Speedup" > "$OUTPUT_FILE"
 
 echo "🚀 开始OBB碰撞预测参数扫描 (包含成本分析)"
 echo "   结果将保存到 $OUTPUT_FILE"
@@ -56,8 +57,8 @@ for density in "${DENSITY_LEVELS[@]}"; do
           echo "  [$current/$total_combinations] 量化位数=$quant_bits, 阈值=$threshold, 采样率=$sample_rate"
         fi
 
-        # 执行Python脚本并捕获输出
-        result=$(python coord_hashing.py "$density" "$quant_bits" "$threshold" "$sample_rate" 2>&1)
+        # 执行Python脚本并捕获输出（需要在上级目录执行）
+        result=$(cd .. && python coord_hashing.py "$density" "$quant_bits" "$threshold" "$sample_rate" "$NUM_PROBLEMS" 2>&1)
 
         # 检查是否执行成功
         if [ $? -eq 0 ]; then

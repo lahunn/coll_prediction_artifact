@@ -3,9 +3,9 @@
 通过离散化坐标空间并构建哈希表来预测机器人运动轨迹的碰撞风险
 
 使用示例：
-python coord_hashing.py dens9 8 0.1 0.3    # 中等密度场景，8位量化，0.1碰撞阈值，30%自由样本采样率
-python coord_hashing.py dens12 10 0.05 0.5  # 高密度场景，10位量化，0.05碰撞阈值，50%自由样本采样率
-python coord_hashing.py dens6 6 0.2 0.2    # 低密度场景，6位量化，0.2碰撞阈值，20%自由样本采样率
+python coord_hashing.py dens9 8 0.1 0.3 100    # 中等密度场景，8位量化，0.1碰撞阈值，30%自由样本采样率，100个问题
+python coord_hashing.py dens12 10 0.05 0.5 50  # 高密度场景，10位量化，0.05碰撞阈值，50%自由样本采样率，50个问题
+python coord_hashing.py dens6 6 0.2 0.2 100    # 低密度场景，6位量化，0.2碰撞阈值，20%自由样本采样率，100个问题
 """
 import sys
 import matplotlib.pyplot as plt
@@ -49,17 +49,17 @@ def plot(code, ytest, name):
 def main():
     """主函数"""
     # 解析命令行参数
-    if len(sys.argv) != 5:
-        print("用法: python coord_hashing.py <密度等级> <量化位数> <碰撞阈值> <自由样本采样率>")
-        print("示例: python coord_hashing.py mid 8 0.1 0.3")
+    if len(sys.argv) != 6:
+        print("用法: python coord_hashing.py <密度等级> <量化位数> <碰撞阈值> <自由样本采样率> <问题数量>")
+        print("示例: python coord_hashing.py dens6 8 0.1 0.3 100")
         sys.exit(1)
 
     density_level = sys.argv[1]
     quantize_bits = int(sys.argv[2])
     collision_threshold = float(sys.argv[3])
     free_sample_rate = float(sys.argv[4])
+    num_problems = int(sys.argv[5])
     num_links = 11
-    num_problems = 1
 
     # 设置量化参数
     binnumber = 2**quantize_bits
@@ -83,7 +83,7 @@ def main():
 
         benchidstr = str(benchid)
         f = open(
-            f"../trace_generation/scene_benchmarks/{density_level}_rs/obstacles_{benchidstr}_coord.pkl",
+            f"../trace_files/scene_benchmarks/{density_level}_rs/obstacles_{benchidstr}_coord.pkl",
             "rb",
         )
         xtest_pred, dirr_pred, label_pred = pickle.load(f)
@@ -117,7 +117,7 @@ def main():
     
     print(
         f"{density_level}, {quantize_bits}, {collision_threshold}, {free_sample_rate}, "
-        f"{precision:.2f}%, {recall:.2f}%, "
+        f"{precision:.2f}%, {recall:.2f}%, {collision_ratio:.2f}%, "
         f"{pred_cost:.2f}, {baseline_cost:.2f}, {speedup:.2f}"
     )
 

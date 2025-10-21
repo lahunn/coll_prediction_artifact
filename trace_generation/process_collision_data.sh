@@ -9,17 +9,17 @@
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 # ==================== 配置参数 ====================
-PAIR_DIR="bit_planning/obstacle_config_pairs"
-OUTPUT_DIR="collision_results"
+PAIR_DIR="../trace_files/bit_traces"
+OUTPUT_DIR="../trace_files/scene_benchmarks/bit_collision_data"
 
 # 机器人配置
 ROBOT_URDF="../data/robots/franka_description/franka_panda.urdf"
 ROBOT_MODEL_NAME="franka"
 
 # 文件名模式和序号范围
-PAIR_FILE_PREFIX="franka_14_30"  # 文件名前缀
+PAIR_FILE_PREFIX="franka_14"  # 文件名前缀
 START_INDEX=1                     # 起始序号
-END_INDEX=30                      # 结束序号
+END_INDEX=200                     # 结束序号
 # ==================================================
 
 # 创建输出目录

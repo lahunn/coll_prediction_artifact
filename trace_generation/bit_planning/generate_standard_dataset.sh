@@ -30,7 +30,7 @@ echo "========================================================================"
 python generate_problem_dataset.py \
     --robot-file /home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/franka_description/franka_panda.urdf \
     --robot-name franka \
-    --num-problems 30 \
+    --num-problems 200 \
     --num-obstacles 10 \
     --max-time 6.0 \
     --workspace-min -2.0 \

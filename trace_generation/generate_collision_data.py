@@ -9,15 +9,14 @@ import sys
 
 import obb_calculator
 from obb_forward_kinematics import OBBForwardKinematics
-from trace_generation.sphere_as.robot_sphere_analyzer import RobotSphereAnalyzer
+from sphere_as.robot_sphere_analyzer import RobotSphereAnalyzer
 
 
 class PyBulletRobotSimulator:
     def __init__(self, use_gui=False):
         self.physics_client = p.connect(p.GUI if use_gui else p.DIRECT)
         p.setGravity(0, 0, 0)
-        if not use_gui:
-            p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0, physicsClientId=self.physics_client)
+        
         self.robot_id = None
         self.obstacle_ids = []
 

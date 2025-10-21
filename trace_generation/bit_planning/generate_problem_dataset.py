@@ -17,7 +17,6 @@ import os
 import pickle
 import numpy as np
 import argparse
-from tqdm import tqdm
 
 # 添加项目路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -188,15 +187,16 @@ def generate_problem_dataset(
     env.init_obstacle_bodies(num_obstacles, initial_obstacles)
 
     planner = BITStar(env)
-    pbar = tqdm(total=num_problems, desc="生成问题", unit="问题")
     
     # 创建保存目录
-    obstacle_config_dir = "/home/lanh/project/robot_sim/coll_prediction_artifact/trace_generation/bit_planning/obstacle_config_pairs"
+    obstacle_config_dir = "../../trace_files/bit_traces"
     os.makedirs(obstacle_config_dir, exist_ok=True)
     
-    base_filename = os.path.basename(output_file).replace('.pkl', '')
+    base_filename = f"{robot_name}_{config_dim}"
 
     while success_count < num_problems:
+        print(f"\n正在生成问题 {success_count + 1}/{num_problems} ...")
+        
         env.randomize_obstacle_poses(
             workspace_range=workspace_range,
             safe_zone_center=(0.0, 0.0, 0.0),
@@ -226,11 +226,7 @@ def generate_problem_dataset(
             
             with open(pair_filepath, 'wb') as f:
                 pickle.dump(obstacle_config_pair, f)
-            
-            pbar.update(1)
-            pbar.set_postfix({"成功": success_count, "路径长度": len(problem[3]), "配置数": len(env.config_list)})
 
-    pbar.close()
     env.cleanup_obstacles()
     env.close()
 

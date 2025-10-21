@@ -19,4 +19,5 @@ trace_generation/scene_benchmarks/dens*/*.xml
 trace_generation/scene_benchmarks/dens*/*.pkl
 trace_generation/sphere_as/*.json
 trace_generation/sphere_as/*.png
+trace_files/bit_traces/*.pkl
 

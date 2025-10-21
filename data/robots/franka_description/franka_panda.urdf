@@ -1,6 +1,13 @@
 <?xml version="1.0" ?>
 <robot name="panda" xmlns:xacro="http://www.ros.org/wiki/xacro">
-  <link name="base_link"/>
+  <link name="base_link">
+    <inertial>
+      <!-- Dummy inertial to avoid PyBullet warning -->
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="0.01"/>
+      <inertia ixx="1e-05" ixy="0.0" ixz="0.0" iyy="1e-05" iyz="0.0" izz="1e-05"/>
+    </inertial>
+  </link>
   <joint name="panda_fixed" type="fixed">
     <origin rpy="0 0 0.0" xyz="0 0 0.0"/>
     <parent link="base_link"/>
@@ -19,8 +26,12 @@
         <mesh filename="meshes/collision/link0.obj"/>
       </geometry>
     </collision>
-
-
+    <inertial>
+      <!-- Dummy inertial to avoid PyBullet warning -->
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="0.01"/>
+      <inertia ixx="1e-05" ixy="0.0" ixz="0.0" iyy="1e-05" iyz="0.0" izz="1e-05"/>
+    </inertial>
   </link>
   <link name="panda_link1">
     <visual>
@@ -210,7 +221,14 @@
     <limit effort="12" lower="-2.8973" upper="2.8973" velocity="2.6100"/>
   </joint>
 
-  <link name="panda_link8"/>
+  <link name="panda_link8">
+    <inertial>
+      <!-- Dummy inertial to avoid PyBullet warning -->
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="0.001"/>
+      <inertia ixx="1e-06" ixy="0.0" ixz="0.0" iyy="1e-06" iyz="0.0" izz="1e-06"/>
+    </inertial>
+  </link>
   <joint name="panda_joint8" type="fixed">
     <origin rpy="0 0 0" xyz="0 0 0.107"/>
     <parent link="panda_link7"/>
@@ -234,6 +252,12 @@
         <mesh filename="meshes/collision/hand.obj"/>
       </geometry>
     </collision>
+    <inertial>
+      <!-- Dummy inertial to avoid PyBullet warning -->
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="0.01"/>
+      <inertia ixx="1e-05" ixy="0.0" ixz="0.0" iyy="1e-05" iyz="0.0" izz="1e-05"/>
+    </inertial>
   </link>
   <link name="panda_leftfinger">
     <visual>
@@ -246,6 +270,12 @@
         <mesh filename="meshes/collision/finger.obj"/>
       </geometry>
     </collision>
+    <inertial>
+      <!-- Dummy inertial to avoid PyBullet warning -->
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="0.001"/>
+      <inertia ixx="1e-06" ixy="0.0" ixz="0.0" iyy="1e-06" iyz="0.0" izz="1e-06"/>
+    </inertial>
   </link>
   <link name="panda_rightfinger">
     <visual>
@@ -260,6 +290,12 @@
         <mesh filename="meshes/collision/finger.obj"/>
       </geometry>
     </collision>
+    <inertial>
+      <!-- Dummy inertial to avoid PyBullet warning -->
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="0.001"/>
+      <inertia ixx="1e-06" ixy="0.0" ixz="0.0" iyy="1e-06" iyz="0.0" izz="1e-06"/>
+    </inertial>
   </link>
   <joint name="panda_finger_joint1" type="prismatic">
     <parent link="panda_hand"/>
@@ -278,7 +314,14 @@
     <limit effort="20" lower="0.0" upper="0.04" velocity="0.2"/>
   </joint>
 
-  <link name="ee_link"/>
+  <link name="ee_link">
+    <inertial>
+      <!-- Dummy inertial to avoid PyBullet warning -->
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="0.001"/>
+      <inertia ixx="1e-06" ixy="0.0" ixz="0.0" iyy="1e-06" iyz="0.0" izz="1e-06"/>
+    </inertial>
+  </link>
 
   <joint name="ee_fixed_joint" type="fixed">
     <parent link="panda_hand"/>

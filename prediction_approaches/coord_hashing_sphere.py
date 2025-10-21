@@ -4,8 +4,8 @@
 使用球体的位置坐标(x,y,z)和半径作为哈希键值
 
 使用示例：
-python coord_hashing_sphere.py dens9 8 6 0.1 0.3
-python coord_hashing_sphere.py dens6 4 2 0.05 0.5
+python coord_hashing_sphere.py dens9 8 6 0.1 0.3 100
+python coord_hashing_sphere.py dens6 4 2 0.05 0.5 50
 """
 
 import sys
@@ -56,11 +56,11 @@ def create_bins(min_val, max_val, num_bins):
 def main():
     """主函数"""
     # 解析命令行参数
-    if len(sys.argv) != 6:
+    if len(sys.argv) != 7:
         print(
-            "用法: python coord_hashing_sphere.py <密度等级> <坐标量化位数> <半径量化位数> <碰撞阈值> <自由样本采样率>"
+            "用法: python coord_hashing_sphere.py <密度等级> <坐标量化位数> <半径量化位数> <碰撞阈值> <自由样本采样率> <问题数量>"
         )
-        print("示例: python coord_hashing_sphere.py mid 8 6 0.1 0.3")
+        print("示例: python coord_hashing_sphere.py dens6 8 6 0.1 0.3 100")
         sys.exit(1)
 
     density_level = sys.argv[1]
@@ -68,17 +68,17 @@ def main():
     radius_quantize_bits = int(sys.argv[3])
     collision_threshold = float(sys.argv[4])
     free_sample_rate = float(sys.argv[5])
+    num_problems = int(sys.argv[6])
     consider_radius = True
 
     # 收集所有场景的数据来确定坐标和半径的范围
     all_positions = []
     all_radii = []
-    num_problems = 1
 
     for benchid in range(0, num_problems):
         benchidstr = str(benchid)
         f = open(
-            f"../trace_generation/scene_benchmarks/{density_level}_rs/obstacles_{benchidstr}_sphere.pkl",
+            f"../trace_files/scene_benchmarks/{density_level}_rs/obstacles_{benchidstr}_sphere.pkl",
             "rb",
         )
 
@@ -121,7 +121,7 @@ def main():
 
         benchidstr = str(benchid)
         f = open(
-            f"../trace_generation/scene_benchmarks/{density_level}_rs/obstacles_{benchidstr}_sphere.pkl",
+            f"../trace_files/scene_benchmarks/{density_level}_rs/obstacles_{benchidstr}_sphere.pkl",
             "rb",
         )
         qarr_sphere, rarr_sphere, yarr_sphere = pickle.load(f)
@@ -175,7 +175,7 @@ def main():
 
     print(
         f"{density_level}, {coord_quantize_bits}, {radius_quantize_bits}, {collision_threshold}, {free_sample_rate}, "
-        f"{precision:.2f}%, {recall:.2f}%, "
+        f"{precision:.2f}%, {recall:.2f}%, {collision_ratio:.2f}%, "
         f"{pred_cost:.2f}, {baseline_cost:.2f}, {speedup:.2f}"
     )
 
