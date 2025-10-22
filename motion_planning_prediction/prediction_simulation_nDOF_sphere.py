@@ -68,12 +68,17 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
 
     if sphere_link_data is None or sphere_link_coll_data is None:
         continue
-
+    
+    # 如果所有球体都没有碰撞（全为1），跳过该边
+    if all(sphere_coll == 1 for edge_coll in sphere_link_coll_data for pose_coll in edge_coll for sphere_coll in pose_coll):
+        print("all zero")
+    else:
+        print("not all zero")
+        
     # 处理每条边
     for edge, edge_coll in zip(sphere_link_data, sphere_link_coll_data):
         if not edge_coll:
             continue
-
         # --- Oracle Calculation ---
         # Oracle: 检测到碰撞就停止，否则检查所有球体
         coll_found_oracle = any(sphere_coll == 0 for pose_coll in edge_coll for sphere_coll in pose_coll)

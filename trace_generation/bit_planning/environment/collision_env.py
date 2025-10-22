@@ -2,6 +2,11 @@ import numpy as np
 import pybullet as p
 import pybullet_data
 import pickle
+import torch
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
+from sphere_as.robot_sphere_analyzer import RobotSphereAnalyzer
 
 class CollisionEnv:
     """完整的碰撞检测环境类,包含PyBullet初始化、机器人加载和碰撞检测功能"""
@@ -27,23 +32,33 @@ class CollisionEnv:
         self.config_output_file = config_output_file
         self.config_list = []
         
-        # 连接PyBullet
+        # 连接PyBullet (主仿真器,用于link碰撞检测)
         if GUI:
-            p.connect(p.GUI, options="--background_color_red=1.0 --background_color_green=1.0 --background_color_blue=1.0")
+            self.physics_client = p.connect(p.GUI, options="--background_color_red=1.0 --background_color_green=1.0 --background_color_blue=1.0")
         else:
-            p.connect(p.DIRECT)
+            self.physics_client = p.connect(p.DIRECT)
         
-        p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0, lightPosition=[0, 0, 0.1])
+        p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0, lightPosition=[0, 0, 0.1], physicsClientId=self.physics_client)
         p.setAdditionalSearchPath(pybullet_data.getDataPath())
         
-        # 加载机器人
-        self.robotId = p.loadURDF(robot_file, [0, 0, 0], [0, 0, 0, 1], useFixedBase=True)
-        p.performCollisionDetection()
+        # 连接第二个PyBullet实例 (用于sphere碰撞检测)
+        self.sphere_physics_client = p.connect(p.DIRECT)
+        p.setGravity(0, 0, 0, physicsClientId=self.sphere_physics_client)
+        
+        # 加载机器人 (主仿真器)
+        self.robotId = p.loadURDF(robot_file, [0, 0, 0], [0, 0, 0, 1], useFixedBase=True, physicsClientId=self.physics_client)
+        p.performCollisionDetection(physicsClientId=self.physics_client)
+        
+        # 初始化球体分析器
+        self.sphere_analyzer = RobotSphereAnalyzer("franka", device="cpu")
+        self.sphere_bodies = []
+        self.sphere_obstacle_ids = []
         
         # 获取机器人配置信息
-        self.config_dim = p.getNumJoints(self.robotId)
+        self.config_dim = p.getNumJoints(self.robotId, physicsClientId=self.physics_client)
         self.pose_range = [
-            (p.getJointInfo(self.robotId, jointId)[8], p.getJointInfo(self.robotId, jointId)[9])
+            (p.getJointInfo(self.robotId, jointId, physicsClientId=self.physics_client)[8], 
+             p.getJointInfo(self.robotId, jointId, physicsClientId=self.physics_client)[9])
             for jointId in range(self.config_dim)
         ]
         # 预计算正确的上下限（处理上下限可能颠倒的情况）
@@ -52,7 +67,7 @@ class CollisionEnv:
         self.bound = np.array(self.pose_range).T.reshape(-1)
         self.robotEndEffectorIndex = self.config_dim - 1
         
-        p.setGravity(0, 0, -10)
+        p.setGravity(0, 0, -10, physicsClientId=self.physics_client)
         
         # 规划相关属性
         self.init_state = [0.0] * self.config_dim
@@ -60,10 +75,9 @@ class CollisionEnv:
     
     def close(self):
         """关闭配置输出文件句柄和PyBullet连接"""
-        # if self.config_output_file is not None and len(self.config_list) > 0:
-        #     with open(self.config_output_file, 'wb') as f:
-        #         pickle.dump(self.config_list, f)
-        p.disconnect()
+        self._cleanup_sphere_bodies()
+        p.disconnect(physicsClientId=self.physics_client)
+        p.disconnect(physicsClientId=self.sphere_physics_client)
     
     def uniform_sample(self, n=1):
         """
@@ -108,24 +122,37 @@ class CollisionEnv:
         """
         if robotId is None:
             robotId = self.robotId
-        for i in range(p.getNumJoints(robotId)):
-            p.resetJointState(robotId, i, c[i])
-        p.performCollisionDetection()
+        for i in range(p.getNumJoints(robotId, physicsClientId=self.physics_client)):
+            p.resetJointState(robotId, i, c[i], physicsClientId=self.physics_client)
+        p.performCollisionDetection(physicsClientId=self.physics_client)
 
     def create_voxel(self, halfExtents, basePosition):
-        groundColId = p.createCollisionShape(p.GEOM_BOX, halfExtents=halfExtents)
+        groundColId = p.createCollisionShape(p.GEOM_BOX, halfExtents=halfExtents, physicsClientId=self.physics_client)
         groundVisID = p.createVisualShape(
             shapeType=p.GEOM_BOX,
             rgbaColor=np.random.uniform(0, 1, size=3).tolist() + [0.8],
             specularColor=[0.4, 0.4, 0],
             halfExtents=halfExtents,
+            physicsClientId=self.physics_client
         )
         groundId = p.createMultiBody(
             baseMass=0,
             baseCollisionShapeIndex=groundColId,
             baseVisualShapeIndex=groundVisID,
             basePosition=basePosition,
+            physicsClientId=self.physics_client
         )
+        
+        # 同时在球体仿真器中创建障碍物
+        sphere_colId = p.createCollisionShape(p.GEOM_BOX, halfExtents=halfExtents, physicsClientId=self.sphere_physics_client)
+        sphere_obstId = p.createMultiBody(
+            baseMass=0,
+            baseCollisionShapeIndex=sphere_colId,
+            basePosition=basePosition,
+            physicsClientId=self.sphere_physics_client
+        )
+        self.sphere_obstacle_ids.append(sphere_obstId)
+        
         return groundId
 
     def init_obstacle_bodies(self, num_obstacles, initial_obstacles=None):
@@ -149,7 +176,15 @@ class CollisionEnv:
                 p.resetBasePositionAndOrientation(
                     self.obstacle_body_ids[i],
                     basePosition,
-                    [0, 0, 0, 1]
+                    [0, 0, 0, 1],
+                    physicsClientId=self.physics_client
+                )
+            if i < len(self.sphere_obstacle_ids):
+                p.resetBasePositionAndOrientation(
+                    self.sphere_obstacle_ids[i],
+                    basePosition,
+                    [0, 0, 0, 1],
+                    physicsClientId=self.sphere_physics_client
                 )
         self.obstacles = new_obstacles
 
@@ -177,23 +212,114 @@ class CollisionEnv:
         if hasattr(self, 'obstacle_body_ids'):
             for body_id in self.obstacle_body_ids:
                 try:
-                    p.removeBody(body_id)
+                    p.removeBody(body_id, physicsClientId=self.physics_client)
                 except Exception:
                     pass
             self.obstacle_body_ids.clear()
+        
+        if hasattr(self, 'sphere_obstacle_ids'):
+            for body_id in self.sphere_obstacle_ids:
+                try:
+                    p.removeBody(body_id, physicsClientId=self.sphere_physics_client)
+                except Exception:
+                    pass
+            self.sphere_obstacle_ids.clear()
 
     def _valid_state(self, state):
         """检查配置是否在关节限位范围内"""
         return (state >= self.lower_bounds).all() and (state <= self.upper_bounds).all()
 
+    def _create_sphere_bodies(self):
+        """创建用于碰撞检测的球体实体"""
+        if self.sphere_bodies:
+            return
+        
+        world_spheres = self.sphere_analyzer.get_world_spheres()
+        for x, y, z, radius in world_spheres:
+            sphere_shape = p.createCollisionShape(
+                p.GEOM_SPHERE, radius=float(radius), 
+                physicsClientId=self.sphere_physics_client
+            )
+            sphere_body = p.createMultiBody(
+                baseMass=0, baseCollisionShapeIndex=sphere_shape,
+                basePosition=[float(x), float(y), float(z)],
+                physicsClientId=self.sphere_physics_client
+            )
+            self.sphere_bodies.append(sphere_body)
+    
+    def _update_sphere_positions(self, state):
+        """更新球体位置到当前关节配置"""
+        if not self.sphere_bodies:
+            self._create_sphere_bodies()
+        
+        joint_config = torch.tensor(state, dtype=torch.float32, device=torch.device("cpu")).unsqueeze(0)
+        world_spheres = self.sphere_analyzer.get_world_spheres(joint_config)
+        
+        for sphere_body, (x, y, z, radius) in zip(self.sphere_bodies, world_spheres):
+            p.resetBasePositionAndOrientation(
+                sphere_body, [float(x), float(y), float(z)], [0, 0, 0, 1],
+                physicsClientId=self.sphere_physics_client
+            )
+    
+    def _check_sphere_collision(self):
+        """检查球体与障碍物的碰撞"""
+        if not self.sphere_bodies or not self.sphere_obstacle_ids:
+            return False
+        
+        p.performCollisionDetection(physicsClientId=self.sphere_physics_client)
+        for sphere_body in self.sphere_bodies:
+            for obstacle_id in self.sphere_obstacle_ids:
+                contacts = p.getContactPoints(
+                    bodyA=sphere_body, bodyB=obstacle_id,
+                    physicsClientId=self.sphere_physics_client
+                )
+                if len(contacts) > 0:
+                    return True
+        return False
+    
+    def _cleanup_sphere_bodies(self):
+        """清理球体实体"""
+        for sphere_body in self.sphere_bodies:
+            try:
+                p.removeBody(sphere_body, physicsClientId=self.sphere_physics_client)
+            except:
+                pass
+        self.sphere_bodies.clear()
+
     def _point_in_free_space(self, state):
+        """检查单个配置是否无碰撞 (使用link和sphere双重检测)"""
+        edge_configs = [state.copy()]
+        self.config_list.append(np.array(edge_configs))
+        
+        if not self._valid_state(state):
+            return False
+        
+        # 设置机器人配置
+        for i in range(p.getNumJoints(self.robotId, physicsClientId=self.physics_client)):
+            p.resetJointState(self.robotId, i, state[i], physicsClientId=self.physics_client)
+        p.performCollisionDetection(physicsClientId=self.physics_client)
+        
+        # 1. Link碰撞检测
+        link_collision = len(p.getContactPoints(self.robotId, physicsClientId=self.physics_client)) > 0
+        
+        # 2. Sphere碰撞检测
+        self._update_sphere_positions(state)
+        sphere_collision = self._check_sphere_collision()
+        
+        # 3. 只有两者都认为碰撞时才返回碰撞
+        if link_collision and sphere_collision:
+            return False
+        else:
+            return True
+    
+    def edge_point_in_free_space(self, state):
         """检查单个配置是否无碰撞"""
         if not self._valid_state(state):
             return False
-        for i in range(p.getNumJoints(self.robotId)):
-            p.resetJointState(self.robotId, i, state[i])
-        p.performCollisionDetection()
-        if len(p.getContactPoints(self.robotId)) == 0:
+        for i in range(p.getNumJoints(self.robotId, physicsClientId=self.physics_client)):
+            p.resetJointState(self.robotId, i, state[i], physicsClientId=self.physics_client)
+        p.performCollisionDetection(physicsClientId=self.physics_client)
+        if len(p.getContactPoints(self.robotId, physicsClientId=self.physics_client)) == 0:
             return True
         else:
             return False
@@ -203,8 +329,6 @@ class CollisionEnv:
 
     def _edge_fp(self, state, new_state, RRT_EPS=0.25):
         assert state.size == new_state.size
-        if not self._valid_state(state) or not self._valid_state(new_state):
-            return False
         if not self._point_in_free_space(state) or not self._point_in_free_space(new_state):
             return False
         disp = new_state - state
