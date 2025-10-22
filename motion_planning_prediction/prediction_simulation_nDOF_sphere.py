@@ -30,7 +30,7 @@ if len(sys.argv) < 6:
     print(
         "Usage: python prediction_simulation_nDOF_sphere.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <num_benchmarks>"
     )
-    print("Example: python prediction_simulation_nDOF_sphere.py 0.5 0.1 8 ../trace_files/sphere_data franka_14 100")
+    print("Example: python prediction_simulation_nDOF_sphere.py 0.5 0.1 8 ../trace_files/scene_benchmarks/bit_collision_data franka_14 100")
     sys.exit(1)
 
 threshold = float(sys.argv[1])
@@ -55,7 +55,7 @@ print(f"基准测试数量: {num_benchmarks}")
 print("=" * 50)
 
 # --- Benchmark Range ---
-benchrange = range(num_benchmarks)
+benchrange = range(1, num_benchmarks + 1)
 
 # --- Main Simulation Loop ---
 for benchid in tqdm(benchrange, desc="处理基准测试"):

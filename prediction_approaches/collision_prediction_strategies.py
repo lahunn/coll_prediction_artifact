@@ -15,6 +15,7 @@ num_spheres = 61
 
 class CollisionPredictionStrategy:
     """碰撞预测策略基类"""
+
     def __init__(self, update_prob=0.5, max_count=255):
         """
         初始化预测策略
@@ -207,21 +208,31 @@ class CollisionPredictionStrategy:
         """
         # 姿态级指标
         precision = (
-            self.all_zerozero * 100 / (self.all_zerozero + self.all_onezero) if
-            (self.all_zerozero + self.all_onezero) > 0 else 0.0
+            self.all_zerozero * 100 / (self.all_zerozero + self.all_onezero)
+            if (self.all_zerozero + self.all_onezero) > 0
+            else 0.0
         )
-        recall = (self.all_zerozero * 100 / self.all_total_colliding if self.all_total_colliding > 0 else 0.0)
+        recall = (
+            self.all_zerozero * 100 / self.all_total_colliding
+            if self.all_total_colliding > 0
+            else 0.0
+        )
 
         # 元素级指标
         ele_precision = (
-            self.ele_zerozero * 100 / (self.ele_zerozero + self.ele_onezero) if
-            (self.ele_zerozero + self.ele_onezero) > 0 else 0.0
+            self.ele_zerozero * 100 / (self.ele_zerozero + self.ele_onezero)
+            if (self.ele_zerozero + self.ele_onezero) > 0
+            else 0.0
         )
-        ele_recall = (self.ele_zerozero * 100 / self.ele_total_colliding if self.ele_total_colliding > 0 else 0.0)
+        ele_recall = (
+            self.ele_zerozero * 100 / self.ele_total_colliding
+            if self.ele_total_colliding > 0
+            else 0.0
+        )
 
         return precision, recall, ele_precision, ele_recall
 
-    def get_collision_ratio(self,label_pred):
+    def get_collision_ratio(self, label_pred):
         """
         计算真实的碰撞比率
         基于统计变量直接计算碰撞样本的比例
@@ -232,10 +243,16 @@ class CollisionPredictionStrategy:
                    元素级碰撞率 = label_pred中0的数量 / label_pred总数
         """
         # 姿态级碰撞率
-        all_ratio = (self.all_total_colliding / self.all_total_checks if self.all_total_checks > 0 else 0.0)
+        all_ratio = (
+            self.all_total_colliding / self.all_total_checks
+            if self.all_total_checks > 0
+            else 0.0
+        )
 
         # 元素级碰撞率：直接从label_pred计算
-        ele_ratio = np.sum(label_pred < 0.5) / len(label_pred) if len(label_pred) > 0 else 0.0
+        ele_ratio = (
+            np.sum(label_pred < 0.5) / len(label_pred) if len(label_pred) > 0 else 0.0
+        )
 
         return all_ratio, ele_ratio
 
@@ -245,6 +262,7 @@ class FixedThresholdStrategy(CollisionPredictionStrategy):
     固定阈值策略
     使用固定的敏感度阈值进行碰撞预测
     """
+
     def __init__(self, threshold=0.1, update_prob=0.5, max_count=255):
         """
         初始化固定阈值策略
@@ -287,6 +305,7 @@ class AdaptiveThresholdStrategy(CollisionPredictionStrategy):
     自适应阈值策略
     根据colldict中碰撞占优的条目比例动态调整敏感度阈值
     """
+
     def __init__(self, s_min=0.01, s_max=1.0, update_prob=0.5, max_count=255):
         """
         初始化自适应阈值策略
@@ -312,14 +331,18 @@ class AdaptiveThresholdStrategy(CollisionPredictionStrategy):
             return
 
         # 统计碰撞占优的条目数
-        collision_dominant_count = sum(1 for counts in self.colldict.values() if counts[0] > counts[1])
+        collision_dominant_count = sum(
+            1 for counts in self.colldict.values() if counts[0] > counts[1]
+        )
 
         # 计算碰撞倾向比例
         collision_dominant_ratio = collision_dominant_count / len(self.colldict)
 
         # 线性插值计算当前敏感度
         # 碰撞倾向比例越高，阈值越低（越容易预测为碰撞）
-        self.current_threshold = (self.s_max - (self.s_max - self.s_min) * collision_dominant_ratio)
+        self.current_threshold = (
+            self.s_max - (self.s_max - self.s_min) * collision_dominant_ratio
+        )
 
     def predict_collision(self, keyy):
         """
@@ -351,7 +374,9 @@ class AdaptiveThresholdStrategy(CollisionPredictionStrategy):
         """获取当前colldict中碰撞占优的条目比例"""
         if len(self.colldict) == 0:
             return 0.0
-        collision_dominant_count = sum(1 for counts in self.colldict.values() if counts[0] > counts[1])
+        collision_dominant_count = sum(
+            1 for counts in self.colldict.values() if counts[0] > counts[1]
+        )
         return collision_dominant_count / len(self.colldict)
 
     def __str__(self):
@@ -451,6 +476,7 @@ def generate_sphere_hash_key(position_quant, radius_quant=None, consider_radius=
 
     return keyy
 
+
 def find_sim_cost(R, C, A, N):
     """
     使用精确的封闭形式公式计算期望的碰撞检测次数。
@@ -474,7 +500,7 @@ def find_sim_cost(R, C, A, N):
         raise ValueError("当 A=0 时, C*R 必须也为0。")
     # P(Y) = C*R/A 必须小于等于1
     if C * R > A + 1e-9:  # 加上一个小的容差避免浮点数问题
-        raise ValueError(f"参数组合无效: C*R ({C*R}) 不能大于 A ({A})。")
+        raise ValueError(f"参数组合无效: C*R ({C * R}) 不能大于 A ({A})。")
 
     # --- 边界情况处理 ---
     # 如果实际碰撞概率为0，则永远不会碰撞，必须执行完所有N次检测。
@@ -484,7 +510,7 @@ def find_sim_cost(R, C, A, N):
     # 如果精确率为0 (且C*R=0)，则所有预测为碰撞的都不是碰撞。
     # 此时组1为空或无用，相当于无策略。
     if A == 0:
-        return (1 - (1 - R)**N) / R
+        return (1 - (1 - R) ** N) / R
 
     # --- 计算中间变量 ---
 
@@ -502,12 +528,12 @@ def find_sim_cost(R, C, A, N):
 
     # E = (1 - (1 - CR)^N)/A + ((1 - CR)^N - (1-R)^N)/P2
 
-    term1 = (1 - (1 - C * R)**N) / A
+    term1 = (1 - (1 - C * R) ** N) / A
 
     # (1 - CR)^N
-    term_1_minus_cr_pow_n = (1 - C * R)**N
+    term_1_minus_cr_pow_n = (1 - C * R) ** N
     # (1 - R)^N
-    term_1_minus_r_pow_n = (1 - R)**N
+    term_1_minus_r_pow_n = (1 - R) ** N
 
     numerator_term2 = term_1_minus_cr_pow_n - term_1_minus_r_pow_n
 
@@ -525,7 +551,9 @@ def find_sim_cost(R, C, A, N):
     return term1 + term2
 
 
-def evaluate_strategy_on_trajectory(strategy, code_pred_quant, label_pred, group_size=num_obbs):
+def evaluate_strategy_on_trajectory(
+    strategy, code_pred_quant, label_pred, group_size=num_obbs
+):
     """
     在OBB数据上评估碰撞预测策略
 
@@ -584,7 +612,12 @@ def evaluate_strategy_on_trajectory(strategy, code_pred_quant, label_pred, group
 
 
 def evaluate_strategy_on_spheres(
-    strategy, position_quant, radius_quant, label_pred, consider_radius=False, group_size=num_spheres
+    strategy,
+    position_quant,
+    radius_quant,
+    label_pred,
+    consider_radius=False,
+    group_size=num_spheres,
 ):
     """
     在球体数据上评估碰撞预测策略（分组评估，与OBB方法一致）
