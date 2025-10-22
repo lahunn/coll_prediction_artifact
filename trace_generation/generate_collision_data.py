@@ -233,7 +233,7 @@ def main():
 
     print("处理完成! 保存结果...")
 
-    # 保存为与coord_motiom格式一致的tuple: (坐标数据, 碰撞标签)
+    # 保存为与coord_motion格式一致的tuple: (坐标数据, 碰撞标签)
     with open(obb_output_file, 'wb') as f:
         pickle.dump((obb_link_data, obb_link_coll_data), f)
 

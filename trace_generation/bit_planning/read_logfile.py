@@ -6,7 +6,7 @@ BIT* 运动规划日志文件处理脚本
 1. 读取 BIT*/GNN 算法生成的原始轨迹日志文件
 2. 将数据从 (edge, pose, link) 三层结构重组
 3. 生成适用于碰撞预测评估的标准格式数据
-4. 保存为 coord_motiom_*.pkl 供 prediction_simulation 使用
+4. 保存为 coord_motion_*.pkl 供 prediction_simulation 使用
 
 输入文件格式：
     link_info_<benchid>.pkl:
@@ -14,7 +14,7 @@ BIT* 运动规划日志文件处理脚本
         - link_feas_info: List[List[List[int]]] - 对应的碰撞可行性标签 (0/1)
 
 输出文件格式：
-    coord_motiom_<benchid>.pkl:
+    coord_motion_<benchid>.pkl:
         - qmotionposearr: List[List[List[List[float]]]] - 保持 edge/pose 结构的坐标
         - ymotionposearr: List[List[List[int]]] - 对应的碰撞标签
 
@@ -130,13 +130,13 @@ print("Sample structure:", ymotionposearr[:2] if len(ymotionposearr) > 0 else "E
 # pickle.dump((qarr, [], yarr), f)  # 展平格式
 # f.close()
 #
-# f = open("obstacles_gnn_motiom.pkl", "wb")
+# f = open("obstacles_gnn_motion.pkl", "wb")
 # pickle.dump((qmotionarr, [], ymotionarr), f)  # 两层结构（edge->link）
 # f.close()
 
 # 保存标准格式：适用于 prediction_simulation 脚本
 # 保持 edge/pose/link 三层结构，用于模拟不同的碰撞检测策略
-output_file = "logfiles_BIT_link/coord_motiom_" + str(sys.argv[1]) + ".pkl"
+output_file = "logfiles_BIT_link/coord_motion_" + str(sys.argv[1]) + ".pkl"
 f = open(output_file, "wb")
 pickle.dump((qmotionposearr, ymotionposearr), f)
 f.close()
