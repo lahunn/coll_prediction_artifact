@@ -28,16 +28,17 @@ fall_oracle = 0
 # --- Simulation Parameters from Command Line ---
 if len(sys.argv) < 6:
     print(
-        "Usage: python prediction_simulation_nDOF_sphere.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <num_benchmarks>"
+        "Usage: python prediction_simulation_nDOF_sphere.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <num_benchmarks>"
     )
-    print("Example: python prediction_simulation_nDOF_sphere.py 0.5 0.1 8 ../trace_files/sphere_data 100")
+    print("Example: python prediction_simulation_nDOF_sphere.py 0.5 0.1 8 ../trace_files/sphere_data franka_14 100")
     sys.exit(1)
 
 threshold = float(sys.argv[1])
 sample_rate = float(sys.argv[2])
 qnoncoll_multiplier = int(sys.argv[3])
 data_folder = sys.argv[4]
-num_benchmarks = int(sys.argv[5])
+basename = sys.argv[5]
+num_benchmarks = int(sys.argv[6])
 
 # 从示例数据推断球体数量（假设Kuka有15个球体）
 # 如果需要自适应，可以从第一个文件读取
@@ -63,7 +64,7 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
     colldict = {}
 
     # 加载球体数据
-    sphere_link_data, sphere_link_coll_data = su.load_sphere_data(benchid, data_folder)
+    sphere_link_data, sphere_link_coll_data = su.load_sphere_data(basename, benchid, data_folder)
 
     if sphere_link_data is None or sphere_link_coll_data is None:
         continue

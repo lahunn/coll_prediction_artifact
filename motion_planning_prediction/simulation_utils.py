@@ -73,12 +73,12 @@ def load_data(planner_type, benchid, dimension):
         return None, None
 
 
-def load_sphere_data(benchid, data_folder):
+def load_sphere_data(basename, benchid, data_folder):
     """
     Loads sphere collision data from a pickle file.
     Format: (sphere_link_data, sphere_link_coll_data)
     """
-    filename = f"{data_folder}/obstacles_{benchid}_sphere.pkl"
+    filename = f"{data_folder}/{basename}_{benchid}_sphere.pkl"
     try:
         with open(filename, "rb") as f:
             data = pickle.load(f)
