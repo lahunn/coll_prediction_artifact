@@ -48,11 +48,12 @@
       "program": "${workspaceFolder}/prediction_approaches/coord_hashing_sphere.py",
       "console": "integratedTerminal",
       "args": [
-        "mid",
+        "dens6",
         "4",
         "0",
         "1",
-        "0.3"
+        "0.3",
+        "100"
       ],
       "cwd": "${workspaceFolder}/prediction_approaches"
     },

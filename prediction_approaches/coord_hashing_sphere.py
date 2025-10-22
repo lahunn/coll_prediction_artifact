@@ -67,7 +67,9 @@ def main():
     collision_threshold = float(sys.argv[4])
     free_sample_rate = float(sys.argv[5])
     num_problems = int(sys.argv[6])
-    consider_radius = False
+    # consider_radius = False
+    consider_radius = True
+
 
     # 收集所有场景的数据来确定坐标和半径的范围
     all_positions = []

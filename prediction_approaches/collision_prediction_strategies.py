@@ -571,7 +571,7 @@ def evaluate_strategy_on_trajectory(strategy, code_pred_quant, label_pred, group
                 if predicted == 0:
                     # 元素级统计：正确预测碰撞
                     strategy.ele_zerozero += 1
-                    break  # 提前退出
+                    # break  # 提前退出
 
         # 姿态级统计
         strategy.all_total_checks += 1
@@ -640,7 +640,7 @@ def evaluate_strategy_on_spheres(
                 if predicted == 0:
                     # 元素级统计：正确预测碰撞
                     strategy.ele_zerozero += 1
-                    break  # 提前退出：发现碰撞且预测正确
+                    # break  # 提前退出：发现碰撞且预测正确
 
         # 姿态级统计
         strategy.all_total_checks += 1
