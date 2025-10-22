@@ -168,10 +168,10 @@ def generate_problem_dataset(
     print(f"机器人: {robot_file}, 问题数: {num_problems}, 障碍物: {num_obstacles}")
     env = CollisionEnv(GUI=visualize, robot_file=robot_file, config_output_file="dummy")
     config_dim = env.config_dim
-    
+
     if output_file is None:
         output_file = f"maze_files/{robot_name}_{config_dim}_{num_problems}.pkl"
-    
+
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
 
     problems = []
@@ -187,25 +187,31 @@ def generate_problem_dataset(
     env.init_obstacle_bodies(num_obstacles, initial_obstacles)
 
     planner = BITStar(env)
-    
+
     # 创建保存目录
     obstacle_config_dir = "../../trace_files/bit_traces"
+    collision_data_dir = "../../trace_files/scene_benchmarks/bit_collision_data"
     os.makedirs(obstacle_config_dir, exist_ok=True)
-    
+    os.makedirs(collision_data_dir, exist_ok=True)
+
     base_filename = f"{robot_name}_{config_dim}"
 
     while success_count < num_problems:
         print(f"\n正在生成问题 {success_count + 1}/{num_problems} ...")
-        
+
         env.randomize_obstacle_poses(
             workspace_range=workspace_range,
             safe_zone_center=(0.0, 0.0, 0.0),
             safe_zone_radius=safe_zone_radius,
             max_attempts_per_obstacle=100
         )
-        
-        # 在生成问题前重置config_list
+
+        # 在生成问题前重置数据收集列表
         env.config_list = []
+        env.obb_link_data = []
+        env.obb_link_coll_data = []
+        env.sphere_link_data = []
+        env.sphere_link_coll_data = []
 
         problem = generate_single_problem(
             env, env.obstacles, max_planning_time=max_planning_time, visualize=visualize, planner=planner
@@ -214,18 +220,24 @@ def generate_problem_dataset(
         if problem is not None:
             problems.append(problem)
             success_count += 1
-            
-            # 立即保存这次的障碍物-配置对到独立文件
+
+            # 生成文件名
             pair_filename = f"{base_filename}_{success_count:04d}.pkl"
             pair_filepath = os.path.join(obstacle_config_dir, pair_filename)
-            
-            obstacle_config_pair = {
-                'obstacles': problem[0],  # 障碍物列表
-                'configs': env.config_list.copy()  # 这次规划使用的所有配置
-            }
-            
+
+            obb_filename = f"{base_filename}_{success_count:04d}_obb.pkl"
+            sphere_filename = f"{base_filename}_{success_count:04d}_sphere.pkl"
+            obb_filepath = os.path.join(collision_data_dir, obb_filename)
+            sphere_filepath = os.path.join(collision_data_dir, sphere_filename)
+
+            # 保存障碍物-配置对
+            obstacle_config_pair = {'obstacles': problem[0], 'configs': env.config_list.copy()}
+
             with open(pair_filepath, 'wb') as f:
                 pickle.dump(obstacle_config_pair, f)
+
+            # 保存碰撞检测数据
+            env.save_collision_data(obb_filepath, sphere_filepath)
 
     env.cleanup_obstacles()
     env.close()
@@ -235,11 +247,14 @@ def generate_problem_dataset(
 
     # 统计信息
     path_lengths = [len(prob[3]) for prob in problems]
-    
+
     print(f"\n完成! 保存到: {output_file}")
     print(f"障碍物-配置配对文件保存到: {obstacle_config_dir}/")
     print(f"  文件数量: {success_count}")
     print(f"  文件命名格式: {base_filename}_XXXX.pkl (例: {base_filename}_0001.pkl)")
+    print(f"碰撞检测数据保存到: {collision_data_dir}/")
+    print(f"  OBB文件格式: {base_filename}_XXXX_obb.pkl")
+    print(f"  Sphere文件格式: {base_filename}_XXXX_sphere.pkl")
     print(f"路径长度 - 平均: {np.mean(path_lengths):.2f}, 最小: {np.min(path_lengths)}, 最大: {np.max(path_lengths)}")
 
     return problems
