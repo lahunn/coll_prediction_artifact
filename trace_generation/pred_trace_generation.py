@@ -29,13 +29,11 @@ from obb_forward_kinematics import OBBForwardKinematics
 from sphere_as.robot_sphere_analyzer import RobotSphereAnalyzer
 import torch
 
-
 # ========== PyBullet机器人仿真类 ==========
 
 
 class PyBulletRobotSimulator:
     """PyBullet机器人仿真器，替换Klampt功能"""
-
     def __init__(self, use_gui=False):
         self.physics_client = p.connect(p.GUI if use_gui else p.DIRECT)
         p.setGravity(0, 0, 0)  # 无重力
@@ -53,16 +51,12 @@ class PyBulletRobotSimulator:
         """加载MuJoCo格式的场景文件"""
         try:
             # 在主仿真器中加载场景
-            scene_objects = self._load_scene_internal(
-                scene_file, self.physics_client, "主仿真器"
-            )
+            scene_objects = self._load_scene_internal(scene_file, self.physics_client, "主仿真器")
             if scene_objects:
                 self.obstacle_ids = scene_objects
 
             # 在球体仿真器中加载相同的场景
-            sphere_scene_objects = self._load_scene_internal(
-                scene_file, self.sphere_physics_client, "球体仿真器"
-            )
+            sphere_scene_objects = self._load_scene_internal(scene_file, self.sphere_physics_client, "球体仿真器")
             if sphere_scene_objects:
                 self.sphere_obstacle_ids = sphere_scene_objects
 
@@ -78,19 +72,14 @@ class PyBulletRobotSimulator:
             if scene_objects:
                 obstacle_ids = []
 
-                print(
-                    f"Loaded {len(scene_objects)} objects from scene in {client_name}:"
-                )
+                print(f"Loaded {len(scene_objects)} objects from scene in {client_name}:")
                 for i, obj_id in enumerate(scene_objects):
                     # 获取对象信息来判断类型
                     info = p.getBodyInfo(obj_id, physicsClientId=physics_client_id)
                     body_name = info[0].decode("utf-8") if info[0] else f"Object_{i}"
 
                     # 跳过地面对象（通常名称包含ground、floor、plane等）
-                    if any(
-                        keyword in body_name.lower()
-                        for keyword in ["ground", "floor", "plane", "terrain"]
-                    ):
+                    if any(keyword in body_name.lower() for keyword in ["ground", "floor", "plane", "terrain"]):
                         print(f"  Object {i}: {body_name} (Ground - skipped)")
                         continue
 
@@ -100,13 +89,9 @@ class PyBulletRobotSimulator:
 
                 # 将所有场景物体设置为静态（质量为0）
                 for body_id in scene_objects:
-                    p.changeDynamics(
-                        body_id, -1, mass=0, physicsClientId=physics_client_id
-                    )
+                    p.changeDynamics(body_id, -1, mass=0, physicsClientId=physics_client_id)
 
-                print(
-                    f"Final obstacle count in {client_name}: {len(obstacle_ids)} static obstacles"
-                )
+                print(f"Final obstacle count in {client_name}: {len(obstacle_ids)} static obstacles")
                 return obstacle_ids
 
         except Exception as e:
@@ -116,9 +101,7 @@ class PyBulletRobotSimulator:
     def load_robot(self, robot_urdf):
         """加载机器人URDF"""
         try:
-            self.robot_id = p.loadURDF(
-                robot_urdf, useFixedBase=True, physicsClientId=self.physics_client
-            )  # 固定基座
+            self.robot_id = p.loadURDF(robot_urdf, useFixedBase=True, physicsClientId=self.physics_client)  # 固定基座
             self._setup_joint_info()
             return self.robot_id
         except Exception as e:
@@ -135,9 +118,7 @@ class PyBulletRobotSimulator:
         self.valid_joints = []
 
         for i in range(num_joints):
-            joint_info = p.getJointInfo(
-                self.robot_id, i, physicsClientId=self.physics_client
-            )
+            joint_info = p.getJointInfo(self.robot_id, i, physicsClientId=self.physics_client)
             if joint_info[2] != p.JOINT_FIXED:  # 非固定关节
                 self.valid_joints.append(i)
                 lower_limit = joint_info[8]
@@ -185,9 +166,7 @@ class PyBulletRobotSimulator:
         if self.robot_id is None:
             return []
 
-        joint_states = p.getJointStates(
-            self.robot_id, self.valid_joints, physicsClientId=self.physics_client
-        )
+        joint_states = p.getJointStates(self.robot_id, self.valid_joints, physicsClientId=self.physics_client)
         return [state[0] for state in joint_states]
 
     def check_self_collision(self):
@@ -239,9 +218,7 @@ class PyBulletRobotSimulator:
         """获取连杆数量"""
         if self.robot_id is None:
             return 0
-        return (
-            p.getNumJoints(self.robot_id, physicsClientId=self.physics_client) + 1
-        )  # 包括base link
+        return (p.getNumJoints(self.robot_id, physicsClientId=self.physics_client) + 1)  # 包括base link
 
     def find_valid_collision_links(self):
         """找到有碰撞几何体的连杆"""
@@ -253,9 +230,7 @@ class PyBulletRobotSimulator:
 
         # 检查base link
         try:
-            collision_data = p.getCollisionShapeData(
-                self.robot_id, -1, physicsClientId=self.physics_client
-            )
+            collision_data = p.getCollisionShapeData(self.robot_id, -1, physicsClientId=self.physics_client)
             if collision_data:
                 valid_links.append(-1)
         except Exception:
@@ -264,9 +239,7 @@ class PyBulletRobotSimulator:
         # 检查其他连杆
         for i in range(num_joints):
             try:
-                collision_data = p.getCollisionShapeData(
-                    self.robot_id, i, physicsClientId=self.physics_client
-                )
+                collision_data = p.getCollisionShapeData(self.robot_id, i, physicsClientId=self.physics_client)
                 if collision_data:
                     valid_links.append(i)
             except Exception:
@@ -280,14 +253,10 @@ class PyBulletRobotSimulator:
             return None
 
         if link_id == -1:  # base link
-            pos, orn = p.getBasePositionAndOrientation(
-                self.robot_id, physicsClientId=self.physics_client
-            )
+            pos, orn = p.getBasePositionAndOrientation(self.robot_id, physicsClientId=self.physics_client)
             return pos, orn
         else:
-            link_state = p.getLinkState(
-                self.robot_id, link_id, physicsClientId=self.physics_client
-            )
+            link_state = p.getLinkState(self.robot_id, link_id, physicsClientId=self.physics_client)
             return link_state[0], link_state[1]  # position, orientation
 
     def disconnect(self):
@@ -302,7 +271,6 @@ class PyBulletRobotSimulator:
 
 class VisualizationManager:
     """管理可视化界面和交互的类"""
-
     def __init__(self, sim, robot_urdf_path):
         self.sim = sim
         self.robot_urdf_path = robot_urdf_path
@@ -326,15 +294,9 @@ class VisualizationManager:
         self.camera_target = [0, 0, 0.5]
 
         # 创建相机控制滑块
-        self.distance_slider = p.addUserDebugParameter(
-            "Camera Distance", 0.5, 10.0, self.camera_distance
-        )
-        self.yaw_slider = p.addUserDebugParameter(
-            "Camera Yaw", -180, 180, self.camera_yaw
-        )
-        self.pitch_slider = p.addUserDebugParameter(
-            "Camera Pitch", -89, 89, self.camera_pitch
-        )
+        self.distance_slider = p.addUserDebugParameter("Camera Distance", 0.5, 10.0, self.camera_distance)
+        self.yaw_slider = p.addUserDebugParameter("Camera Yaw", -180, 180, self.camera_yaw)
+        self.pitch_slider = p.addUserDebugParameter("Camera Pitch", -89, 89, self.camera_pitch)
 
         # 设置初始相机位置
         self.update_camera()
@@ -348,8 +310,7 @@ class VisualizationManager:
 
         # 只有值发生变化时才更新相机
         if (
-            abs(new_distance - self.camera_distance) > 0.01
-            or abs(new_yaw - self.camera_yaw) > 0.5
+            abs(new_distance - self.camera_distance) > 0.01 or abs(new_yaw - self.camera_yaw) > 0.5
             or abs(new_pitch - self.camera_pitch) > 0.5
         ):
             self.camera_distance = new_distance
@@ -456,9 +417,7 @@ class VisualizationManager:
                 return
 
             # 将关节配置转换为张量
-            joint_config = torch.tensor(
-                current_config, dtype=torch.float32, device=torch.device("cuda:0")
-            ).unsqueeze(0)
+            joint_config = torch.tensor(current_config, dtype=torch.float32, device=torch.device("cuda:0")).unsqueeze(0)
 
             # 获取当前配置下的球体世界坐标
             world_spheres = self.sphere_analyzer.get_world_spheres(joint_config)
@@ -472,11 +431,7 @@ class VisualizationManager:
             # 统计碰撞结果
             collision_count = sum(collision_results)
             free_count = len(collision_results) - collision_count
-            collision_rate = (
-                collision_count / len(collision_results) * 100
-                if collision_results
-                else 0
-            )
+            collision_rate = (collision_count / len(collision_results) * 100 if collision_results else 0)
 
             print("\n=== 球体碰撞检测结果 ===")
             print(f"总球体数: {len(collision_results)}")
@@ -487,9 +442,7 @@ class VisualizationManager:
             for i in range(len(collision_results)):
                 x, y, z, radius = world_spheres[i]
                 collision_status = "碰撞" if collision_results[i] else "无碰撞"
-                print(
-                    f"  球体{i + 1}: 位置[{x:.3f}, {y:.3f}, {z:.3f}] 半径{radius:.3f} → {collision_status}"
-                )
+                print(f"  球体{i + 1}: 位置[{x:.3f}, {y:.3f}, {z:.3f}] 半径{radius:.3f} → {collision_status}")
 
         except Exception as e:
             print(f"球体位置更新失败: {e}")
@@ -523,9 +476,7 @@ class VisualizationManager:
 
                 if closest_points:
                     # 取最近的点
-                    min_distance = min(
-                        [point[8] for point in closest_points]
-                    )  # contactDistance
+                    min_distance = min([point[8] for point in closest_points])  # contactDistance
                     distances[link_name][f"Obstacle_{i}"] = min_distance
                 else:
                     distances[link_name][f"Obstacle_{i}"] = float("inf")
@@ -554,16 +505,12 @@ class VisualizationManager:
                     print(f"  {obstacle_name}: No collision geometry")
                 else:
                     # 根据距离添加状态指示
-                    status_icon = (
-                        "💥" if distance <= 0.0 else "⚠️" if distance < 0.05 else "✅"
-                    )
+                    status_icon = ("💥" if distance <= 0.0 else "⚠️" if distance < 0.05 else "✅")
                     print(f"  {obstacle_name}: {distance:.4f}m {status_icon}")
 
         # 整体机器人碰撞状态
         overall_collision = self.sim.check_robot_collision()
-        overall_status = (
-            "🔴 ROBOT IN COLLISION" if overall_collision else "🟢 ROBOT FREE"
-        )
+        overall_status = ("🔴 ROBOT IN COLLISION" if overall_collision else "🟢 ROBOT FREE")
         print(f"\nOverall Status: {overall_status}")
         print("=" * 50 + "\n")
 
@@ -677,9 +624,7 @@ def check_sphere_collision(sim, sphere_position, sphere_radius):
         # 检查球体与所有障碍物的碰撞
         has_collision = False
         for obstacle_id in sim.obstacle_ids:
-            contacts = p.getContactPoints(
-                bodyA=sphere_body, bodyB=obstacle_id, physicsClientId=sim.physics_client
-            )
+            contacts = p.getContactPoints(bodyA=sphere_body, bodyB=obstacle_id, physicsClientId=sim.physics_client)
             if len(contacts) > 0:
                 has_collision = True
                 break
@@ -761,9 +706,7 @@ def update_sphere_positions(sim, sphere_bodies, world_spheres):
         world_spheres: 世界坐标下的球体信息 [N, 4] (x, y, z, radius)
     """
     try:
-        for i, (sphere_body, (x, y, z, radius)) in enumerate(
-            zip(sphere_bodies, world_spheres)
-        ):
+        for i, (sphere_body, (x, y, z, radius)) in enumerate(zip(sphere_bodies, world_spheres)):
             if i >= len(sphere_bodies):
                 break
 
@@ -938,7 +881,7 @@ def find_valid_collision_links(sim):
 
     print(f"Found {len(valid_collision_links)} real collision links")
     print(f"Real collision links: {valid_collision_links}")
-    
+
     # 输出连杆名称
     link_names = []
     for link_id in valid_collision_links:
@@ -949,7 +892,7 @@ def find_valid_collision_links(sim):
             link_name = joint_info[12].decode('utf-8')  # linkName is at index 12
             link_names.append(link_name)
     print(f"Link names: {link_names}")
-    
+
     return valid_collision_links
 
 
@@ -973,9 +916,7 @@ def get_sphere_count():
     return sphere_count
 
 
-def initialize_data_arrays(
-    numqueries, num_real_links, num_dofs, sphere_count_per_query=0
-):
+def initialize_data_arrays(numqueries, num_real_links, num_dofs, sphere_count_per_query=0):
     """初始化数据存储数组"""
     # link级数据数组
     qarr = np.zeros((num_real_links * numqueries, 3))
@@ -1055,18 +996,14 @@ def sample_and_generate_data(
             obb_poses = obb_fk.compute_obb_poses(obb_templates)
         else:
             # 如果模板初始化失败，跳过OBB计算，使用默认值
-            print(
-                f"    Warning: OBB templates not available, using defaults for iteration {counter}"
-            )
+            print(f"    Warning: OBB templates not available, using defaults for iteration {counter}")
             obb_poses = []
 
         # 准备关节配置张量（如果需要球体分析）
         joint_config = None
         if sphere_analyzer is not None:
             # 将当前关节配置转换为张量
-            joint_config = torch.tensor(
-                current_config, dtype=torch.float32, device=torch.device("cuda:0")
-            ).unsqueeze(0)
+            joint_config = torch.tensor(current_config, dtype=torch.float32, device=torch.device("cuda:0")).unsqueeze(0)
 
         # 逐link碰撞检测
         real_link_idx = 0
@@ -1078,9 +1015,7 @@ def sample_and_generate_data(
             # 存储当前实体link的数据
             if obb_poses and lid < len(obb_poses):
                 # 使用计算出的OBB位姿
-                qarr[counter * num_real_links + real_link_idx] = obb_poses[lid][
-                    "position"
-                ]
+                qarr[counter * num_real_links + real_link_idx] = obb_poses[lid]["position"]
                 # 计算方向编码 (保持与原有格式兼容)
                 dirstring = calculate_direction_encoding(
                     obb_poses[lid]["extents"],
@@ -1102,11 +1037,8 @@ def sample_and_generate_data(
 
         # 逐个球体碰撞检测
         if (
-            sphere_analyzer is not None
-            and qarr_sphere is not None
-            and rarr_sphere is not None
-            and yarr_sphere is not None
-            and sphere_bodies
+            sphere_analyzer is not None and qarr_sphere is not None and rarr_sphere is not None
+            and yarr_sphere is not None and sphere_bodies
         ):
             try:
                 # 获取当前配置下的球体世界坐标
@@ -1119,9 +1051,8 @@ def sample_and_generate_data(
                 collision_results = check_spheres_collision(sim, sphere_bodies)
 
                 # 遍历每个球体，保存数据
-                for sphere_idx, ((x, y, z, radius), sphere_collision) in enumerate(
-                    zip(world_spheres, collision_results)
-                ):
+                for sphere_idx, ((x, y, z, radius),
+                                 sphere_collision) in enumerate(zip(world_spheres, collision_results)):
                     if sphere_counter < len(qarr_sphere):
                         # 保存球体位置和半径
                         qarr_sphere[sphere_counter] = [x, y, z]  # 球体位置
@@ -1166,9 +1097,7 @@ def sample_and_generate_data(
             qarr_pose[counter] = current_config
         else:
             # 如果长度不匹配，填充或截断
-            config_padded = (current_config + [0.0] * qarr_pose.shape[1])[
-                : qarr_pose.shape[1]
-            ]
+            config_padded = (current_config + [0.0] * qarr_pose.shape[1])[:qarr_pose.shape[1]]
             qarr_pose[counter] = config_padded
 
         yarr_pose[counter] = ans
@@ -1179,12 +1108,8 @@ def sample_and_generate_data(
         final_collision_rate = sphere_collision_count / sphere_counter * 100
         print("\n=== 球体碰撞检测最终统计 ===")
         print(f"总球体数: {sphere_counter}")
-        print(
-            f"碰撞球体: {sphere_collision_count} ({sphere_collision_count / sphere_counter * 100:.1f}%)"
-        )
-        print(
-            f"无碰撞球体: {sphere_free_count} ({sphere_free_count / sphere_counter * 100:.1f}%)"
-        )
+        print(f"碰撞球体: {sphere_collision_count} ({sphere_collision_count / sphere_counter * 100:.1f}%)")
+        print(f"无碰撞球体: {sphere_free_count} ({sphere_free_count / sphere_counter * 100:.1f}%)")
         print(f"碰撞率: {final_collision_rate:.1f}%")
 
     # 清理球体实体
@@ -1233,9 +1158,7 @@ def main():
     numqueries, foldername, filenumber, visualize_mode = parse_command_args()
 
     # 环境和机器人初始化
-    sim, robot_urdf_path = initialize_environment(
-        foldername, filenumber, use_gui=visualize_mode
-    )
+    sim, robot_urdf_path = initialize_environment(foldername, filenumber, use_gui=visualize_mode)
 
     # 预先筛选实体link
     valid_collision_links = find_valid_collision_links(sim)
@@ -1247,16 +1170,12 @@ def main():
     # 一次性初始化OBB模板
     print("Initializing OBB templates...")
     obb_templates = initialize_obb_templates(robot_urdf_path)
-    print(
-        f"OBB templates initialization {'succeeded' if obb_templates else 'failed, will use fallback method'}"
-    )
+    print(f"OBB templates initialization {'succeeded' if obb_templates else 'failed, will use fallback method'}")
 
     # 获取机器人结构信息
     num_links = sim.get_num_links()
     num_dofs = len(sim.joint_limits)
-    print(
-        f"Robot has {num_links} total links ({num_real_links} real) and {num_dofs} DOFs"
-    )
+    print(f"Robot has {num_links} total links ({num_real_links} real) and {num_dofs} DOFs")
 
     # 获取球体数量
     sphere_count_per_query = get_sphere_count()
@@ -1282,9 +1201,7 @@ def main():
 
     # 数据存储数组初始化
     qarr, dirarr, yarr, qarr_pose, yarr_pose, qarr_sphere, rarr_sphere, yarr_sphere = (
-        initialize_data_arrays(
-            numqueries, num_real_links, num_dofs, sphere_count_per_query
-        )
+        initialize_data_arrays(numqueries, num_real_links, num_dofs, sphere_count_per_query)
     )
 
     # 初始化采样
