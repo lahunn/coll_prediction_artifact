@@ -16,13 +16,15 @@ class PyBulletRobotSimulator:
     def __init__(self, use_gui=False):
         self.physics_client = p.connect(p.GUI if use_gui else p.DIRECT)
         p.setGravity(0, 0, 0)
-        
+
         self.robot_id = None
         self.obstacle_ids = []
 
     def load_robot(self, robot_urdf):
         try:
-            self.robot_id = p.loadURDF(robot_urdf, useFixedBase=True, physicsClientId=self.physics_client)
+            self.robot_id = p.loadURDF(
+                robot_urdf, useFixedBase=True, physicsClientId=self.physics_client
+            )
             return self.robot_id
         except Exception as e:
             print(f"Failed to load robot: {e}")
@@ -30,17 +32,19 @@ class PyBulletRobotSimulator:
 
     def load_obstacles(self, obstacle_file):
         try:
-            with open(obstacle_file, 'rb') as f:
+            with open(obstacle_file, "rb") as f:
                 obstacles = pickle.load(f)
             for halfExtents, basePosition in obstacles:
                 col_shape_id = p.createCollisionShape(
-                    p.GEOM_BOX, halfExtents=halfExtents, physicsClientId=self.physics_client
+                    p.GEOM_BOX,
+                    halfExtents=halfExtents,
+                    physicsClientId=self.physics_client,
                 )
                 body_id = p.createMultiBody(
                     baseMass=0,
                     baseCollisionShapeIndex=col_shape_id,
                     basePosition=basePosition,
-                    physicsClientId=self.physics_client
+                    physicsClientId=self.physics_client,
                 )
                 self.obstacle_ids.append(body_id)
         except Exception as e:
@@ -51,12 +55,16 @@ class PyBulletRobotSimulator:
             return
         num_joints = p.getNumJoints(self.robot_id, physicsClientId=self.physics_client)
         for i in range(num_joints):
-            p.resetJointState(self.robot_id, i, joint_angles[i], physicsClientId=self.physics_client)
+            p.resetJointState(
+                self.robot_id, i, joint_angles[i], physicsClientId=self.physics_client
+            )
 
     def check_collision_for_body(self, body_id):
         p.performCollisionDetection(physicsClientId=self.physics_client)
         for obstacle_id in self.obstacle_ids:
-            contact_points = p.getContactPoints(bodyA=body_id, bodyB=obstacle_id, physicsClientId=self.physics_client)
+            contact_points = p.getContactPoints(
+                bodyA=body_id, bodyB=obstacle_id, physicsClientId=self.physics_client
+            )
             if len(contact_points) > 0:
                 return True
         return False
@@ -67,12 +75,12 @@ class PyBulletRobotSimulator:
 
 def read_obstacle_config_pair(filepath):
     """读取障碍物-配置对文件"""
-    with open(filepath, 'rb') as f:
+    with open(filepath, "rb") as f:
         data = pickle.load(f)
 
     # 新格式: {'obstacles': [...], 'configs': [...]}
-    if isinstance(data, dict) and 'obstacles' in data and 'configs' in data:
-        return data['obstacles'], data['configs']
+    if isinstance(data, dict) and "obstacles" in data and "configs" in data:
+        return data["obstacles"], data["configs"]
 
     # 兼容旧格式: 只有configs列表
     elif isinstance(data, list):
@@ -122,12 +130,14 @@ def main():
 
     # 直接使用从文件读取的obstacles
     for halfExtents, basePosition in obstacles:
-        col_shape_id = p.createCollisionShape(p.GEOM_BOX, halfExtents=halfExtents, physicsClientId=sim.physics_client)
+        col_shape_id = p.createCollisionShape(
+            p.GEOM_BOX, halfExtents=halfExtents, physicsClientId=sim.physics_client
+        )
         body_id = p.createMultiBody(
             baseMass=0,
             baseCollisionShapeIndex=col_shape_id,
             basePosition=basePosition,
-            physicsClientId=sim.physics_client
+            physicsClientId=sim.physics_client,
         )
         sim.obstacle_ids.append(body_id)
 
@@ -142,8 +152,10 @@ def main():
     # --- Pre-create PyBullet bodies for OBBs ---
     obb_body_ids = []
     for obb_template in obb_templates:
-        col_shape = p.createCollisionShape(p.GEOM_BOX, halfExtents=obb_template['extents'] / 2.0)
-        body = p.createMultiBody(baseMass=0, baseCollisionShapeIndex=col_shape)
+        col_shape = p.createCollisionShape(
+            p.GEOM_BOX, halfExtents=obb_template["extents"] / 2.0
+        )
+        body = p.createMultiBody(baseMass=1, baseCollisionShapeIndex=col_shape)
         obb_body_ids.append(body)
 
     # --- Pre-create PyBullet bodies for spheres ---
@@ -154,14 +166,16 @@ def main():
     else:
         sample_config = [0] * p.getNumJoints(sim.robot_id)
 
-    joint_config_sample = torch.tensor(sample_config, dtype=torch.float32).unsqueeze(0).cuda()
+    joint_config_sample = (
+        torch.tensor(sample_config, dtype=torch.float32).unsqueeze(0).cuda()
+    )
     world_spheres_sample = sphere_analyzer.get_world_spheres(joint_config_sample)
 
     sphere_body_ids = []
     for sphere in world_spheres_sample:
         radius = sphere[3].item()
         col_shape = p.createCollisionShape(p.GEOM_SPHERE, radius=radius)
-        body = p.createMultiBody(baseMass=0, baseCollisionShapeIndex=col_shape)
+        body = p.createMultiBody(baseMass=1, baseCollisionShapeIndex=col_shape)
         sphere_body_ids.append(body)
 
     # 数据格式: (edge_link_data, edge_link_coll_data)
@@ -195,11 +209,15 @@ def main():
             pose_obb_colls = []
 
             for i, obb_pose in enumerate(obb_poses):
-                p.resetBasePositionAndOrientation(obb_body_ids[i], obb_pose['position'], obb_pose['quaternion'])
+                p.resetBasePositionAndOrientation(
+                    obb_body_ids[i], obb_pose["position"], obb_pose["quaternion"]
+                )
                 is_colliding = sim.check_collision_for_body(obb_body_ids[i])
 
                 # 位姿: [x, y, z, qx, qy, qz, qw]
-                pose_obb_coords.append(list(obb_pose['position']) + list(obb_pose['quaternion']))
+                pose_obb_coords.append(
+                    list(obb_pose["position"]) + list(obb_pose["quaternion"])
+                )
                 # 碰撞标签: 1=无碰撞, 0=碰撞
                 pose_obb_colls.append(0 if is_colliding else 1)
 
@@ -234,17 +252,19 @@ def main():
     print("处理完成! 保存结果...")
 
     # 保存为与coord_motion格式一致的tuple: (坐标数据, 碰撞标签)
-    with open(obb_output_file, 'wb') as f:
+    with open(obb_output_file, "wb") as f:
         pickle.dump((obb_link_data, obb_link_coll_data), f)
 
-    with open(sphere_output_file, 'wb') as f:
+    with open(sphere_output_file, "wb") as f:
         pickle.dump((sphere_link_data, sphere_link_coll_data), f)
 
     print(f"✓ OBB结果: {obb_output_file} (格式: edge_link_data, edge_link_coll_data)")
-    print(f"✓ Sphere结果: {sphere_output_file} (格式: edge_link_data, edge_link_coll_data)")
+    print(
+        f"✓ Sphere结果: {sphere_output_file} (格式: edge_link_data, edge_link_coll_data)"
+    )
 
     sim.disconnect()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

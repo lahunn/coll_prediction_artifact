@@ -40,8 +40,15 @@ def generate_random_obstacles(
     for _ in range(num_obstacles):
         max_attempts = 100
         for attempt in range(max_attempts):
-            half_size = np.random.uniform(voxel_size_range[0], voxel_size_range[1], size=3)
+            half_size = np.random.uniform(
+                voxel_size_range[0], voxel_size_range[1], size=3
+            )
             position = np.random.uniform(w_min, w_max, size=3)
+
+            # 确保 z 坐标不小于 0（障碍物顶部不低于地面）
+            if position[2] + half_size[2] < 0:
+                continue
+
             distance_to_base = np.linalg.norm(position - safe_center)
             min_safe_distance = safe_zone_radius + np.max(half_size)
 
@@ -86,7 +93,12 @@ def visualize_problem(env, obstacles, start=None, goal=None, path=None):
 
 
 def generate_single_problem(
-    env, obstacles, max_planning_time=60.0, max_sample_attempts=100, visualize=False, planner=None
+    env,
+    obstacles,
+    max_planning_time=60.0,
+    max_sample_attempts=100,
+    visualize=False,
+    planner=None,
 ):
     """生成单个路径规划问题"""
     if planner is None:
@@ -100,15 +112,15 @@ def generate_single_problem(
             continue
 
         distance = env.distance(start, goal)
-        if distance < 0.5:
+        if distance < 1.5:
             continue
 
         env.init_state = start
         env.goal_state = goal
         planner.reset(start, goal)
 
-        samples, edges, cost, num_samples, planning_time = (
-            planner.plan(pathLengthLimit=float("inf"), time_budget=max_planning_time)
+        samples, edges, cost, num_samples, planning_time = planner.plan(
+            pathLengthLimit=float("inf"), time_budget=max_planning_time
         )
 
         if cost < float("inf"):
@@ -157,8 +169,8 @@ def generate_problem_dataset(
     num_obstacles=10,
     output_file=None,
     max_planning_time=60.0,
-    workspace_range=(-2.0, 2.0),
-    voxel_size_range=(0.05, 0.12),
+    workspace_range=(-1.0, 1.0),
+    voxel_size_range=(0.12, 0.20),
     safe_zone_radius=0.5,
     visualize=False,
 ):
@@ -203,7 +215,7 @@ def generate_problem_dataset(
             workspace_range=workspace_range,
             safe_zone_center=(0.0, 0.0, 0.0),
             safe_zone_radius=safe_zone_radius,
-            max_attempts_per_obstacle=100
+            max_attempts_per_obstacle=100,
         )
 
         # 在生成问题前重置数据收集列表
@@ -214,7 +226,11 @@ def generate_problem_dataset(
         env.sphere_link_coll_data = []
 
         problem = generate_single_problem(
-            env, env.obstacles, max_planning_time=max_planning_time, visualize=visualize, planner=planner
+            env,
+            env.obstacles,
+            max_planning_time=max_planning_time,
+            visualize=visualize,
+            planner=planner,
         )
 
         if problem is not None:
@@ -231,9 +247,12 @@ def generate_problem_dataset(
             sphere_filepath = os.path.join(collision_data_dir, sphere_filename)
 
             # 保存障碍物-配置对
-            obstacle_config_pair = {'obstacles': problem[0], 'configs': env.config_list.copy()}
+            obstacle_config_pair = {
+                "obstacles": problem[0],
+                "configs": env.config_list.copy(),
+            }
 
-            with open(pair_filepath, 'wb') as f:
+            with open(pair_filepath, "wb") as f:
                 pickle.dump(obstacle_config_pair, f)
 
             # 保存碰撞检测数据
@@ -255,7 +274,9 @@ def generate_problem_dataset(
     print(f"碰撞检测数据保存到: {collision_data_dir}/")
     print(f"  OBB文件格式: {base_filename}_XXXX_obb.pkl")
     print(f"  Sphere文件格式: {base_filename}_XXXX_sphere.pkl")
-    print(f"路径长度 - 平均: {np.mean(path_lengths):.2f}, 最小: {np.min(path_lengths)}, 最大: {np.max(path_lengths)}")
+    print(
+        f"路径长度 - 平均: {np.mean(path_lengths):.2f}, 最小: {np.min(path_lengths)}, 最大: {np.max(path_lengths)}"
+    )
 
     return problems
 

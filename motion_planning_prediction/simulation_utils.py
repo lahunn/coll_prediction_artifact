@@ -17,23 +17,37 @@ def reutrn_keyy(code):
 
 def csp_rearrange(edge, edgeyarr, groupsize=8):
     """
-    Rearranges the poses on a path according to a hierarchical sampling strategy (CSP).
+    根据分层采样策略（CSP）重排路径上的姿态。
     """
     num_steps = len(edge)
+
+    # --- 1. 分层重排姿态 ---
+    # 目标：将姿态从[0,1,2,3...]的顺序重排，优先检查关键姿态（如中点、四分位点等）。
+    # 这是一种类似二分查找的策略，希望能更快地发现碰撞。
+
+    # 首先放入路径的最后一个姿态
     rearr = [edge[-1]]
     rearryarr = [edgeyarr[-1]]
-    # Hierarchical sampling order
+
+    # 分层采样顺序，例如对于8个姿态，顺序为 0, 4, 2, 6, 1, 5, 3, 7
+    # 这个循环将该模式应用到整个路径上
     for i in [0, 4, 2, 6, 1, 5, 3, 7]:
         for j in range(i, num_steps - 1, 8):
             rearr.append(edge[j])
             rearryarr.append(edgeyarr[j])
 
+    # --- 2. 展平数据结构 ---
+    # 目标：将数据从“姿态列表（每个姿态又是一个连杆列表）”展平为单一的“连杆列表”。
+    # [pose[link]] -> [link]
     group = []
     grouparr = []
+    # 遍历重排后的每个姿态
     for pose, posecoll in zip(rearr, rearryarr):
+        # 遍历该姿态下的每个连杆
         for link, linkcoll in zip(pose, posecoll):
             group.append(link)
             grouparr.append(linkcoll)
+
     return group, grouparr
 
 
@@ -87,7 +101,10 @@ def load_sphere_data(basename, benchid, data_folder):
                 return data
             # 兼容旧格式: (qarr, rarr, yarr)
             elif isinstance(data, tuple) and len(data) == 3:
-                print(f"Warning: Old format detected in {filename}, converting...", file=sys.stderr)
+                print(
+                    f"Warning: Old format detected in {filename}, converting...",
+                    file=sys.stderr,
+                )
                 qarr_sphere, rarr_sphere, yarr_sphere = data
                 return qarr_sphere, yarr_sphere  # 返回坐标和碰撞标签
             else:
@@ -102,13 +119,21 @@ def update_collision_dict(colldict, hash_key, is_free, sample_rate):
     Updates the collision history dictionary.
     """
     if hash_key in colldict:
-        if is_free == 1 and random.random() <= sample_rate and colldict[hash_key][is_free] < 15:
+        if (
+            is_free == 1
+            and random.random() <= sample_rate
+            and colldict[hash_key][is_free] < 15
+        ):
             colldict[hash_key][is_free] += 1
         elif colldict[hash_key][is_free] < 15 and is_free == 0:
             colldict[hash_key][is_free] += 1
     else:
         colldict[hash_key] = [0, 0]
-        if is_free == 1 and random.random() <= sample_rate and colldict[hash_key][is_free] < 15:
+        if (
+            is_free == 1
+            and random.random() <= sample_rate
+            and colldict[hash_key][is_free] < 15
+        ):
             colldict[hash_key][is_free] += 1
         elif colldict[hash_key][is_free] < 15 and is_free == 0:
             colldict[hash_key][is_free] += 1
@@ -129,7 +154,15 @@ def predict_collision(colldict, hash_key, threshold):
 
 
 def simulate_parallel_collision_detection(
-    linklist, linklist_coll, colldict, threshold, sample_rate, bins, qnoncoll_len=56, qcoll_len=8, cycle_check=40
+    linklist,
+    linklist_coll,
+    colldict,
+    threshold,
+    sample_rate,
+    bins,
+    qnoncoll_len=56,
+    qcoll_len=8,
+    cycle_check=40,
 ):
     """
     Simulates the parallel collision detection process using OOCDs and prediction.
@@ -152,7 +185,9 @@ def simulate_parallel_collision_detection(
                 query_count += 1
                 if oocd[1] == 0:
                     coll_found = 1
-                colldict = update_collision_dict(colldict, oocd[0], oocd[1], sample_rate)
+                colldict = update_collision_dict(
+                    colldict, oocd[0], oocd[1], sample_rate
+                )
 
             if oocd[3] <= cycle:
                 if len(qcoll) > 0 and first_two_checked < cycle:
@@ -161,10 +196,17 @@ def simulate_parallel_collision_detection(
                         first_two_checked = cycle + cycle_check
                     oocds[oocd_id] = [qcoll[0][0], qcoll[0][1], 1, cycle + cycle_check]
                     del qcoll[0]
-                elif len(qnoncoll) == qnoncoll_len or (
-                    links_remaining == 0 and len(qnoncoll) > 0
-                ) and first_two_checked < cycle:
-                    oocds[oocd_id] = [qnoncoll[0][0], qnoncoll[0][1], 1, cycle + cycle_check]
+                elif (
+                    len(qnoncoll) == qnoncoll_len
+                    or (links_remaining == 0 and len(qnoncoll) > 0)
+                    and first_two_checked < cycle
+                ):
+                    oocds[oocd_id] = [
+                        qnoncoll[0][0],
+                        qnoncoll[0][1],
+                        1,
+                        cycle + cycle_check,
+                    ]
                     del qnoncoll[0]
                 else:
                     oocds[oocd_id] = [0, 0, 0, 0]
@@ -195,7 +237,12 @@ def simulate_parallel_collision_detection(
                     del linklist_coll[0]
 
         links_remaining = len(linklist)
-        if links_remaining == 0 and not any(oocd[3] > cycle for oocd in oocds) and not qnoncoll and not qcoll:
+        if (
+            links_remaining == 0
+            and not any(oocd[3] > cycle for oocd in oocds)
+            and not qnoncoll
+            and not qcoll
+        ):
             everything_free = 1
 
         cycle += 1

@@ -7,36 +7,60 @@
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 echo "========================================================================"
-echo "生成标准数据集 (3000个问题)"
+echo "生成标准数据集"
 echo "========================================================================"
-echo "警告: 这可能需要数小时到数天时间，取决于硬件性能"
-echo ""
-read -p "是否继续? (y/n) " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo "已取消"
-    exit 0
-fi
 
 # 确保输出目录存在
 mkdir -p maze_files
+
+# 机器人配置
+ROBOT_FILE="/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/franka_description/franka_panda.urdf"
+ROBOT_NAME="franka"
+WORKSPACE_FILE="../workspace_bound/${ROBOT_NAME}_panda_workspace.json"
+
+# 分析工作空间
+echo ""
+echo "========================================================================"
+echo "分析机器人工作空间"
+echo "========================================================================"
+if [ -f "$WORKSPACE_FILE" ]; then
+    echo "✓ 工作空间文件 '$WORKSPACE_FILE' 已存在, 跳过分析."
+else
+    echo "i 工作空间文件 '$WORKSPACE_FILE' 不存在, 开始分析..."
+    python ../workspace_bound/workspace_analyzer.py "$ROBOT_FILE" "$WORKSPACE_FILE"
+
+    if [ ! -f "$WORKSPACE_FILE" ]; then
+        echo "✗ 工作空间分析失败, 未能创建 '$WORKSPACE_FILE'."
+        exit 1
+    else
+        echo "✓ 工作空间分析成功, 文件已创建: '$WORKSPACE_FILE'."
+    fi
+fi
+
+# 从JSON文件读取工作空间范围
+X_START=$(python -c "import json; print(json.load(open('$WORKSPACE_FILE'))['x_start'])")
+X_END=$(python -c "import json; print(json.load(open('$WORKSPACE_FILE'))['x_end'])")
+Z_START=$(python -c "import json; print(json.load(open('$WORKSPACE_FILE'))['z_start'])")
+Z_END=$(python -c "import json; print(json.load(open('$WORKSPACE_FILE'))['z_end'])")
+
+echo "使用工作空间范围: X=[$X_START, $X_END], Z=[$Z_START, $Z_END]"
 
 # 生成数据集
 echo ""
 echo "========================================================================"
 echo "生成 franka 数据集"
 echo "========================================================================"
-# cd /home/lanh/project/robot_sim/coll_prediction_artifact/trace_generation/bit_planning
 python generate_problem_dataset.py \
-    --robot-file /home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/franka_description/franka_panda.urdf \
-    --robot-name franka \
+    --robot-file "$ROBOT_FILE" \
+    --robot-name "$ROBOT_NAME" \
     --num-problems 200 \
-    --num-obstacles 10 \
-    --max-time 6.0 \
-    --workspace-min -2.0 \
-    --workspace-max 2.0 \
-    --voxel-size-min 0.05 \
-    --voxel-size-max 0.12
+    --num-obstacles 12 \
+    --max-time 10.0 \
+    --workspace-min "$X_START" \
+    --workspace-max "$X_END" \
+    --safe-zone-radius 0.15 \
+    --voxel-size-min 0.12 \
+    --voxel-size-max 0.20
 
 if [ $? -eq 0 ]; then
     echo "✓ Franka 数据集生成成功"

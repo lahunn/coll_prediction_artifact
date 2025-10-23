@@ -53,7 +53,7 @@ def main():
         "test_sphere_data.pkl"
     )
     
-    print(f"\n✓ 配置数据: test_configs.pkl")
+    print("\n✓ 配置数据: test_configs.pkl")
     print(f"✓ OBB数据: test_obb_data.pkl ({len(env.obb_link_data)} 条边)")
     print(f"✓ Sphere数据: test_sphere_data.pkl ({len(env.sphere_link_data)} 条边)")
     
