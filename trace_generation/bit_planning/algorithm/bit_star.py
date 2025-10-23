@@ -79,7 +79,7 @@ class BITStar:
     def reset(self, new_start, new_goal):
         """
         重置规划器到新的起点和终点，复用环境和参数
-        
+
         Args:
             new_start: 新起始状态 (numpy array)
             new_goal: 新目标状态 (numpy array)
@@ -89,7 +89,7 @@ class BITStar:
         self.goal = tuple(new_goal)
         self.env.init_state = new_start
         self.env.goal_state = new_goal
-        
+
         # 清空树和样本
         self.vertices.clear()
         self.edges.clear()
@@ -98,15 +98,15 @@ class BITStar:
         self.vertex_queue.clear()
         self.edge_queue.clear()
         self.old_vertices.clear()
-        
+
         # 重置迭代参数
         self.r = INF
         self.T = 0
-        
+
         # 重新计算 informed sampling 参数
         self.c_min = self.distance(self.start, self.goal)
         self.informed_sample_init()
-        
+
         # 重置碰撞计数（可选，保留历史统计）
         # self.n_collision_points = 0
         # self.n_free_points = 2
@@ -170,57 +170,61 @@ class BITStar:
         return x
 
     def informed_sample(self, c_best, sample_num, vertices):
-      if c_best < float("inf"):
-          c_b = math.sqrt(c_best**2 - self.c_min**2) / 2.0
-          r = [c_best / 2.0] + [c_b] * (self.dimension - 1)
-          L = np.diag(r)
-          
-          # 预计算椭圆体的AABB边界
-          ellipsoid_radii = np.abs(self.C @ L @ np.eye(self.dimension))
-          ellipsoid_radii = np.max(np.abs(ellipsoid_radii), axis=1)
-          ellipsoid_bounds_min = self.center_point - ellipsoid_radii
-          ellipsoid_bounds_max = self.center_point + ellipsoid_radii
-          
-          # 计算与关节限位的交集
-          effective_bounds_min = np.maximum(ellipsoid_bounds_min, self.bounds[:, 0])
-          effective_bounds_max = np.minimum(ellipsoid_bounds_max, self.bounds[:, 1])
-          
-          # 检查交集是否为空
-          if np.any(effective_bounds_min >= effective_bounds_max):
-              # 椭圆体与关节限位无交集，降级为全空间采样
-              use_ellipsoid = False
-          else:
-              use_ellipsoid = True
-      else:
-          use_ellipsoid = False
-      
-      sample_array = []
-      cur_num = 0
-      max_attempts = sample_num * 1000
-      attempts = 0
-      
-      while cur_num < sample_num and attempts < max_attempts:
-          attempts += 1
-          
-          if use_ellipsoid:
-              # 在有效边界内采样，然后检查是否在椭圆内
-              random_point = effective_bounds_min + np.random.random(self.dimension) * (effective_bounds_max - effective_bounds_min)
-              
-              # 检查是否在椭圆体内
-              x_centered = random_point - self.center_point
-              x_transformed = np.linalg.solve(self.C @ L, x_centered)
-              if np.linalg.norm(x_transformed) > 1.0:
-                  continue
-          else:
-              random_point = self.bounds[:, 0] + np.random.random(self.dimension) * self.ranges
-          
-          random_point = tuple(random_point)
-          feas = self.is_point_free(random_point)
-          if feas:
-              sample_array.append(random_point)
-              cur_num += 1
-      
-      return sample_array
+        if c_best < float("inf"):
+            c_b = math.sqrt(c_best**2 - self.c_min**2) / 2.0
+            r = [c_best / 2.0] + [c_b] * (self.dimension - 1)
+            L = np.diag(r)
+
+            # 预计算椭圆体的AABB边界
+            ellipsoid_radii = np.abs(self.C @ L @ np.eye(self.dimension))
+            ellipsoid_radii = np.max(np.abs(ellipsoid_radii), axis=1)
+            ellipsoid_bounds_min = self.center_point - ellipsoid_radii
+            ellipsoid_bounds_max = self.center_point + ellipsoid_radii
+
+            # 计算与关节限位的交集
+            effective_bounds_min = np.maximum(ellipsoid_bounds_min, self.bounds[:, 0])
+            effective_bounds_max = np.minimum(ellipsoid_bounds_max, self.bounds[:, 1])
+
+            # 检查交集是否为空
+            if np.any(effective_bounds_min >= effective_bounds_max):
+                # 椭圆体与关节限位无交集，降级为全空间采样
+                use_ellipsoid = False
+            else:
+                use_ellipsoid = True
+        else:
+            use_ellipsoid = False
+
+        sample_array = []
+        cur_num = 0
+        max_attempts = sample_num * 1000
+        attempts = 0
+
+        while cur_num < sample_num and attempts < max_attempts:
+            attempts += 1
+
+            if use_ellipsoid:
+                # 在有效边界内采样，然后检查是否在椭圆内
+                random_point = effective_bounds_min + np.random.random(
+                    self.dimension
+                ) * (effective_bounds_max - effective_bounds_min)
+
+                # 检查是否在椭圆体内
+                x_centered = random_point - self.center_point
+                x_transformed = np.linalg.solve(self.C @ L, x_centered)
+                if np.linalg.norm(x_transformed) > 1.0:
+                    continue
+            else:
+                random_point = (
+                    self.bounds[:, 0] + np.random.random(self.dimension) * self.ranges
+                )
+
+            random_point = tuple(random_point)
+            feas = self.is_point_free(random_point)
+            if feas:
+                sample_array.append(random_point)
+                cur_num += 1
+
+        return sample_array
 
     def _in_bounds(self, point):
         """检查配置是否在关节限位范围内"""

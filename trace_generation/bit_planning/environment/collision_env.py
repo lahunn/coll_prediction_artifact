@@ -6,6 +6,7 @@ import sys
 import os
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../../"))
+sys.path.append(os.path.join(os.path.dirname(__file__), "../../"))
 from sphere_as.robot_sphere_analyzer import RobotSphereAnalyzer
 
 
@@ -447,6 +448,7 @@ class CollisionEnv:
             p.resetJointState(
                 self.robotId, i, state[i], physicsClientId=self.physics_client
             )
+        p.performCollisionDetection(physicsClientId=self.physics_client)
 
         # 收集Link数据 (仅valid collision links)
         link_coords = []
