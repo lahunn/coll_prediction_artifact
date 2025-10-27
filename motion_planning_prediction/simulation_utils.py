@@ -114,6 +114,25 @@ def load_sphere_data(basename, benchid, data_folder):
         return None, None
 
 
+def load_obb_data(basename, benchid, data_folder):
+    """
+    Loads OBB collision data from a pickle file.
+    Format: (obb_link_data, obb_link_coll_data)
+    """
+    filename = f"{data_folder}/{basename}_{benchid:04d}_obb.pkl"
+    try:
+        with open(filename, "rb") as f:
+            data = pickle.load(f)
+            # 新格式: (obb_link_data, obb_link_coll_data)
+            if isinstance(data, tuple) and len(data) == 2:
+                return data
+            else:
+                return None, None
+    except FileNotFoundError:
+        print(f"Warning: OBB data file not found at {filename}", file=sys.stderr)
+        return None, None
+
+
 def update_collision_dict(colldict, hash_key, is_free, sample_rate):
     """
     Updates the collision history dictionary.
@@ -165,37 +184,47 @@ def simulate_parallel_collision_detection(
     cycle_check=40,
 ):
     """
-    Simulates the parallel collision detection process using OOCDs and prediction.
+    模拟并行的碰撞检测过程，该过程结合了硬件检测器 (OOCD) 和基于历史的碰撞预测。
     """
+    # 初始化7个硬件碰撞检测器 (OOCD)，每个检测器的状态为 [key, 真实碰撞结果, 是否繁忙, 完成周期]
     oocds = [[0, 0, 0, 0] for _ in range(7)]
+    # qcoll: 预测为会碰撞的配置队列
+    # qnoncoll: 预测为不会碰撞的配置队列
     qcoll, qnoncoll = [], []
-    cycle = 0
+    cycle = 0  # 仿真周期计数器
     first_two_running = 0
     first_two_checked = 0
-    coll_found = 0
-    links_remaining = len(linklist)
-    everything_free = 0
-    query_count = 0.0
+    coll_found = 0  # 是否发现真实碰撞的标志
+    links_remaining = len(linklist)  # 剩余待处理的配置数量
+    everything_free = 0  # 所有任务是否完成的标志
+    query_count = 0.0  # 实际执行的硬件查询总数
 
+    # 主循环：直到发现碰撞或所有任务完成
     while not coll_found and not everything_free:
-        # Process completed checks and schedule new ones
+        # --- 步骤1: 处理硬件检测器 (OOCD) 的状态 ---
         for oocd_id in range(len(oocds)):
             oocd = oocds[oocd_id]
+            # 如果一个检测器任务已完成 (繁忙状态且到达完成周期)
             if oocd[2] == 1 and oocd[3] <= cycle:
-                query_count += 1
-                if oocd[1] == 0:
+                query_count += 1  # 增加硬件查询计数
+                if oocd[1] == 0:  # 假设0代表真实发生碰撞
                     coll_found = 1
+                # 根据真实的检测结果，更新碰撞历史表
                 colldict = update_collision_dict(
                     colldict, oocd[0], oocd[1], sample_rate
                 )
 
+            # 如果一个检测器现在空闲 (到达完成周期)
             if oocd[3] <= cycle:
+                # 优先从“预测碰撞”队列 (qcoll) 中取任务
                 if len(qcoll) > 0 and first_two_checked < cycle:
                     first_two_running += 1
                     if first_two_running == 1:
                         first_two_checked = cycle + cycle_check
+                    # 分配新任务给这个OOCD
                     oocds[oocd_id] = [qcoll[0][0], qcoll[0][1], 1, cycle + cycle_check]
                     del qcoll[0]
+                # 如果qcoll为空，则从“预测不碰撞”队列 (qnoncoll) 中取任务
                 elif (
                     len(qnoncoll) == qnoncoll_len
                     or (links_remaining == 0 and len(qnoncoll) > 0)
@@ -209,47 +238,50 @@ def simulate_parallel_collision_detection(
                     ]
                     del qnoncoll[0]
                 else:
+                    # 如果两个队列都没有任务，则OOCD变为空闲状态
                     oocds[oocd_id] = [0, 0, 0, 0]
 
-        # Predict and queue next link
+        # --- 步骤2: 预测下一个配置并放入相应队列 ---
         if len(linklist) > 0:
             link, linkcoll = linklist[0], linklist_coll[0]
-            # This quantization part is script-specific, so we assume bins are passed or configured elsewhere
-            # For now, let's create a placeholder for the key
-            # In a real scenario, the binning logic would also be centralized or passed in.
-            # For this fix, we'll assume a simple hash based on the link data itself.
-            # NOTE: The binning logic is still in the main scripts, which is acceptable for now.
-            # The key part is that the simulation loop itself is centralized.
+
+            # 将配置数据“量化”以生成用于查询历史表的键 (key)
             code_quant = np.digitize(link, bins, right=True)
             keyy = reutrn_keyy(code_quant)
 
+            # 使用历史表进行碰撞预测
             is_collision_predicted = predict_collision(colldict, keyy, threshold)
 
+            # 根据预测结果，将配置放入不同的队列
             if is_collision_predicted:
-                if len(qcoll) < qcoll_len:
+                if len(qcoll) < qcoll_len:  # 如果队列未满
                     qcoll.append([keyy, linkcoll])
                     del linklist[0]
                     del linklist_coll[0]
             else:
-                if len(qnoncoll) < qnoncoll_len:
+                if len(qnoncoll) < qnoncoll_len:  # 如果队列未满
                     qnoncoll.append([keyy, linkcoll])
                     del linklist[0]
                     del linklist_coll[0]
 
+        # --- 步骤3: 检查仿真是否结束 ---
         links_remaining = len(linklist)
+        # 如果所有输入配置都已处理，所有检测器都空闲，且所有队列都为空
         if (
             links_remaining == 0
             and not any(oocd[3] > cycle for oocd in oocds)
             and not qnoncoll
             and not qcoll
         ):
-            everything_free = 1
+            everything_free = 1  # 设置结束标志
 
-        cycle += 1
+        cycle += 1  # 时间周期前进
 
-    # Account for unfinished checks
+    # --- 步骤4: 计算仿真结束时仍在运行的任务 ---
+    # 对于未完成的检查，按其已执行的比例计入查询总数
     for oocd in oocds:
         if oocd[3] > cycle:
             query_count += (cycle_check - oocd[3] + cycle) / cycle_check
 
+    # 返回总查询数、更新后的碰撞历史表和是否找到碰撞的标志
     return query_count, colldict, coll_found

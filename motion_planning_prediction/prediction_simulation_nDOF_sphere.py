@@ -74,21 +74,18 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
     if sphere_link_data is None or sphere_link_coll_data is None:
         continue
 
-    # 累计理论查询总数
+    # 累计理论查询总数 (模拟理想的顺序Oracle)
     for edge_coll in sphere_link_coll_data:
         for pose_coll in edge_coll:
-            total_sphere_checks += len(pose_coll)
-
-    # 如果所有球体都没有碰撞（全为1），跳过该边
-    if all(
-        sphere_coll == 1
-        for edge_coll in sphere_link_coll_data
-        for pose_coll in edge_coll
-        for sphere_coll in pose_coll
-    ):
-        print("all zero")
-    else:
-        print("not all zero")
+            # 理想的顺序检查器：检查直到发现第一个碰撞，或者检查完所有球体都没有碰撞。
+            try:
+                # 找到第一个碰撞(值为0)的索引
+                first_collision_index = pose_coll.index(0)
+                # 加上找到它所需的检查次数 (索引从0开始，所以+1)
+                total_sphere_checks += first_collision_index + 1
+            except ValueError:
+                # 如果 pose_coll 中没有0 (即当前姿态无碰撞)，则需要检查该姿态下的所有球体
+                total_sphere_checks += len(pose_coll)
 
     # 处理每条边
     for edge, edge_coll in zip(sphere_link_data, sphere_link_coll_data):

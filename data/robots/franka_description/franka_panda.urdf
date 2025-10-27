@@ -297,7 +297,20 @@
       <inertia ixx="1e-06" ixy="0.0" ixz="0.0" iyy="1e-06" iyz="0.0" izz="1e-06"/>
     </inertial>
   </link>
-  <joint name="panda_finger_joint1" type="prismatic">
+  <joint name="panda_finger_joint1" type="fixed">
+    <parent link="panda_hand"/>
+    <child link="panda_leftfinger"/>
+    <origin rpy="0 0 0" xyz="0 0.04 0.0584"/>
+    <axis xyz="0 1 0"/>
+  </joint>
+  <joint name="panda_finger_joint2" type="fixed">
+    <parent link="panda_hand"/>
+    <child link="panda_rightfinger"/>
+    <origin rpy="0 0 0" xyz="0 -0.04 0.0584"/>
+    <axis xyz="0 -1 0"/>
+  </joint> 
+  <!-- 为了适应curobo中球体模型finger不能移动的问题,削减了这里的自由度 -->
+  <!-- <joint name="panda_finger_joint1" type="prismatic">
     <parent link="panda_hand"/>
     <child link="panda_leftfinger"/>
     <origin rpy="0 0 0" xyz="0 0 0.0584"/>
@@ -312,7 +325,7 @@
     <axis xyz="0 -1 0"/>
     <dynamics damping="10.0"/>
     <limit effort="20" lower="0.0" upper="0.04" velocity="0.2"/>
-  </joint>
+  </joint> -->
 
   <link name="ee_link">
     <inertial>

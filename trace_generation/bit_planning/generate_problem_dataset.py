@@ -22,41 +22,10 @@ import argparse
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from environment.collision_env import CollisionEnv
+from environment.robot_env import RobotEnv
+from environment.obstacle_manager import ObstacleManager
 from algorithm.bit_star import BITStar
-
-
-def generate_random_obstacles(
-    num_obstacles=10,
-    workspace_range=(-1.0, 1.0),
-    voxel_size_range=(0.05, 0.15),
-    safe_zone_center=(0.0, 0.0, 0.0),
-    safe_zone_radius=0.3,
-):
-    """生成随机障碍物，避开机器人基座附近的安全区域"""
-    obstacles = []
-    w_min, w_max = workspace_range
-    safe_center = np.array(safe_zone_center)
-
-    for _ in range(num_obstacles):
-        max_attempts = 100
-        for attempt in range(max_attempts):
-            half_size = np.random.uniform(
-                voxel_size_range[0], voxel_size_range[1], size=3
-            )
-            position = np.random.uniform(w_min, w_max, size=3)
-
-            # 确保 z 坐标不小于 0（障碍物顶部不低于地面）
-            if position[2] + half_size[2] < 0:
-                continue
-
-            distance_to_base = np.linalg.norm(position - safe_center)
-            min_safe_distance = safe_zone_radius + np.max(half_size)
-
-            if distance_to_base > min_safe_distance:
-                obstacles.append((half_size, position))
-                break
-
-    return obstacles
+from utils.planning_utils import uniform_sample, distance
 
 
 def visualize_problem(env, obstacles, start=None, goal=None, path=None):
@@ -66,14 +35,14 @@ def visualize_problem(env, obstacles, start=None, goal=None, path=None):
     print(f"\n障碍物数量: {len(obstacles)}")
 
     if start is not None:
-        env.set_config(start)
+        env.robot_env.set_config(start)
         time.sleep(1)
         collision = not env._state_fp(start)
         print(f"起点: {'碰撞' if collision else '无碰撞'}")
         time.sleep(1)
 
     if goal is not None:
-        env.set_config(goal)
+        env.robot_env.set_config(goal)
         time.sleep(1)
         collision = not env._state_fp(goal)
         print(f"终点: {'碰撞' if collision else '无碰撞'}")
@@ -82,7 +51,7 @@ def visualize_problem(env, obstacles, start=None, goal=None, path=None):
     if path is not None and len(path) > 0:
         print(f"路径长度: {len(path)}")
         for i, config in enumerate(path):
-            env.set_config(config)
+            env.robot_env.set_config(config)
             time.sleep(0.05)
 
     try:
@@ -105,16 +74,26 @@ def generate_single_problem(
         sys.exit("错误：必须提供规划器实例")
 
     for attempt in range(max_sample_attempts):
-        start = env.uniform_sample()
-        goal = env.uniform_sample()
+        # 重置边检查统计量
+
+        start = uniform_sample(
+            env.robot_env.lower_bounds,
+            env.robot_env.upper_bounds,
+            env.robot_env.config_dim,
+        )
+        goal = uniform_sample(
+            env.robot_env.lower_bounds,
+            env.robot_env.upper_bounds,
+            env.robot_env.config_dim,
+        )
 
         if not env._state_fp(start) or not env._state_fp(goal):
             continue
-
-        distance = env.distance(start, goal)
-        if distance < 1.5:
+        dist = distance(start, goal)
+        if dist < 1.0:
             continue
 
+        print(f"find a valid start-goal pair with distance: {dist:.2f}")
         env.init_state = start
         env.goal_state = goal
         planner.reset(start, goal)
@@ -178,8 +157,17 @@ def generate_problem_dataset(
     robot_name = robot_name
     # 不再传递config_output_file,使用内存记录
     print(f"机器人: {robot_file}, 问题数: {num_problems}, 障碍物: {num_obstacles}")
-    env = CollisionEnv(GUI=visualize, robot_file=robot_file, config_output_file="dummy")
-    config_dim = env.config_dim
+
+    # 先创建机器人环境
+    robot_env = RobotEnv(robot_file, OBB_GUI=visualize)
+
+    # 然后创建碰撞检测环境
+    env = CollisionEnv(
+        robot_env=robot_env,
+        sphere_env=None,  # 不启用球体检测
+        config_output_file="dummy",
+    )
+    config_dim = env.robot_env.config_dim
 
     if output_file is None:
         output_file = f"maze_files/{robot_name}_{config_dim}_{num_problems}.pkl"
@@ -189,14 +177,24 @@ def generate_problem_dataset(
     problems = []
     success_count = 0
 
-    initial_obstacles = generate_random_obstacles(
+    # 创建障碍物管理器
+    obstacle_manager = ObstacleManager(env.robot_env.physics_client, env.sphere_env)
+
+    initial_obstacles = ObstacleManager.generate_random_obstacles(
         num_obstacles=num_obstacles,
         workspace_range=workspace_range,
         voxel_size_range=voxel_size_range,
         safe_zone_center=(0.0, 0.0, 0.0),
         safe_zone_radius=safe_zone_radius,
     )
-    env.init_obstacle_bodies(num_obstacles, initial_obstacles)
+    obstacle_body_ids = obstacle_manager.init_obstacle_bodies(
+        num_obstacles, initial_obstacles
+    )
+    env.load_obstacle_body_ids(obstacle_body_ids)
+
+    # 创建默认的 start 和 goal（会被 reset 覆盖）
+    # default_start = np.zeros(env.robot_env.config_dim)
+    # default_goal = np.ones(env.robot_env.config_dim)
 
     planner = BITStar(env)
 
@@ -210,8 +208,7 @@ def generate_problem_dataset(
 
     while success_count < num_problems:
         print(f"\n正在生成问题 {success_count + 1}/{num_problems} ...")
-
-        env.randomize_obstacle_poses(
+        obstacle_manager.randomize_obstacle_poses(
             workspace_range=workspace_range,
             safe_zone_center=(0.0, 0.0, 0.0),
             safe_zone_radius=safe_zone_radius,
@@ -220,14 +217,11 @@ def generate_problem_dataset(
 
         # 在生成问题前重置数据收集列表
         env.config_list = []
-        env.obb_link_data = []
-        env.obb_link_coll_data = []
-        env.sphere_link_data = []
-        env.sphere_link_coll_data = []
+        env.data_manager.reset()
 
         problem = generate_single_problem(
             env,
-            env.obstacles,
+            obstacle_manager.obstacles,
             max_planning_time=max_planning_time,
             visualize=visualize,
             planner=planner,
@@ -256,10 +250,11 @@ def generate_problem_dataset(
                 pickle.dump(obstacle_config_pair, f)
 
             # 保存碰撞检测数据
-            env.save_collision_data(obb_filepath, sphere_filepath)
+            env.data_manager.save_collision_data(obb_filepath, sphere_filepath)
 
-    env.cleanup_obstacles()
-    env.close()
+    obstacle_manager.cleanup_obstacles()
+    env.close()  # 现在这个方法是空的，但为了接口一致性保留
+    robot_env.close()
 
     with open(output_file, "wb") as f:
         pickle.dump(problems, f)

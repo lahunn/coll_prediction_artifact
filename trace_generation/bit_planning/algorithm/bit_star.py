@@ -1,9 +1,18 @@
 import numpy as np
 import math
+import yaml
 import heapq
 import time
+import matplotlib.pyplot as plt
+from matplotlib.patches import Ellipse
+from shapely.geometry import Point, LineString, Polygon
+from descartes import PolygonPatch
+from shapely import affinity
+import itertools
 from time import time
 from environment.timer import Timer
+import pickle
+import os
 
 INF = float("inf")
 
@@ -74,42 +83,8 @@ class BITStar:
 
         self.n_collision_points = 0
         self.n_free_points = 2
+        self.edge_free_checks = 0  # 新增：统计is_edge_free执行次数
         print("init of BITStart done")
-
-    def reset(self, new_start, new_goal):
-        """
-        重置规划器到新的起点和终点，复用环境和参数
-
-        Args:
-            new_start: 新起始状态 (numpy array)
-            new_goal: 新目标状态 (numpy array)
-        """
-        # 更新起点和终点
-        self.start = tuple(new_start)
-        self.goal = tuple(new_goal)
-        self.env.init_state = new_start
-        self.env.goal_state = new_goal
-
-        # 清空树和样本
-        self.vertices.clear()
-        self.edges.clear()
-        self.g_scores.clear()
-        self.samples.clear()
-        self.vertex_queue.clear()
-        self.edge_queue.clear()
-        self.old_vertices.clear()
-
-        # 重置迭代参数
-        self.r = INF
-        self.T = 0
-
-        # 重新计算 informed sampling 参数
-        self.c_min = self.distance(self.start, self.goal)
-        self.informed_sample_init()
-
-        # 重置碰撞计数（可选，保留历史统计）
-        # self.n_collision_points = 0
-        # self.n_free_points = 2
 
     def setup_planning(self):
         # add goal to the samples
@@ -170,82 +145,51 @@ class BITStar:
         return x
 
     def informed_sample(self, c_best, sample_num, vertices):
+        edge_info = []
+        edge_info_coll = []
         if c_best < float("inf"):
             c_b = math.sqrt(c_best**2 - self.c_min**2) / 2.0
             r = [c_best / 2.0] + [c_b] * (self.dimension - 1)
             L = np.diag(r)
-
-            # 预计算椭圆体的AABB边界
-            ellipsoid_radii = np.abs(self.C @ L @ np.eye(self.dimension))
-            ellipsoid_radii = np.max(np.abs(ellipsoid_radii), axis=1)
-            ellipsoid_bounds_min = self.center_point - ellipsoid_radii
-            ellipsoid_bounds_max = self.center_point + ellipsoid_radii
-
-            # 计算与关节限位的交集
-            effective_bounds_min = np.maximum(ellipsoid_bounds_min, self.bounds[:, 0])
-            effective_bounds_max = np.minimum(ellipsoid_bounds_max, self.bounds[:, 1])
-
-            # 检查交集是否为空
-            if np.any(effective_bounds_min >= effective_bounds_max):
-                # 椭圆体与关节限位无交集，降级为全空间采样
-                use_ellipsoid = False
-            else:
-                use_ellipsoid = True
-        else:
-            use_ellipsoid = False
-
         sample_array = []
         cur_num = 0
-        max_attempts = sample_num * 1000
-        attempts = 0
-
-        while cur_num < sample_num and attempts < max_attempts:
-            attempts += 1
-
-            if use_ellipsoid:
-                # 在有效边界内采样，然后检查是否在椭圆内
-                random_point = effective_bounds_min + np.random.random(
-                    self.dimension
-                ) * (effective_bounds_max - effective_bounds_min)
-
-                # 检查是否在椭圆体内
-                x_centered = random_point - self.center_point
-                x_transformed = np.linalg.solve(self.C @ L, x_centered)
-                if np.linalg.norm(x_transformed) > 1.0:
-                    continue
-            else:
-                random_point = (
-                    self.bounds[:, 0] + np.random.random(self.dimension) * self.ranges
+        while cur_num < sample_num:
+            if c_best < float("inf"):
+                x_ball = self.sample_unit_ball()
+                random_point = tuple(
+                    np.dot(np.dot(self.C, L), x_ball) + self.center_point
                 )
-
-            random_point = tuple(random_point)
-            feas = self.is_point_free(random_point)
+            else:
+                random_point = self.get_random_point()
+            # print("sampling in informed sample")
+            feas, linkinfo, linkinfo_coll = self.is_point_free(random_point)
+            edge_info.append([linkinfo])
+            edge_info_coll.append([linkinfo_coll])
             if feas:
                 sample_array.append(random_point)
                 cur_num += 1
 
-        return sample_array
-
-    def _in_bounds(self, point):
-        """检查配置是否在关节限位范围内"""
-        return np.all(point >= self.bounds[:, 0]) and np.all(point <= self.bounds[:, 1])
+        return sample_array, edge_info, edge_info_coll
 
     def get_random_point(self):
         point = self.bounds[:, 0] + np.random.random(self.dimension) * self.ranges
         return tuple(point)
 
     def is_point_free(self, point):
-        result = self.env._state_fp(np.array(point))
+        result, info, coll = self.env._state_fp_probe(np.array(point))
         if result:
             self.n_free_points += 1
         else:
             self.n_collision_points += 1
-        return result
+        return result, info, coll
 
     def is_edge_free(self, edge):
-        result = self.env._edge_fp(np.array(edge[0]), np.array(edge[1]))
+        self.edge_free_checks += 1  # 新增：统计执行次数
+        result, info, coll = self.env._edge_fp_probe(
+            np.array(edge[0]), np.array(edge[1])
+        )
         # self.T += self.env.k
-        return result
+        return result, info, coll
 
     def get_g_score(self, point):
         # gT(x)
@@ -264,10 +208,10 @@ class BITStar:
 
     def actual_edge_cost(self, point1, point2):
         # c(x1,x2)
-        feas = self.is_edge_free([point1, point2])
+        feas, info, coll = self.is_edge_free([point1, point2])
         if not feas:
-            return INF
-        return self.distance(point1, point2)
+            return INF, info, coll
+        return self.distance(point1, point2), info, coll
 
     def heuristic_cost(self, point1, point2):
         # Euler distance as the heuristic distance
@@ -398,112 +342,75 @@ class BITStar:
         refine_time_budget=None,
         time_budget=None,
     ):
-        """
-        BIT*算法的主规划函数，执行批量增量树搜索以找到最优路径
-
-        参数:
-            pathLengthLimit: 路径长度限制，当找到的路径长度小于此值时可提前终止
-            problemindex: 问题索引，用于保存边信息文件的命名
-            refine_time_budget: 精化时间预算(秒)，找到可行路径后继续优化的最小时间
-            time_budget: 总时间预算(秒)，整个规划过程的最大时间限制
-
-        返回:
-            tuple: (采样点集, 边字典, 碰撞检测次数, 最终路径代价, 采样总数, 规划用时)
-
-        工作流程:
-            1. 初始化规划环境和时间记录
-            2. 迭代执行批量采样和树扩展
-            3. 维护顶点队列和边队列进行最优搜索
-            4. 保存边信息和碰撞信息到pickle文件
-            5. 返回规划结果
-        """
-
-        # 设置时间预算的默认值
+        collision_checks = self.env.collision_check_count
+        print("collision_checks", collision_checks)
         if time_budget is None:
-            time_budget = INF  # 无限时间预算
+            time_budget = INF
         if refine_time_budget is None:
-            refine_time_budget = 10  # 默认精化时间10秒
-
-        # 初始化规划环境：添加起点和终点，设置采样空间
-        print("start a new plan")
+            refine_time_budget = 10
+        print("Before planning setup")
         self.setup_planning()
-        init_time = time()  # 记录规划开始时间
+        init_time = time()
 
-        # BIT*主循环：在采样预算和时间预算内迭代
         while self.T < self.T_max and (time() - init_time < time_budget):
-            # 当两个队列都为空时，进行新一轮批量采样
             if not self.vertex_queue and not self.edge_queue:
-                # 获取当前最优路径代价，用于informed sampling
                 c_best = self.g_scores[self.goal]
-
-                # 剪枝：移除不可能改进当前解的顶点和边
                 self.prune(c_best)
-
-                # 批量采样：生成新样本点
-                sample_temp = self.sampling(c_best, self.batch_size, self.vertices)
+                sample_temp, edge_info_full, edge_infocoll_full = self.sampling(
+                    c_best, self.batch_size, self.vertices
+                )
+                # print(edge_info_full)
                 self.samples.extend(sample_temp)
-                self.T += self.batch_size  # 更新总采样数
+                self.T += self.batch_size
 
                 self.timer.start()
-                # 记录旧顶点集，用于区分新旧顶点
                 self.old_vertices = set(self.vertices)
-
-                # 构建顶点优先队列：按照f值(g+h)排序
                 self.vertex_queue = [
                     (self.get_point_value(point), point) for point in self.vertices
                 ]
-                heapq.heapify(self.vertex_queue)  # 转换为最小堆
-
-                # 动态更新连接半径r：随着样本数增加而减小
+                heapq.heapify(self.vertex_queue)  # change to op priority queue
                 q = len(self.vertices) + len(self.samples)
                 self.r = self.radius_init() * (
                     (math.log(q) / q) ** (1.0 / self.dimension)
                 )
                 self.timer.finish(Timer.HEAP)
 
-            # 扩展顶点：当顶点队列最优值优于边队列时，优先扩展顶点
             try:
                 while self.bestVertexQueueValue() <= self.bestEdgeQueueValue():
                     self.timer.start()
-                    _, point = heapq.heappop(self.vertex_queue)  # 取出最优顶点
+                    _, point = heapq.heappop(self.vertex_queue)
                     self.timer.finish(Timer.HEAP)
-                    self.expand_vertex(point)  # 扩展该顶点，生成新的候选边
+                    self.expand_vertex(point)
             except Exception as e:
-                # 如果两个队列都为空，进入下一轮采样
                 if (not self.edge_queue) and (not self.vertex_queue):
                     continue
                 else:
                     raise e
 
-            # 从边队列中取出最优边进行评估
             best_edge_value, bestEdge = heapq.heappop(self.edge_queue)
 
-            # 检查该边是否可能改进当前解
+            # Check if this can improve the current solution
             if best_edge_value < self.g_scores[self.goal]:
-                # 计算边的实际代价（进行碰撞检测）
-                actual_cost_of_edge = self.actual_edge_cost(bestEdge[0], bestEdge[1])
-
+                # print("actual cost of edge",bestEdge[0],bestEdge[1])
+                actual_cost_of_edge, edgeinfo, edgeinfo_coll = self.actual_edge_cost(
+                    bestEdge[0], bestEdge[1]
+                )
+                # print(edgeinfo)
+                edge_info_full.append(edgeinfo)
+                edge_infocoll_full.append(edgeinfo_coll)
                 self.timer.start()
-                # 计算通过该边的实际f值
                 actual_f_edge = (
                     self.heuristic_cost(self.start, bestEdge[0])
                     + actual_cost_of_edge
                     + self.heuristic_cost(bestEdge[1], self.goal)
                 )
-
-                # 如果该边确实能改进解，则更新树结构
                 if actual_f_edge < self.g_scores[self.goal]:
-                    # 计算目标点的实际g值
                     actual_g_score_of_point = (
                         self.get_g_score(bestEdge[0]) + actual_cost_of_edge
                     )
-
-                    # 如果找到了更优路径，则更新
                     if actual_g_score_of_point < self.get_g_score(bestEdge[1]):
                         self.g_scores[bestEdge[1]] = actual_g_score_of_point
-                        self.edges[bestEdge[1]] = bestEdge[0]  # 更新父节点
-
-                        # 如果目标点是新顶点，将其从样本中移到树中
+                        self.edges[bestEdge[1]] = bestEdge[0]
                         if bestEdge[1] not in self.vertices:
                             self.samples.remove(bestEdge[1])
                             self.vertices.append(bestEdge[1])
@@ -512,8 +419,6 @@ class BITStar:
                                 (self.get_point_value(bestEdge[1]), bestEdge[1]),
                             )
 
-                        # 清理边队列：移除不再有效的边
-                        # 保留的边需满足：终点不是bestEdge[1] 或 估计代价小于起点g值
                         self.edge_queue = [
                             item
                             for item in self.edge_queue
@@ -524,28 +429,30 @@ class BITStar:
                         ]
                         heapq.heapify(
                             self.edge_queue
-                        )  # 重建优先队列（删除元素后需要重新堆化）
+                        )  # Rebuild the priority queue because it will be destroyed after the element is removed
 
                 self.timer.finish(Timer.HEAP)
 
             else:
-                # 最优边无法改进当前解，清空队列进入下一轮采样
                 self.vertex_queue = []
                 self.edge_queue = []
-
-            # 提前终止条件：找到满足长度限制的路径且达到精化时间预算
             if self.g_scores[self.goal] < pathLengthLimit and (
                 time() - init_time > refine_time_budget
             ):
                 break
-
-        # 返回规划结果
+        os.makedirs("logfiles_BIT_link", exist_ok=True)
+        f = open("logfiles_BIT_link/link_info_" + str(problemindex) + ".pkl", "wb")
+        # print(edge_infocoll_full)
+        pickle.dump((edge_info_full, edge_infocoll_full), f)
+        f.close()
+        print(f"Total edge free checks: {self.edge_free_checks}")  # 新增：输出总次数
         return (
-            self.samples,  # 所有采样点
-            self.edges,  # 树的边字典(child->parent)
-            self.g_scores[self.goal],  # 最终路径代价
-            self.T,  # 总采样数
-            time() - init_time,  # 规划用时(秒)
+            self.samples,
+            self.edges,
+            self.env.collision_check_count - collision_checks,
+            self.g_scores[self.goal],
+            self.T,
+            time() - init_time,
         )
 
 

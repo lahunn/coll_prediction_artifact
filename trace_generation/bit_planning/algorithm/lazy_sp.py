@@ -21,7 +21,6 @@ INF = float("inf")
 
 class LazySP:
     def __init__(self, environment, batch_size=100, T=1000, k=10, timer=None):
-
         self.env = environment
         self.k0 = k
         if timer is None:
@@ -29,7 +28,11 @@ class LazySP:
         else:
             self.timer = timer
 
-        start, goal, bounds = tuple(environment.init_state), tuple(environment.goal_state), environment.bound
+        start, goal, bounds = (
+            tuple(environment.init_state),
+            tuple(environment.goal_state),
+            environment.bound,
+        )
 
         self.start = start
         self.goal = goal
@@ -67,10 +70,15 @@ class LazySP:
 
     def radius_init(self):
         from scipy import special
+
         # Hypersphere radius calculation
         n = self.dimension
         unit_ball_volume = np.pi ** (n / 2.0) / special.gamma(n / 2.0 + 1)
-        volume = np.abs(np.prod(self.ranges)) * self.n_free_points / (self.n_collision_points + self.n_free_points)
+        volume = (
+            np.abs(np.prod(self.ranges))
+            * self.n_free_points
+            / (self.n_collision_points + self.n_free_points)
+        )
         gamma = (1.0 + 1.0 / n) * volume / unit_ball_volume
         radius_constant = 2 * self.eta * (gamma ** (1.0 / n))
         return radius_constant
@@ -105,7 +113,7 @@ class LazySP:
     def is_edge_free(self, edge):
         result = self.env._edge_fp(np.array(edge[0]), np.array(edge[1]))
         return result
-    
+
     def get_path(self, prev, start, goal):
         path = [start]
         current = start
@@ -119,7 +127,7 @@ class LazySP:
         for i in range(len(path) - 1):
             path_length += self.distance(path[i], path[i + 1])
         return path_length
-    
+
     def construct_graph(self, k, points, env):
         self.timer.start()
         points = np.array(points)
@@ -131,18 +139,20 @@ class LazySP:
         neighbors = defaultdict(list)
         for i, edge in enumerate(edge_index):
             if (edge[0], edge[1]) not in self.invalid_edges:
-                edge_cost[edge[1]].append(np.linalg.norm(points[edge[1]]-points[edge[0]]))
+                edge_cost[edge[1]].append(
+                    np.linalg.norm(points[edge[1]] - points[edge[0]])
+                )
                 neighbors[edge[1]].append(edge[0])
         self.timer.finish(self.timer.NN)
         return edge_cost, neighbors, edge_index
-    
+
     def remove_neighbor(self, edge_cost, neighbors, n1, n2):
         index = neighbors[n1].index(n2)
         edge_cost[n1].pop(index)
         neighbors[n1].pop(index)
         index = neighbors[n2].index(n1)
         edge_cost[n2].pop(index)
-        neighbors[n2].pop(index)        
+        neighbors[n2].pop(index)
 
     def plan(self):
         collision_checks = self.env.collision_check_count
@@ -153,50 +163,71 @@ class LazySP:
         while self.T < self.T_max:
             self.samples.extend(self.informed_sample(self.batch_size))
             self.T += self.batch_size
-            
+
             q = len(self.samples)
             self.r = self.radius_init() * ((math.log(q) / q) ** (1.0 / self.dimension))
-            self.k = int(np.ceil(self.k0*np.log(q)/np.log(100)))
-            edge_cost, neighbors, edge_index = self.construct_graph(self.k, self.samples, self.env)
+            self.k = int(np.ceil(self.k0 * np.log(q) / np.log(100)))
+            edge_cost, neighbors, edge_index = self.construct_graph(
+                self.k, self.samples, self.env
+            )
 
             while True:  # continue until Dijkstra finds that the graph is infeasible
                 self.timer.start()
-                dist, prev = dijkstra(list(range(len(self.samples))), neighbors, edge_cost, 0)
+                dist, prev = dijkstra(
+                    list(range(len(self.samples))), neighbors, edge_cost, 0
+                )
                 self.timer.finish(Timer.SHORTEST_PATH)
-                if dist[1] != float('inf'):
+                if dist[1] != float("inf"):
                     feasible = True
                     path = self.get_path(prev, 1, 0)
                     for n1, n2 in zip(path[:-1], path[1:]):
                         if (n1, n2) in self.valid_edges:
                             continue
                         elif (n1, n2) in self.invalid_edges:
-                            assert False, "You shouldn't find invalid edges from Dijkstra solution"
+                            assert False, (
+                                "You shouldn't find invalid edges from Dijkstra solution"
+                            )
                             feasible = False
                         else:
                             # check the collision status
-                            free = self.is_edge_free((self.samples[n1], self.samples[n2]))
+                            free = self.is_edge_free(
+                                (self.samples[n1], self.samples[n2])
+                            )
                             if free:
-                                self.valid_edges.add((n1,n2))
-                                self.valid_edges.add((n2,n1))                                
+                                self.valid_edges.add((n1, n2))
+                                self.valid_edges.add((n2, n1))
                             else:
-                                self.invalid_edges.add((n1,n2))
-                                self.invalid_edges.add((n2,n1))
+                                self.invalid_edges.add((n1, n2))
+                                self.invalid_edges.add((n2, n1))
                                 self.remove_neighbor(edge_cost, neighbors, n1, n2)
                                 feasible = False
                                 break
-                    
+
                     if feasible:
-                        return self.samples, self.env.collision_check_count - collision_checks, \
-                            [self.samples[n] for n in path], self.T, time() - init_time, \
-                            self.valid_edges, self.invalid_edges
+                        return (
+                            self.samples,
+                            self.env.collision_check_count - collision_checks,
+                            [self.samples[n] for n in path],
+                            self.T,
+                            time() - init_time,
+                            self.valid_edges,
+                            self.invalid_edges,
+                        )
                 else:
                     break
-            
-        return self.samples, self.env.collision_check_count - collision_checks, [], self.T, time() - init_time, \
-                self.valid_edges, self.invalid_edges
+
+        return (
+            self.samples,
+            self.env.collision_check_count - collision_checks,
+            [],
+            self.T,
+            time() - init_time,
+            self.valid_edges,
+            self.invalid_edges,
+        )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     from utils.plot import plot_edges
     from config import set_random_seed
     from environment import MazeEnv
@@ -206,13 +237,11 @@ if __name__ == '__main__':
 
     environment = MazeEnv(dim=2)
 
-
     def sample_empty_points(env):
         while True:
             point = np.random.uniform(-1, 1, 2)
             if env._state_fp(point):
                 return point
-
 
     for _ in tqdm(range(3000)):
         pb = environment.init_new_problem()
@@ -225,6 +254,6 @@ if __name__ == '__main__':
 
         solutions.append((nodes, edges, collision, success, n_samples))
 
-        plot_edges(set(nodes)|set(edges.keys()), edges, environment.get_problem())
+        plot_edges(set(nodes) | set(edges.keys()), edges, environment.get_problem())
 
-    print('hello')
+    print("hello")
