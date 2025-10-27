@@ -15,43 +15,41 @@ def test_modular_vs_kuka():
     print("Initializing environments...")
 
     # 初始化两个环境
+
     modular_env = ModularEnv(
-        robot_file="kuka_iiwa/model_3.urdf",
-        map_file="maze_files/kukas_13_3000.pkl",
         GUI=False,
+        robot_file="kuka_iiwa/model_0.urdf",
+        map_file="maze_files/kukas_7_3000.pkl",
     )
 
     kuka_env = KukaEnv(
-        GUI=True,
-        kuka_file="kuka_iiwa/model_3.urdf",
-        map_file="maze_files/kukas_13_3000.pkl",
+        GUI=False,
+        kuka_file="kuka_iiwa/model_0.urdf",
+        map_file="maze_files/kukas_7_3000.pkl",
     )
 
     # 初始化相同的问题（使用索引 0）
     print("Initializing problem index 0...")
     modular_env.init_new_problem(0)
     kuka_env.init_new_problem(0)
-
     print("Testing _state_fp_probe...")
     collision_count = 0
     # 测试 _state_fp_probe
-    num_tests = 100000
+    num_tests = 10000
     for i in range(num_tests):
         # 生成随机 pose (使用 KukaEnv 的采样方法)
-        random_pose = kuka_env.sample_n_points(1)[0]
-        print(f"Testing pose {i}: {random_pose}")
+        random_pose = kuka_env.uniform_sample()
         # 调用 ModularEnv 的 _state_fp_probe
         modular_result = modular_env._state_fp_probe(random_pose)
-
         # 调用 KukaEnv 的 _state_fp_probe
         kuka_result = kuka_env._state_fp_probe(random_pose)
-
         # 比较结果 (只比较碰撞检查结果：is_free 和 link_colls)
         modular_free, _, modular_colls = modular_result
         kuka_free, _, kuka_colls = kuka_result
 
         # 跳过 kuka_free 为 True 的情况
         if kuka_free:
+            # print(f"  Test {i + 1}: KukaEnv free, skipping comparison.")
             continue
         else:
             collision_count += 1

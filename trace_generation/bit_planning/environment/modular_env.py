@@ -212,10 +212,10 @@ class ModularEnv:
         self.robot_env.close()
 
     def collision_check_count(self):
-        return self.collision_env.collision_check_count
+        return self.collision_env.data_manager.collision_check_count
 
     def collision_time(self):
-        return self.collision_env.collision_time
+        return self.collision_env.data_manager.collision_time
 
     def _state_fp_probe(self, state):
         """
@@ -227,8 +227,8 @@ class ModularEnv:
         Returns:
             tuple: (result, info, coll) - 是否自由、链接坐标信息、碰撞信息
         """
-        is_free, link_coords, link_colls, sphere_coords, sphere_colls = (
-            self.collision_env._point_in_free_space(state)
+        is_free, link_coords, link_colls = self.collision_env._point_in_free_space(
+            state
         )
         # 返回格式：(result, info, coll)
         # info: link_coords, coll: link_colls
@@ -251,6 +251,46 @@ class ModularEnv:
             state1, state2
         )
         return edge_free, edge_link_coords, edge_link_colls
+
+    def generate_random_obstacles(
+        self,
+        num_obstacles,
+        workspace_range,
+        voxel_size_range,
+        safe_zone_center,
+        safe_zone_radius,
+    ):
+        """
+        生成随机障碍物并加载到环境中
+
+        Args:
+            num_obstacles: 障碍物数量
+            workspace_range: 工作空间范围 (min, max)
+            voxel_size_range: 体素尺寸范围 (min, max)
+            safe_zone_center: 安全区域中心
+            safe_zone_radius: 安全区域半径
+
+        Returns:
+            list: 随机生成的障碍物列表
+        """
+        # 生成随机障碍物
+        obstacles = self.obstacle_manager.generate_random_obstacles(
+            num_obstacles=num_obstacles,
+            workspace_range=workspace_range,
+            voxel_size_range=voxel_size_range,
+            safe_zone_center=safe_zone_center,
+            safe_zone_radius=safe_zone_radius,
+        )
+
+        # 加载障碍物到环境中
+        self.obstacle_manager.load_and_init_obstacles_from_data(obstacles)
+
+        # 更新碰撞环境中的障碍物
+        self.collision_env.load_obstacle_body_ids(
+            self.obstacle_manager.obstacle_body_ids
+        )
+
+        return obstacles
 
     def __str__(self):
         return f"ModularEnv({self.robot_env.__str__()})"

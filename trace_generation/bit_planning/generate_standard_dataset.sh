@@ -14,8 +14,8 @@ echo "========================================================================"
 mkdir -p maze_files
 
 # 机器人配置
-ROBOT_FILE="/home/lanh/project/robot_sim/coll_prediction_artifact/trace_generation/bit_planning/kuka_iiwa/model_3.urdf"
-ROBOT_NAME="kuka_iiwa"
+ROBOT_FILE="/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/franka_description/franka_panda.urdf"
+ROBOT_NAME="franka"
 WORKSPACE_FILE="../workspace_bound/${ROBOT_NAME}_panda_workspace.json"
 
 # 分析工作空间
@@ -54,7 +54,7 @@ python generate_problem_dataset.py \
     --robot-file "$ROBOT_FILE" \
     --robot-name "$ROBOT_NAME" \
     --num-problems 200 \
-    --num-obstacles 1 \
+    --num-obstacles 12 \
     --max-time 60.0 \
     --workspace-min "$X_START" \
     --workspace-max "$X_END" \

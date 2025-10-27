@@ -5,16 +5,14 @@ import pybullet as p
 class ObstacleManager:
     """障碍物管理类，负责障碍物的创建、初始化、位置管理和清理"""
 
-    def __init__(self, physics_client, sphere_env=None):
+    def __init__(self, physics_client):
         """
         初始化障碍物管理器
 
         Args:
             physics_client: PyBullet物理客户端ID
-            sphere_env: 可选的球体环境，用于球体障碍物管理
         """
         self.physics_client = physics_client
-        self.sphere_env = sphere_env
         self.obstacles = []
         self.obstacle_body_ids = []
 
@@ -72,9 +70,6 @@ class ObstacleManager:
             self.obstacle_body_ids.append(body_id)
 
         # 初始化球体障碍物（如果启用）
-        if self.sphere_env:
-            self.sphere_env.init_obstacle_bodies(num_obstacles, initial_obstacles)
-
         return self.obstacle_body_ids
 
     def update_obstacle_poses(self, new_obstacles):
@@ -95,8 +90,6 @@ class ObstacleManager:
                     physicsClientId=self.physics_client,
                 )
         # 更新球体障碍物位置（如果启用）
-        if self.sphere_env:
-            self.sphere_env.update_obstacle_poses(new_obstacles)
         self.obstacles = new_obstacles
 
     def randomize_obstacle_poses(
@@ -151,10 +144,6 @@ class ObstacleManager:
                 except Exception:
                     pass
             self.obstacle_body_ids.clear()
-
-        # 清理球体障碍物（如果启用）
-        if self.sphere_env:
-            self.sphere_env.cleanup_obstacles()
 
     @staticmethod
     def is_overlapping(obstacle1, obstacle2):
@@ -216,7 +205,7 @@ class ObstacleManager:
 
         for _ in range(num_obstacles):
             max_attempts = 100
-            for attempt in range(max_attempts):
+            for _ in range(max_attempts):
                 half_size = np.random.uniform(
                     voxel_size_range[0], voxel_size_range[1], size=3
                 )
@@ -231,15 +220,8 @@ class ObstacleManager:
 
                 if distance_to_base <= min_safe_distance:
                     continue
-
-                # 检查与现有障碍物是否重叠
                 new_obstacle = (half_size, position)
-                if not any(
-                    ObstacleManager.is_overlapping(new_obstacle, existing)
-                    for existing in obstacles
-                ):
-                    obstacles.append(new_obstacle)
-                    break
+                obstacles.append(new_obstacle)
 
         return obstacles
 

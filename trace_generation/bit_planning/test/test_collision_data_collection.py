@@ -22,14 +22,10 @@ def main():
     robot_env = RobotEnv(robot_urdf, OBB_GUI=False)
 
     # 创建碰撞检测环境
-    env = CollisionEnv(
-        robot_env=robot_env,
-        sphere_env=None,
-        config_output_file="test_configs.pkl"
-    )
+    env = CollisionEnv(robot_env=robot_env, config_output_file="test_configs.pkl")
 
     # 创建障碍物管理器
-    obstacle_manager = ObstacleManager(env.robot_env.physics_client, env.sphere_env)
+    obstacle_manager = ObstacleManager(env.robot_env.physics_client)
 
     # 创建障碍物
     obstacles = [
@@ -45,7 +41,7 @@ def main():
     state1 = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
     result1 = env._state_fp(state1)
     print(f"  配置1: {'无碰撞' if result1 else '碰撞'}")
-    print(f"  收集边数: {len(env.obb_link_data)}\n")
+    print(f"  收集边数: {len(env.data_manager.obb_link_data)}\n")
 
     # 测试场景2: 边检测 (_edge_fp)
     print("场景2: 边检测")
@@ -53,7 +49,7 @@ def main():
     state_end = np.array([0.5, -0.5, 0.3, -1.0, 0.0, 1.5, 0.0])
     result2 = env._edge_fp(state_start, state_end, RRT_EPS=0.25)
     print(f"  边检测: {'无碰撞' if result2 else '碰撞'}")
-    print(f"  总收集边数: {len(env.obb_link_data)}\n")
+    print(f"  总收集边数: {len(env.data_manager.obb_link_data)}\n")
 
     # 保存结果
     print("保存数据...")
@@ -62,11 +58,10 @@ def main():
 
         pickle.dump(env.config_list, f)
 
-    env.data_manager.save_collision_data("test_obb_data.pkl", "test_sphere_data.pkl")
+    env.data_manager.save_collision_data("test_obb_data.pkl")
 
     print("\n✓ 配置数据: test_configs.pkl")
-    print(f"✓ OBB数据: test_obb_data.pkl ({len(env.obb_link_data)} 条边)")
-    print(f"✓ Sphere数据: test_sphere_data.pkl ({len(env.sphere_link_data)} 条边)")
+    print(f"✓ OBB数据: test_obb_data.pkl ({len(env.data_manager.obb_link_data)} 条边)")
 
     # 清理
     obstacle_manager.cleanup_obstacles()

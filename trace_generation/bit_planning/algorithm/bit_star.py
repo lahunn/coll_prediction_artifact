@@ -342,7 +342,7 @@ class BITStar:
         refine_time_budget=None,
         time_budget=None,
     ):
-        collision_checks = self.env.collision_check_count
+        collision_checks = self.env.collision_check_count()
         print("collision_checks", collision_checks)
         if time_budget is None:
             time_budget = INF
@@ -449,7 +449,7 @@ class BITStar:
         return (
             self.samples,
             self.edges,
-            self.env.collision_check_count - collision_checks,
+            self.env.collision_check_count() - collision_checks,
             self.g_scores[self.goal],
             self.T,
             time() - init_time,

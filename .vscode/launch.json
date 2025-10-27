@@ -1,6 +1,7 @@
 {
   "version": "0.2.0",
   "configurations": [
+    
     {
       "name": "调试 prediction_simulation_nDOF_sphere.py",
       "type": "debugpy",
@@ -134,6 +135,14 @@
         "0.5",
         "--visualize"
       ]
+    },
+    {
+      "name": "调试 test_modular_vs_kuka.py",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/trace_generation/bit_planning/test/test_modular_vs_kuka.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/trace_generation/bit_planning"
     }
   ]
 }

@@ -21,37 +21,35 @@ import argparse
 # 添加项目路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from environment.collision_env import CollisionEnv
-from environment.robot_env import RobotEnv
-from environment.obstacle_manager import ObstacleManager
+from environment.modular_env import ModularEnv
 from algorithm.bit_star import BITStar
 from utils.planning_utils import uniform_sample, distance
 
 
-def visualize_problem(env, obstacles, start=None, goal=None, path=None):
+def visualize_problem(modular_env, obstacles, start=None, goal=None, path=None):
     """可视化问题场景（需要GUI模式）"""
     import time
 
     print(f"\n障碍物数量: {len(obstacles)}")
 
     if start is not None:
-        env.robot_env.set_config(start)
+        modular_env.robot_env.set_config(start)
         time.sleep(1)
-        collision = not env._state_fp(start)
+        collision = not modular_env._state_fp(start)
         print(f"起点: {'碰撞' if collision else '无碰撞'}")
         time.sleep(1)
 
     if goal is not None:
-        env.robot_env.set_config(goal)
+        modular_env.robot_env.set_config(goal)
         time.sleep(1)
-        collision = not env._state_fp(goal)
+        collision = not modular_env._state_fp(goal)
         print(f"终点: {'碰撞' if collision else '无碰撞'}")
         time.sleep(1)
 
     if path is not None and len(path) > 0:
         print(f"路径长度: {len(path)}")
         for i, config in enumerate(path):
-            env.robot_env.set_config(config)
+            modular_env.robot_env.set_config(config)
             time.sleep(0.05)
 
     try:
@@ -62,51 +60,62 @@ def visualize_problem(env, obstacles, start=None, goal=None, path=None):
 
 
 def generate_single_problem(
-    env,
-    obstacles,
+    modular_env,
+    num_obstacles,
+    workspace_range,
+    voxel_size_range,
+    safe_zone_center,
+    safe_zone_radius,
     max_planning_time=60.0,
     max_sample_attempts=100,
     visualize=False,
-    planner=None,
 ):
     """生成单个路径规划问题"""
-    if planner is None:
-        sys.exit("错误：必须提供规划器实例")
 
     for attempt in range(max_sample_attempts):
-        # 重置边检查统计量
+        # 生成随机障碍物并加载到环境中
+        modular_env.generate_random_obstacles(
+            num_obstacles=num_obstacles,
+            workspace_range=workspace_range,
+            voxel_size_range=voxel_size_range,
+            safe_zone_center=safe_zone_center,
+            safe_zone_radius=safe_zone_radius,
+        )
+
+        # 获取当前障碍物
+        obstacles = modular_env.obstacle_manager.obstacles
 
         start = uniform_sample(
-            env.robot_env.lower_bounds,
-            env.robot_env.upper_bounds,
-            env.robot_env.config_dim,
+            modular_env.robot_env.lower_bounds,
+            modular_env.robot_env.upper_bounds,
+            modular_env.robot_env.config_dim,
         )
         goal = uniform_sample(
-            env.robot_env.lower_bounds,
-            env.robot_env.upper_bounds,
-            env.robot_env.config_dim,
+            modular_env.robot_env.lower_bounds,
+            modular_env.robot_env.upper_bounds,
+            modular_env.robot_env.config_dim,
         )
 
-        if not env._state_fp(start) or not env._state_fp(goal):
+        if not modular_env._state_fp(start) or not modular_env._state_fp(goal):
             continue
         dist = distance(start, goal)
         if dist < 1.0:
             continue
 
         print(f"find a valid start-goal pair with distance: {dist:.2f}")
-        env.init_state = start
-        env.goal_state = goal
-        planner.reset(start, goal)
+        modular_env.init_state = start
+        modular_env.goal_state = goal
+        planner = BITStar(modular_env)
 
-        samples, edges, cost, num_samples, planning_time = planner.plan(
-            pathLengthLimit=float("inf"), time_budget=max_planning_time
+        samples, edges, collision_check_count, cost, num_samples, planning_time = (
+            planner.plan(pathLengthLimit=float("inf"), time_budget=max_planning_time)
         )
 
         if cost < float("inf"):
             path = reconstruct_path(edges, start, goal)
             if path is not None and len(path) > 1:
                 if visualize:
-                    visualize_problem(env, obstacles, start, goal, path)
+                    visualize_problem(modular_env, obstacles, start, goal, path)
                 return (obstacles, start, goal, path)
 
     return None
@@ -158,16 +167,9 @@ def generate_problem_dataset(
     # 不再传递config_output_file,使用内存记录
     print(f"机器人: {robot_file}, 问题数: {num_problems}, 障碍物: {num_obstacles}")
 
-    # 先创建机器人环境
-    robot_env = RobotEnv(robot_file, OBB_GUI=visualize)
-
-    # 然后创建碰撞检测环境
-    env = CollisionEnv(
-        robot_env=robot_env,
-        sphere_env=None,  # 不启用球体检测
-        config_output_file="dummy",
-    )
-    config_dim = env.robot_env.config_dim
+    # 先创建模块化环境
+    modular_env = ModularEnv(robot_file, map_file=None, GUI=visualize)
+    config_dim = modular_env.config_dim
 
     if output_file is None:
         output_file = f"maze_files/{robot_name}_{config_dim}_{num_problems}.pkl"
@@ -176,28 +178,6 @@ def generate_problem_dataset(
 
     problems = []
     success_count = 0
-
-    # 创建障碍物管理器
-    obstacle_manager = ObstacleManager(env.robot_env.physics_client, env.sphere_env)
-
-    initial_obstacles = ObstacleManager.generate_random_obstacles(
-        num_obstacles=num_obstacles,
-        workspace_range=workspace_range,
-        voxel_size_range=voxel_size_range,
-        safe_zone_center=(0.0, 0.0, 0.0),
-        safe_zone_radius=safe_zone_radius,
-    )
-    obstacle_body_ids = obstacle_manager.init_obstacle_bodies(
-        num_obstacles, initial_obstacles
-    )
-    env.load_obstacle_body_ids(obstacle_body_ids)
-
-    # 创建默认的 start 和 goal（会被 reset 覆盖）
-    # default_start = np.zeros(env.robot_env.config_dim)
-    # default_goal = np.ones(env.robot_env.config_dim)
-
-    planner = BITStar(env)
-
     # 创建保存目录
     obstacle_config_dir = "../../trace_files/bit_traces"
     collision_data_dir = "../../trace_files/scene_benchmarks/bit_collision_data"
@@ -208,26 +188,26 @@ def generate_problem_dataset(
 
     while success_count < num_problems:
         print(f"\n正在生成问题 {success_count + 1}/{num_problems} ...")
-        obstacle_manager.randomize_obstacle_poses(
-            workspace_range=workspace_range,
-            safe_zone_center=(0.0, 0.0, 0.0),
-            safe_zone_radius=safe_zone_radius,
-            max_attempts_per_obstacle=100,
-        )
 
         # 在生成问题前重置数据收集列表
-        env.config_list = []
-        env.data_manager.reset()
+        modular_env.collision_env.config_list = []
+        modular_env.collision_env.data_manager.reset()
 
         problem = generate_single_problem(
-            env,
-            obstacle_manager.obstacles,
+            modular_env,
+            num_obstacles,
+            workspace_range,
+            voxel_size_range,
+            safe_zone_center=(0.0, 0.0, 0.0),
+            safe_zone_radius=safe_zone_radius,
             max_planning_time=max_planning_time,
             visualize=visualize,
-            planner=planner,
         )
 
-        if problem is not None:
+        if (
+            problem is not None
+            and modular_env.collision_env.data_manager.edge_fp_call_count > 100
+        ):
             problems.append(problem)
             success_count += 1
 
@@ -236,25 +216,24 @@ def generate_problem_dataset(
             pair_filepath = os.path.join(obstacle_config_dir, pair_filename)
 
             obb_filename = f"{base_filename}_{success_count:04d}_obb.pkl"
-            sphere_filename = f"{base_filename}_{success_count:04d}_sphere.pkl"
             obb_filepath = os.path.join(collision_data_dir, obb_filename)
-            sphere_filepath = os.path.join(collision_data_dir, sphere_filename)
 
             # 保存障碍物-配置对
             obstacle_config_pair = {
                 "obstacles": problem[0],
-                "configs": env.config_list.copy(),
+                "configs": modular_env.collision_env.config_list.copy(),
             }
 
             with open(pair_filepath, "wb") as f:
                 pickle.dump(obstacle_config_pair, f)
 
             # 保存碰撞检测数据
-            env.data_manager.save_collision_data(obb_filepath, sphere_filepath)
+            modular_env.collision_env.data_manager.save_collision_data(
+                obb_filepath
+            )
 
-    obstacle_manager.cleanup_obstacles()
-    env.close()  # 现在这个方法是空的，但为了接口一致性保留
-    robot_env.close()
+    modular_env.obstacle_manager.cleanup_obstacles()
+    modular_env.close()  # 现在这个方法是空的，但为了接口一致性保留
 
     with open(output_file, "wb") as f:
         pickle.dump(problems, f)
@@ -268,7 +247,6 @@ def generate_problem_dataset(
     print(f"  文件命名格式: {base_filename}_XXXX.pkl (例: {base_filename}_0001.pkl)")
     print(f"碰撞检测数据保存到: {collision_data_dir}/")
     print(f"  OBB文件格式: {base_filename}_XXXX_obb.pkl")
-    print(f"  Sphere文件格式: {base_filename}_XXXX_sphere.pkl")
     print(
         f"路径长度 - 平均: {np.mean(path_lengths):.2f}, 最小: {np.min(path_lengths)}, 最大: {np.max(path_lengths)}"
     )

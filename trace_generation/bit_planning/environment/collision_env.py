@@ -5,7 +5,6 @@ import os
 import time
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../../"))
-from sphere_as.robot_sphere_analyzer import RobotSphereAnalyzer
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 from .collision_data_manager import CollisionDataManager
 from utils.planning_utils import distance
@@ -19,7 +18,6 @@ class CollisionEnv:
     def __init__(
         self,
         robot_env,
-        sphere_env=None,
         config_output_file=None,
     ):
         """
@@ -27,13 +25,10 @@ class CollisionEnv:
 
         Args:
             robot_env: 机器人环境实例
-            sphere_env: 球体环境实例（可选）
             z_offset: Z轴偏移量
             config_output_file: 配置输出文件路径（可选）
         """
         self.robot_env = robot_env
-        self.sphere_env = sphere_env
-        self.enable_sphere = sphere_env is not None
         self.obstacle_body_ids = []
 
         # config_output_file 相关逻辑
@@ -41,11 +36,7 @@ class CollisionEnv:
         self.config_list = []
 
         # 初始化碰撞数据管理器
-        self.data_manager = CollisionDataManager(enable_sphere=self.enable_sphere)
-
-        # 初始化碰撞统计
-        self.collision_check_count = 0
-        self.collision_time = 0
+        self.data_manager = CollisionDataManager()
 
     def load_obstacle_body_ids(self, obstacle_body_ids):
         """
@@ -57,8 +48,7 @@ class CollisionEnv:
         self.obstacle_body_ids = obstacle_body_ids
 
     def close(self):
-        """关闭碰撞检测环境（robot_env和sphere_env由外部管理）"""
-        # 不关闭robot_env和sphere_env，因为它们是从外部传入的
+        """关闭碰撞检测环境（robot_env由外部管理）"""
         pass
 
     def _get_link_collisions(self):
@@ -69,18 +59,18 @@ class CollisionEnv:
         for link_idx in self.robot_env.valid_collision_links:
             if link_idx == -1:  # 跳过base link，与KukaEnv匹配
                 continue
-            is_colliding = False
-            for obstacle_id in self.obstacle_body_ids:
-                if p.getContactPoints(
-                    self.robot_env.robotId,
-                    obstacle_id,
-                    linkIndexA=link_idx,
-                    physicsClientId=self.robot_env.physics_client,
-                ):
-                    is_colliding = True
-                    any_coll = True
-                    break
-            link_colls.append(0 if is_colliding else 1)
+            # 检查该link的所有接触点，包括自碰撞（匹配KukaEnv的逻辑）
+            contacts = p.getContactPoints(
+                self.robot_env.robotId,
+                linkIndexA=link_idx,
+                physicsClientId=self.robot_env.physics_client,
+            )
+            is_colliding = len(contacts) > 0
+            if is_colliding:
+                any_coll = True
+                link_colls.append(0)
+            else:
+                link_colls.append(1)
         return any_coll, link_colls
 
     def _point_in_free_space(self, state):
@@ -91,14 +81,14 @@ class CollisionEnv:
             state: 配置状态
 
         Returns:
-            tuple: (is_free, link_coords, link_colls, sphere_coords, sphere_colls)
+            tuple: (is_free, link_coords, link_colls)
         """
         start_time = time.time()
-        self.collision_check_count += 1
+        self.data_manager.collision_check_count += 1
 
         if not self.robot_env._valid_state(state):
-            self.collision_time += time.time() - start_time
-            return False, [], [], [], []
+            self.data_manager.collision_time += time.time() - start_time
+            return False, [], []
 
         # 设置机器人配置
         self.robot_env.set_config(state)
@@ -112,30 +102,18 @@ class CollisionEnv:
             pose = self.robot_env._get_link_pose(link_idx)
             link_coords.append(pose)
 
-        # 收集Sphere数据
-        if self.enable_sphere and self.sphere_env:
-            sphere_coords, sphere_collision, sphere_colls = (
-                self.sphere_env.get_sphere_collision_data(state)
-            )
-        else:
-            sphere_coords, sphere_collision, sphere_colls = [], True, []
+        # 判断是否无碰撞
+        is_free = not link_collision
 
-        # 判断是否无碰撞 (两者都认为碰撞才返回碰撞)
-        is_free = not (sphere_collision and link_collision)
-
-        self.collision_time += time.time() - start_time
-        return is_free, link_coords, link_colls, sphere_coords, sphere_colls
+        self.data_manager.collision_time += time.time() - start_time
+        return is_free, link_coords, link_colls
 
     def _state_fp(self, state):
         """检查单个状态并收集数据 (作为单条边)"""
-        is_free, link_coords, link_colls, sphere_coords, sphere_colls = (
-            self._point_in_free_space(state)
-        )
+        is_free, link_coords, link_colls = self._point_in_free_space(state)
 
         # 单点作为一条边 - 数据结构: [edge][pose][link][coord]
-        self.data_manager._store_collision_data(
-            link_coords, link_colls, sphere_coords, sphere_colls, is_edge=False
-        )
+        self.data_manager._store_collision_data(link_coords, link_colls, is_edge=False)
 
         edge_configs = [state.copy()]
         self.config_list.append(np.array(edge_configs))
@@ -176,18 +154,14 @@ class CollisionEnv:
             edge_configs: 配置列表
 
         Returns:
-            tuple: (edge_free, edge_link_coords, edge_link_colls, edge_sphere_coords, edge_sphere_colls)
+            tuple: (edge_free, edge_link_coords, edge_link_colls)
         """
         edge_free = True
         edge_link_coords = []  # [pose][link][coord]
         edge_link_colls = []  # [pose][link]
-        edge_sphere_coords = []
-        edge_sphere_colls = []
 
         for config in edge_configs:
-            is_free, link_coords, link_colls, sphere_coords, sphere_colls = (
-                self._point_in_free_space(config)
-            )
+            is_free, link_coords, link_colls = self._point_in_free_space(config)
 
             if not is_free:
                 edge_free = False
@@ -196,42 +170,26 @@ class CollisionEnv:
             if link_coords:
                 edge_link_coords.append(link_coords)
                 edge_link_colls.append(link_colls)
-                edge_sphere_coords.append(sphere_coords)
-                edge_sphere_colls.append(sphere_colls)
 
-        return (
-            edge_free,
-            edge_link_coords,
-            edge_link_colls,
-            edge_sphere_coords,
-            edge_sphere_colls,
-        )
+        return edge_free, edge_link_coords, edge_link_colls
 
     def _edge_fp(self, state, new_state, RRT_EPS=RRT_EPS):
         """检查边并收集数据"""
         """每次都完成一个edge中所有state的检查"""
         self.data_manager.edge_fp_call_count += 1
-
-        edge_free = True
         assert state.size == new_state.size
-        if not self._state_fp(state) or not self._state_fp(new_state):
-            self.data_manager.edge_fp_rejected_by_endpoints += 1
-            return False, [], []
-
         # 离散化边
         edge_configs = self._discretize_edge(state, new_state, RRT_EPS)
 
-        # 收集碰撞数据（跳过起点和终点，因为已经在_state_fp中检查过）
-        _, edge_link_coords, edge_link_colls, edge_sphere_coords, edge_sphere_colls = (
-            self._collect_edge_collision_data(edge_configs[1:-1])  # 只检查中间点
-        )
+        # 收集碰撞数据（包括所有配置点，以匹配 _edge_fp_probe 的需求）
+        edge_free, edge_link_coords, edge_link_colls = (
+            self._collect_edge_collision_data(edge_configs)
+        )  # 检查所有点
 
         # 保存整条边数据
         if edge_link_coords:
             self.data_manager.obb_link_data.append(edge_link_coords)
             self.data_manager.obb_link_coll_data.append(edge_link_colls)
-            self.data_manager.sphere_link_data.append(edge_sphere_coords)
-            self.data_manager.sphere_link_coll_data.append(edge_sphere_colls)
 
         self.config_list.append(np.array(edge_configs))
         return edge_free, edge_link_coords, edge_link_colls
