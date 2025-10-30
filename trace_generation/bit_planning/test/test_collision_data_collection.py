@@ -6,9 +6,9 @@
 import sys
 
 sys.path.append("..")
-from environment.collision_env import CollisionEnv
-from environment.robot_env import RobotEnv
-from environment.obstacle_manager import ObstacleManager
+from trace_generation.robot_as.collision_check import CollisionEnv
+from robot_as.robot_method import RobotEnv
+from trace_generation.robot_as.obstacle_manager import ObstacleManager
 import numpy as np
 
 

@@ -10,8 +10,8 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 
 import pybullet as p
-from environment.collision_env import CollisionEnv
-from environment.robot_env import RobotEnv
+from trace_generation.robot_as.collision_check import CollisionEnv
+from robot_as.robot_method import RobotEnv
 
 
 def test_joint_info():
@@ -32,21 +32,25 @@ def test_joint_info():
         print(f"关节限位列表: {env.robot_env.pose_range}")
 
         # 获取总关节数量
-        num_joints = p.getNumJoints(env.robot_env.robotId, physicsClientId=env.robot_env.physics_client)
+        num_joints = p.getNumJoints(
+            env.robot_env.robotId, physicsClientId=env.robot_env.physics_client
+        )
         print(f"总关节数量: {num_joints}")
 
         # 输出所有关节信息（用于对比）
         print("\n=== 所有关节信息 (用于对比) ===")
         for i in range(num_joints):
-            joint_info = p.getJointInfo(env.robot_env.robotId, i, physicsClientId=env.robot_env.physics_client)
-            joint_name = joint_info[1].decode('utf-8') if joint_info[1] else "Unknown"
+            joint_info = p.getJointInfo(
+                env.robot_env.robotId, i, physicsClientId=env.robot_env.physics_client
+            )
+            joint_name = joint_info[1].decode("utf-8") if joint_info[1] else "Unknown"
             joint_type = joint_info[2]
             joint_type_name = {
                 p.JOINT_REVOLUTE: "REVOLUTE",
                 p.JOINT_PRISMATIC: "PRISMATIC",
                 p.JOINT_FIXED: "FIXED",
                 p.JOINT_POINT2POINT: "POINT2POINT",
-                p.JOINT_SPHERICAL: "SPHERICAL"
+                p.JOINT_SPHERICAL: "SPHERICAL",
             }.get(joint_type, "UNKNOWN")
 
             lower_limit = joint_info[8]
@@ -62,7 +66,9 @@ def test_joint_info():
 
         # 输出关节范围信息
         print("=== 有效关节范围信息 ===")
-        for i, (joint_id, limits) in enumerate(zip(env.robot_env.valid_joints, env.robot_env.pose_range)):
+        for i, (joint_id, limits) in enumerate(
+            zip(env.robot_env.valid_joints, env.robot_env.pose_range)
+        ):
             print(f"关节 {i} (ID: {joint_id}): 范围 {limits}")
 
         # 输出预计算的边界
@@ -73,15 +79,19 @@ def test_joint_info():
         # 获取并输出有效关节详细信息
         print("\n=== 有效关节详细信息 ===")
         for i, joint_id in enumerate(env.robot_env.valid_joints):
-            joint_info = p.getJointInfo(env.robot_env.robotId, joint_id, physicsClientId=env.robot_env.physics_client)
-            joint_name = joint_info[1].decode('utf-8') if joint_info[1] else "Unknown"
+            joint_info = p.getJointInfo(
+                env.robot_env.robotId,
+                joint_id,
+                physicsClientId=env.robot_env.physics_client,
+            )
+            joint_name = joint_info[1].decode("utf-8") if joint_info[1] else "Unknown"
             joint_type = joint_info[2]
             joint_type_name = {
                 p.JOINT_REVOLUTE: "REVOLUTE",
                 p.JOINT_PRISMATIC: "PRISMATIC",
                 p.JOINT_FIXED: "FIXED",
                 p.JOINT_POINT2POINT: "POINT2POINT",
-                p.JOINT_SPHERICAL: "SPHERICAL"
+                p.JOINT_SPHERICAL: "SPHERICAL",
             }.get(joint_type, "UNKNOWN")
 
             lower_limit = joint_info[8]
@@ -117,17 +127,23 @@ def test_joint_info():
         # 首先显示所有关节的当前状态（包括固定关节）
         print("所有关节的当前状态:")
         for i in range(num_joints):
-            joint_state = p.getJointState(env.robot_env.robotId, i, physicsClientId=env.robot_env.physics_client)
-            joint_info = p.getJointInfo(env.robot_env.robotId, i, physicsClientId=env.robot_env.physics_client)
-            joint_name = joint_info[1].decode('utf-8') if joint_info[1] else "Unknown"
+            joint_state = p.getJointState(
+                env.robot_env.robotId, i, physicsClientId=env.robot_env.physics_client
+            )
+            joint_info = p.getJointInfo(
+                env.robot_env.robotId, i, physicsClientId=env.robot_env.physics_client
+            )
+            joint_name = joint_info[1].decode("utf-8") if joint_info[1] else "Unknown"
             joint_type = joint_info[2]
             joint_type_name = {
                 p.JOINT_REVOLUTE: "REVOLUTE",
                 p.JOINT_PRISMATIC: "PRISMATIC",
-                p.JOINT_FIXED: "FIXED"
+                p.JOINT_FIXED: "FIXED",
             }.get(joint_type, "UNKNOWN")
 
-            print(f"关节 {i} ({joint_name}): 类型={joint_type_name}, 位置={joint_state[0]:.4f}")
+            print(
+                f"关节 {i} ({joint_name}): 类型={joint_type_name}, 位置={joint_state[0]:.4f}"
+            )
 
         # 修改特定关节的状态（例如夹爪手指关节）
         print("\n修改夹爪手指关节状态:")
@@ -135,8 +151,10 @@ def test_joint_info():
         # 找到手指关节的ID
         finger_joint_ids = []
         for i in range(num_joints):
-            joint_info = p.getJointInfo(env.robot_env.robotId, i, physicsClientId=env.robot_env.physics_client)
-            joint_name = joint_info[1].decode('utf-8') if joint_info[1] else ""
+            joint_info = p.getJointInfo(
+                env.robot_env.robotId, i, physicsClientId=env.robot_env.physics_client
+            )
+            joint_name = joint_info[1].decode("utf-8") if joint_info[1] else ""
             if "finger" in joint_name:
                 finger_joint_ids.append(i)
 
@@ -144,23 +162,35 @@ def test_joint_info():
 
         # 设置手指关节到一个打开的状态 (0.02 是中间位置)
         for joint_id in finger_joint_ids:
-            joint_info = p.getJointInfo(env.robot_env.robotId, joint_id, physicsClientId=env.robot_env.physics_client)
-            joint_name = joint_info[1].decode('utf-8') if joint_info[1] else ""
+            joint_info = p.getJointInfo(
+                env.robot_env.robotId,
+                joint_id,
+                physicsClientId=env.robot_env.physics_client,
+            )
+            joint_name = joint_info[1].decode("utf-8") if joint_info[1] else ""
             print(f"设置关节 {joint_id} ({joint_name}) 到位置 0.02")
             p.resetJointState(
                 env.robot_env.robotId,
                 joint_id,
                 0.02,  # 位置
-                0.0,   # 速度
-                physicsClientId=env.robot_env.physics_client
+                0.0,  # 速度
+                physicsClientId=env.robot_env.physics_client,
             )
 
         # 验证修改后的状态
         print("\n修改后的手指关节状态:")
         for joint_id in finger_joint_ids:
-            joint_state = p.getJointState(env.robot_env.robotId, joint_id, physicsClientId=env.robot_env.physics_client)
-            joint_info = p.getJointInfo(env.robot_env.robotId, joint_id, physicsClientId=env.robot_env.physics_client)
-            joint_name = joint_info[1].decode('utf-8') if joint_info[1] else ""
+            joint_state = p.getJointState(
+                env.robot_env.robotId,
+                joint_id,
+                physicsClientId=env.robot_env.physics_client,
+            )
+            joint_info = p.getJointInfo(
+                env.robot_env.robotId,
+                joint_id,
+                physicsClientId=env.robot_env.physics_client,
+            )
+            joint_name = joint_info[1].decode("utf-8") if joint_info[1] else ""
             print(f"关节 {joint_id} ({joint_name}): 位置={joint_state[0]:.4f}")
 
         print("\n=== 测试完成 ===")

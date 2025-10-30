@@ -28,8 +28,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 import numpy as np
 import argparse
 import time
-from environment.collision_env import CollisionEnv
-from environment.robot_env import RobotEnv
+from trace_generation.robot_as.collision_check import CollisionEnv
+from robot_as.robot_method import RobotEnv
 
 
 def get_test_obstacles():
@@ -59,8 +59,12 @@ def get_sphere_debug_configs():
     # Franka Panda 有14个关节：7个机器人关节 + 7个手爪关节
     # 手爪关节通常保持在中间位置或特定位置
     return [
-        np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.00, 0.00, 0.0, 0.00, 0.00]),  # 初始配置
-        np.array([0.5, -0.5, 0.3, -1.0, 0.0, 1.5, 0.0, 0.0, 0.0, 0.00, 0.00, 0.0, 0.00, 0.00]),  # 配置1
+        np.array(
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.00, 0.00, 0.0, 0.00, 0.00]
+        ),  # 初始配置
+        np.array(
+            [0.5, -0.5, 0.3, -1.0, 0.0, 1.5, 0.0, 0.0, 0.0, 0.00, 0.00, 0.0, 0.00, 0.00]
+        ),  # 配置1
         np.array([1.0, 0.5, -0.5, -1.5, 0.5, 1.0, 0.5, 0.0, 0.0, 0.00, 0.00]),  # 配置2
         np.array([-0.8, 0.8, 0.2, 0.5, -0.3, -0.8, 0.1, 0.0, 0.0, 0.04, 0.04]),  # 配置3
         np.array([0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.0, 0.0, 0.04, 0.04]),  # 配置4
@@ -71,7 +75,9 @@ def debug_obb_collision(env, obstacles, configs, is_gui=False):
     """调试 OBB 碰撞检测"""
     print("=== 调试 OBB 碰撞检测 ===")
     print(f"机器人关节数量: {env.robot_env.config_dim}")
-    print(f"关节限位: lower={env.robot_env.lower_bounds}, upper={env.robot_env.upper_bounds}")
+    print(
+        f"关节限位: lower={env.robot_env.lower_bounds}, upper={env.robot_env.upper_bounds}"
+    )
 
     # 初始化障碍物
     env.init_obstacle_bodies(len(obstacles), obstacles)
@@ -81,7 +87,9 @@ def debug_obb_collision(env, obstacles, configs, is_gui=False):
 
         # 检查配置长度
         if len(config) != env.robot_env.config_dim:
-            print(f"⚠️ 配置长度不匹配！期望 {env.robot_env.config_dim}，实际 {len(config)}")
+            print(
+                f"⚠️ 配置长度不匹配！期望 {env.robot_env.config_dim}，实际 {len(config)}"
+            )
             continue
 
         # 设置机器人配置
@@ -144,7 +152,9 @@ def debug_both_collision(env, obstacles, configs):
 
         # 检查配置长度
         if len(config) != env.robot_env.config_dim:
-            print(f"⚠️ 配置长度不匹配！期望 {env.robot_env.config_dim}，实际 {len(config)}")
+            print(
+                f"⚠️ 配置长度不匹配！期望 {env.robot_env.config_dim}，实际 {len(config)}"
+            )
             continue
 
         # 使用 _point_in_free_space 获取完整结果
@@ -206,7 +216,9 @@ def main():
     elif args.mode == "sphere" and args.gui:
         # Sphere GUI模式
         print("启动 Sphere 客户端的GUI模式...")
-        robot_env = RobotEnv(robot_urdf, OBB_GUI=True)  # 使用OBB_GUI，因为RobotEnv只支持这个参数
+        robot_env = RobotEnv(
+            robot_urdf, OBB_GUI=True
+        )  # 使用OBB_GUI，因为RobotEnv只支持这个参数
         env = CollisionEnv(robot_env=robot_env)
     else:
         # 非GUI模式或both模式

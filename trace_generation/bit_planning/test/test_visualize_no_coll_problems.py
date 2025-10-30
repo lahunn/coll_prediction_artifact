@@ -13,7 +13,7 @@ import time
 
 # 添加项目路径
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
-from environment.modular_env import ModularEnv
+from trace_generation.robot_as.modular_env import ModularEnv
 
 
 def load_obstacles_to_env(modular_env, obstacles):

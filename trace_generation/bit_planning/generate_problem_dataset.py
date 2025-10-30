@@ -19,9 +19,9 @@ import numpy as np
 import argparse
 
 # 添加项目路径
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../"))
 
-from environment.modular_env import ModularEnv
+from robot_as.modular_env import ModularEnv
 from algorithm.bit_star import BITStar
 from utils.planning_utils import uniform_sample, distance
 
@@ -207,6 +207,7 @@ def generate_problem_dataset(
         if (
             problem is not None
             and modular_env.collision_env.data_manager.edge_fp_call_count > 100
+            and modular_env.collision_env.data_manager.edge_fp_call_count < 10000
         ):
             problems.append(problem)
             success_count += 1
@@ -228,9 +229,7 @@ def generate_problem_dataset(
                 pickle.dump(obstacle_config_pair, f)
 
             # 保存碰撞检测数据
-            modular_env.collision_env.data_manager.save_collision_data(
-                obb_filepath
-            )
+            modular_env.collision_env.data_manager.save_collision_data(obb_filepath)
 
     modular_env.obstacle_manager.cleanup_obstacles()
     modular_env.close()  # 现在这个方法是空的，但为了接口一致性保留

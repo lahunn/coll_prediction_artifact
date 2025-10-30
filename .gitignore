@@ -21,3 +21,7 @@ trace_generation/sphere_as/*.json
 trace_generation/sphere_as/*.png
 trace_files/bit_traces/*.pkl
 trace_files/rsync.sh
+curobo_examples/*
+trace_generation/sphere_as/sphere_output/*.pkl
+trace_generation/sphere_as/test_sphere_outputs/*.pkl
+trace_generation/sphere_as/inconsistent_edge/*.pkl

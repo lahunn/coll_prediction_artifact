@@ -1,0 +1,1 @@
+python compare_obb_sphere.py --obstacle-config-file ../../../trace_files/bit_traces/franka_7_0001.pkl --collision-data-file ../../../trace_files/scene_benchmarks/bit_collision_data/franka_7_0001_obb.pkl --robot-name franka

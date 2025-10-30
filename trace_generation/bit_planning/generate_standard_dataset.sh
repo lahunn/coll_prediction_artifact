@@ -54,7 +54,7 @@ python generate_problem_dataset.py \
     --robot-file "$ROBOT_FILE" \
     --robot-name "$ROBOT_NAME" \
     --num-problems 200 \
-    --num-obstacles 12 \
+    --num-obstacles 5 \
     --max-time 60.0 \
     --workspace-min "$X_START" \
     --workspace-max "$X_END" \

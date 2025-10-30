@@ -115,6 +115,7 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
             sample_rate,
             bins,
             qnoncoll_len=qnoncoll_len,
+            cycle_check=72,
         )
 
         all_prediction += edge_query_count

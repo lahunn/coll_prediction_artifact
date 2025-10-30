@@ -1,6 +1,6 @@
 from eval_bit import eval_bit
 import numpy as np
-from environment.modular_env import ModularEnv
+from trace_generation.robot_as.modular_env import ModularEnv
 import pickle
 import sys
 

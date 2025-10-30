@@ -1,7 +1,7 @@
 {
   "version": "0.2.0",
   "configurations": [
-    
+
     {
       "name": "调试 prediction_simulation_nDOF_sphere.py",
       "type": "debugpy",
@@ -143,6 +143,35 @@
       "program": "${workspaceFolder}/trace_generation/bit_planning/test/test_modular_vs_kuka.py",
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}/trace_generation/bit_planning"
+    },
+    {
+      "name": "调试 sphere_collision_processor.py",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/trace_generation/sphere_as/test/sphere_collision_processor.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/trace_generation/sphere_as/test",
+      "args": [
+        "--input-dir",
+        "../../../trace_files/bit_traces/",
+        "--robot-name",
+        "franka",
+        "--output-dir",
+        "../../../trace_files/scene_benchmarks/bit_collision_data",
+        "--obb-data-dir",
+        "../../../trace_files/scene_benchmarks/bit_collision_data"
+      ]
+    },
+    {
+      "name": "调试 visualize_inconsistent_edges.py (URDF)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/trace_generation/sphere_as/test/visualize_inconsistent_edges.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/trace_generation/sphere_as/test",
+      "args": [
+        "--urdf"
+      ]
     }
   ]
 }
