@@ -1,7 +1,6 @@
 {
   "version": "0.2.0",
   "configurations": [
-
     {
       "name": "调试 prediction_simulation_nDOF_sphere.py",
       "type": "debugpy",
@@ -81,9 +80,15 @@
       "program": "${workspaceFolder}/trace_generation/pred_trace_generation.py",
       "console": "integratedTerminal",
       "args": [
+        "franka",
         "100",
-        "./scene_benchmarks/dens3",
-        "1"
+        "../trace_files/scene_benchmarks/dens3",
+        "1",
+        "--seed",
+        "0",
+        "--obstacle-file",
+        "../trace_files/scene_benchmarks/dens3/obstacles_0.pkl",
+        "--obb-vis"
       ],
       "cwd": "${workspaceFolder}/trace_generation"
     },

@@ -12,6 +12,7 @@
 """
 
 import sys
+import os
 import argparse
 import numpy as np
 import pybullet as p
@@ -19,8 +20,42 @@ import pybullet_data
 import torch
 from pathlib import Path
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../"))
 # 导入球体分析器
 from robot_sphere_analyzer import RobotSphereAnalyzer
+
+# 机器人名称到URDF路径的映射字典
+# 基于content/configs/robot/目录下的yml配置文件
+ROBOT_URDF_MAPPING = {
+    "franka": "robot/franka_description/franka_panda.urdf",
+    "iiwa": "robot/iiwa_allegro_description/iiwa.urdf",
+    "iiwa_allegro": "robot/iiwa_allegro_description/iiwa_allegro.urdf",
+    "jaco7": "robot/jaco/jaco_7s.urdf",
+    "kinova_gen3": "robot/kinova/kinova_gen3_7dof.urdf",
+    "quad_ur10e": "robot/ur_description/quad_ur10e.urdf",
+    "simple_mimic_robot": "robot/simple/simple_mimic_robot.urdf",
+    "tm12": "robot/techman/tm_description/urdf/tm12-nominal.urdf",
+    "tri_ur10e": "robot/ur_description/tri_ur10e.urdf",
+    "ur5e": "robot/ur_description/ur5e.urdf",
+    "ur5e_robotiq_2f_140": "robot/ur_description/ur5e_robotiq_2f_140.urdf",
+    "ur10e": "robot/ur_description/ur10e.urdf",
+}
+
+# 机器人名称到资产根目录的映射字典
+ROBOT_ASSET_ROOT_MAPPING = {
+    "franka": "robot/franka_description",
+    "iiwa": "robot/iiwa_allegro_description",
+    "iiwa_allegro": "robot/iiwa_allegro_description",
+    "jaco7": "robot/jaco",
+    "kinova_gen3": "robot/kinova",
+    "quad_ur10e": "robot/ur_description",
+    "simple_mimic_robot": "robot/simple",
+    "tm12": "robot/techman/tm_description",
+    "tri_ur10e": "robot/ur_description",
+    "ur5e": "robot/ur_description",
+    "ur5e_robotiq_2f_140": "robot/ur_description",
+    "ur10e": "robot/ur_description",
+}
 
 
 class SphereVisualizer:
@@ -73,22 +108,28 @@ class SphereVisualizer:
 
     def load_robot(self):
         """加载机器人URDF模型"""
-        # 机器人URDF路径映射
-        robot_paths = {
+        # 机器人URDF路径映射 - 基于yml配置文件中的urdf_path和asset_root_path
+        robot_urdf_mapping = {
             "franka": "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/franka_description/franka_panda.urdf",
-            "ur5e": "/opt/ros/noetic/share/ur_description/urdf/ur5e.urdf",
+            "iiwa": "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/iiwa_allegro_description/iiwa.urdf",
+            "iiwa_allegro": "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/iiwa_allegro_description/iiwa_allegro.urdf",
+            "jaco7": "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/jaco_7/jaco_7s.urdf",
+            "kinova_gen3": "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/kinova/kinova_gen3_7dof.urdf",
+            "quad_ur10e": "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/ur_description/quad_ur10e.urdf",
+            "simple_mimic_robot": "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/simple/simple_mimic_robot.urdf",
+            "tm12": "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/techman/tm_description/urdf/tm12-nominal.urdf",
+            "tri_ur10e": "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/ur_description/tri_ur10e.urdf",
+            "ur5e": "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/ur_description/ur5e.urdf",
+            "ur5e_robotiq_2f_140": "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/ur_description/ur5e_robotiq_2f_140.urdf",
+            "ur10e": "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/ur_description/ur10e.urdf",
         }
 
-        robot_urdf = robot_paths.get(
-            self.robot_name,
-            robot_paths["franka"],  # 默认使用franka
-        )
-
+        robot_urdf = robot_urdf_mapping[self.robot_name]
         # 检查文件是否存在
         if not Path(robot_urdf).exists():
             print(f"警告: URDF文件不存在: {robot_urdf}")
             print("使用默认路径...")
-            robot_urdf = robot_paths["franka"]
+            robot_urdf = "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/franka_description/franka_panda.urdf"
 
         try:
             self.robot_id = p.loadURDF(
@@ -174,13 +215,13 @@ class SphereVisualizer:
             # 使用PyBullet获取当前关节角度
             num_joints = p.getNumJoints(self.robot_id)
             current_angles = []
-            
+
             for i in range(num_joints):
                 joint_info = p.getJointInfo(self.robot_id, i)
                 if joint_info[2] != p.JOINT_FIXED:  # 不是固定关节
                     joint_state = p.getJointState(self.robot_id, i)
                     current_angles.append(joint_state[0])  # 关节位置
-            
+
             if not current_angles:
                 return
 
@@ -217,7 +258,31 @@ class SphereVisualizer:
                 p.removeBody(sphere_body, physicsClientId=self.physics_client)
             except Exception:
                 pass
-        self.sphere_bodies.clear()
+
+    def _find_valid_collision_links(self):
+        """找到有碰撞几何体的link"""
+        if self.robot_id is None:
+            return []
+
+        valid_links = []
+        num_joints = p.getNumJoints(self.robot_id, physicsClientId=self.physics_client)
+
+        # 检查base link
+        collision_data = p.getCollisionShapeData(
+            self.robot_id, -1, physicsClientId=self.physics_client
+        )
+        if collision_data:
+            valid_links.append(-1)
+
+        # 检查其他link
+        for i in range(num_joints):
+            collision_data = p.getCollisionShapeData(
+                self.robot_id, i, physicsClientId=self.physics_client
+            )
+            if collision_data:
+                valid_links.append(i)
+
+        return valid_links
 
     def update_camera(self):
         """根据滑块值更新相机位置"""
@@ -257,6 +322,9 @@ class SphereVisualizer:
         if not self.initialize_sphere_analyzer():
             return
 
+        # 确保球体分析器已正确初始化
+        assert self.sphere_analyzer is not None, "球体分析器初始化失败"
+
         # 获取关节配置
         if config_type == "zero":
             # 零配置
@@ -295,6 +363,21 @@ class SphereVisualizer:
         print(f"总数: {len(world_spheres)}")
         print(f"半径范围: [{radii.min():.4f}, {radii.max():.4f}] m")
         print(f"平均半径: {radii.mean():.4f} m")
+
+        # 获取并输出link数
+        if self.robot_id is not None:
+            num_joints = p.getNumJoints(self.robot_id)
+            num_links = num_joints + 1  # 关节数 + base link
+            valid_collision_links = self._find_valid_collision_links()
+            num_valid_links = len(valid_collision_links)
+            print(f"机器人link总数: {num_links} (关节数: {num_joints})")
+            print(f"有效碰撞link数: {num_valid_links}")
+
+        # 获取球体分析器的link信息
+        if self.sphere_analyzer is not None:
+            link_spheres_info = self.sphere_analyzer.get_link_spheres_info()
+            num_links_with_spheres = len(link_spheres_info)
+            print(f"有球体的link数: {num_links_with_spheres}")
 
         # 进入交互循环
         print("\n=== 可视化已启动 ===")

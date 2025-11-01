@@ -119,7 +119,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     # 运行采样测试
-    test_self_collision(robot_file, num_samples=50)
+    test_self_collision(robot_file, num_samples=500)
 
     # 示例inconsistent_edges文件路径
     inconsistent_edges_file = "/home/lanh/project/robot_sim/coll_prediction_artifact/trace_generation/sphere_as/inconsistent_edge/inconsistent_edges_10.pkl"

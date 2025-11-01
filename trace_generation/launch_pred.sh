@@ -3,27 +3,40 @@
 echo "Starting data generation pipeline..."
 
 # 生成场景文件
-# echo "Step 1: Generating scene files..."
-ROBOT_URDF="/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/franka_description/franka_panda.urdf" 
+echo "Step 1: Generating scene files..."
+ROBOT_NAME="iiwa"
 NUM_PROBLEMS=100
 NUM_SAMPLES=3000
+BASE_SEED=0
+DENSITIES=("dens3" "dens6" "dens9" "dens12")
 
-python scene_generator.py  $ROBOT_URDF $NUM_PROBLEMS
+python scene_generator.py "$ROBOT_NAME" "$NUM_PROBLEMS"
 
 # 生成 OBB 和球体数据
 echo "Step 2: Generating collision detection data..."
-for i in {0..99}
+for ((i = 0; i < NUM_PROBLEMS; ++i))
 do
     echo "Processing environment ${i}/99..."
-    for j in dens3 dens6 dens9 dens12
+    for density in "${DENSITIES[@]}"
     do  
-        echo "  Processing density: ${j}"
+        echo "  Processing density: ${density}"
+        obstacle_file="../trace_files/scene_benchmarks/${density}/obstacles_${i}.pkl"
+        if [[ ! -f "${obstacle_file}" ]]; then
+            echo "    Warning: obstacle file not found at ${obstacle_file}, skipping."
+            continue
+        fi
       
-        # 生成 OBB 数据 和 Sphere 数据
-        echo "    Generating OBB data..."
-        python pred_trace_generation.py $NUM_SAMPLES ../trace_files/scene_benchmarks/${j} ${i}
+        # 生成碰撞数据 (默认包含球体)
+        echo "    Generating collision trace..."
+        python pred_trace_generation.py \
+            "$ROBOT_NAME" \
+            "$NUM_SAMPLES" \
+            "../trace_files/scene_benchmarks/${density}" \
+            "${i}" \
+            --seed "$((BASE_SEED + i))" \
+            --obstacle-file "${obstacle_file}"
         
-        echo "    Completed ${j} environment ${i}"
+        echo "    Completed ${density} environment ${i}"
     done
 done
 

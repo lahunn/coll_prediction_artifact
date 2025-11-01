@@ -4,18 +4,54 @@ import sys
 import os
 from utils.planning_utils import uniform_sample
 
+robot_urdf_mapping = {
+    "franka": "data/robots/franka_description/franka_panda.urdf",
+    "iiwa": "data/robots/iiwa_allegro_description/iiwa.urdf",
+    "iiwa_allegro": "data/robots/iiwa_allegro_description/iiwa_allegro.urdf",
+    "jaco7": "data/robots/jaco_7/jaco_7s.urdf",
+    "kinova_gen3": "data/robots/kinova/kinova_gen3_7dof.urdf",
+    "quad_ur10e": "data/robots/ur_description/quad_ur10e.urdf",
+    "simple_mimic_robot": "data/robots/simple/simple_mimic_robot.urdf",
+    "tm12": "data/robots/techman/tm_description/urdf/tm12-nominal.urdf",
+    "tri_ur10e": "data/robots/ur_description/tri_ur10e.urdf",
+    "ur5e": "data/robots/ur_description/ur5e.urdf",
+    "ur5e_robotiq_2f_140": "data/robots/ur_description/ur5e_robotiq_2f_140.urdf",
+    "ur10e": "data/robots/ur_description/ur10e.urdf",
+}
+
 
 class RobotEnv:
-    """机器人环境类，负责加载URDF、关节信息管理和机器人姿态控制"""
+    """机器人环境类，负责加载URDF、关节信息管理和机器人姿态控制
 
-    def __init__(self, robot_file, OBB_GUI=None):
+    构造函数参数说明:
+      robot_name: 机器人名称 (例如: 'franka', 'ur5e')
+      OBB_GUI: 是否启用GUI模式
+
+    """
+
+    def __init__(self, robot_name, OBB_GUI=None):
         """
-        初始化机器人环境
+        初始化机器人环境（通过 robot_name 查找 URDF）
 
         Args:
-            robot_file: 机器人URDF文件路径
+            robot_name: 机器人名称，用于在 `robot_urdf_mapping` 中查找相对URDF路径
             OBB_GUI: 是否启用GUI模式（可选，默认为False）
         """
+
+        # 将 robot_name 保存在实例中
+        self.robot_name = robot_name
+
+        # 从映射表获取相对URDF路径（映射内可能以 / 开头）
+        rel_path = robot_urdf_mapping.get(robot_name)
+        if rel_path is None:
+            print(f"错误: 未找到机器人名称 '{robot_name}' 对应的URDF路径")
+            sys.exit(1)
+
+        # 计算基准根目录：robot_method 所在路径的上两级目录
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+
+        # 最终URDF路径
+        robot_file = os.path.join(base_dir, rel_path)
         self.robot_file = robot_file
 
         # 连接PyBullet
@@ -34,6 +70,7 @@ class RobotEnv:
             [0, 0, 0, 1],
             useFixedBase=True,
             physicsClientId=self.physics_client,
+            flags=p.URDF_USE_SELF_COLLISION,
         )
 
         # 初始化关节信息
@@ -83,6 +120,9 @@ class RobotEnv:
         # 找到有碰撞几何体的link
         self.valid_collision_links = self._find_valid_collision_links()
 
+        # 禁用相邻连杆之间的碰撞检测
+        self._disable_adjacent_link_collisions()
+
     def _are_links_adjacent(self, link1, link2):
         """
         检查两个 link 是否相邻（通过关节连接）
@@ -95,7 +135,7 @@ class RobotEnv:
             bool: 是否相邻
         """
 
-        if "franka" in self.robot_file:
+        if self.robot_name == "franka":
             if link1 == 9 and link2 == 7 or link1 == 7 and link2 == 9:
                 return True
         # 遍历所有关节，检查父子链接关系
@@ -138,6 +178,24 @@ class RobotEnv:
                 valid_links.append(i)
 
         return valid_links
+
+    def _disable_adjacent_link_collisions(self):
+        """
+        禁用相邻连杆之间的碰撞检测
+        """
+        for i in range(len(self.valid_collision_links)):
+            for j in range(i + 1, len(self.valid_collision_links)):
+                link_a = self.valid_collision_links[i]
+                link_b = self.valid_collision_links[j]
+                if self._are_links_adjacent(link_a, link_b):
+                    p.setCollisionFilterPair(
+                        bodyUniqueIdA=self.robotId,
+                        bodyUniqueIdB=self.robotId,
+                        linkIndexA=link_a,
+                        linkIndexB=link_b,
+                        enableCollision=0,
+                        physicsClientId=self.physics_client,
+                    )
 
     def set_config(self, c, robotId=None):
         """

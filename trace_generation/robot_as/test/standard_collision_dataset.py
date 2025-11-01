@@ -236,7 +236,9 @@ def compare_collision_methods(robot_file, num_obstacles=10, num_configs=5000):
         # 比较结果
         if obb_free != sphere_free:
             print(f"配置 {i}: OBB={obb_free}, Sphere={sphere_free} - 不一致!")
-            print(f"  OBB碰撞链接: {sum(1 for c in obb_colls if c == 0)}/{len(obb_colls)}")
+            print(
+                f"  OBB碰撞链接: {sum(1 for c in obb_colls if c == 0)}/{len(obb_colls)}"
+            )
             inconsistent_count += 1
 
     print(f"比较完成，发现 {inconsistent_count} 个不一致的配置")
@@ -249,7 +251,9 @@ def compare_collision_methods(robot_file, num_obstacles=10, num_configs=5000):
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(description="标准碰撞检测数据集生成、可视化和比较程序")
+    parser = argparse.ArgumentParser(
+        description="标准碰撞检测数据集生成、可视化和比较程序"
+    )
     parser.add_argument(
         "--robot-file",
         type=str,

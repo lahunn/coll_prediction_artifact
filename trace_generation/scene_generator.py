@@ -1,37 +1,40 @@
 import random
 import os.path
-import tqdm
+import pickle
 import sys
+from typing import List, Tuple
+
+import tqdm
+
 from workspace_bound.workspace_analyzer import WorkspaceAnalyzer
+from robot_as.robot_method import robot_urdf_mapping
 
 # 配置参数
 random.seed(1)
 
-# 根据命令行参数确定机器人URDF路径和场景数量
-ROBOT_URDF_PATH = "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/franka_description/franka_panda.urdf"  # 默认Jaco机器人
+# 根据命令行参数确定机器人名称和场景数量
+ROBOT_NAME = "franka"
 num_problems = 100  # 默认生成100个场景
 
 if len(sys.argv) > 1:
-    ROBOT_URDF_PATH = sys.argv[1]  # 允许通过命令行指定URDF路径
+    ROBOT_NAME = sys.argv[1]  # 允许通过命令行指定机器人名称
 if len(sys.argv) > 2:
     num_problems = int(sys.argv[2])  # 允许通过命令行指定场景数量
 
-print(f"使用机器人: {ROBOT_URDF_PATH}")
+print(f"使用机器人: {ROBOT_NAME}")
 print(f"生成场景数量: {num_problems}")
 
 
-def get_robot_workspace_bounds(robot_urdf_path):
+def get_robot_workspace_bounds(robot_name):
     """
     获取机器人工作空间边界
 
     Args:
-        robot_urdf_path: 机器人URDF文件路径
+        robot_name: 机器人名称
 
     Returns:
-        dict: 包含工作空间边界的字典
+        tuple: (workspace_bounds 字典, 机器人URDF绝对路径)
     """
-    # 生成工作空间文件名
-    robot_name = os.path.splitext(os.path.basename(robot_urdf_path))[0]
     workspace_file = f"/home/lanh/project/robot_sim/coll_prediction_artifact/trace_generation/workspace_bound/{robot_name}_workspace.json"
     # 使用默认的保守估计
     workspace_bounds = {
@@ -43,23 +46,41 @@ def get_robot_workspace_bounds(robot_urdf_path):
         "z_end": 1.2,
     }
 
-    analyzer = WorkspaceAnalyzer(robot_urdf_path)
-    if analyzer.load_robot():
-        positions = analyzer.sample_workspace(num_samples=1000)
-        bounds = analyzer.analyze_workspace_bounds(positions)
-        if bounds is not None:
-            workspace_bounds = bounds
-            analyzer.save_workspace_bounds(workspace_bounds, workspace_file)
-        else:
-            print("工作空间分析返回None，使用默认范围")
-    else:
-        print("机器人加载失败，使用默认工作空间范围")
+    analyzer = WorkspaceAnalyzer(robot_name)
+    robot_urdf_path = None
+    try:
+        if analyzer.load_robot() and analyzer.robot_env is not None:
+            robot_env = analyzer.robot_env
+            robot_urdf_path = robot_env.robot_file
+            robot_base = os.path.splitext(os.path.basename(robot_urdf_path))[0]
+            workspace_file = f"/home/lanh/project/robot_sim/coll_prediction_artifact/trace_generation/workspace_bound/{robot_base}_workspace.json"
 
-    return workspace_bounds
+            positions = analyzer.sample_workspace(num_samples=1000)
+            bounds = analyzer.analyze_workspace_bounds(positions)
+            if bounds is not None:
+                workspace_bounds = bounds
+                analyzer.save_workspace_bounds(workspace_bounds, workspace_file)
+            else:
+                print("工作空间分析返回None，使用默认范围")
+        else:
+            print("机器人加载失败，使用默认工作空间范围")
+    finally:
+        analyzer.disconnect()
+
+    if robot_urdf_path is None:
+        rel_path = robot_urdf_mapping.get(robot_name)
+        if rel_path is not None:
+            base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+            robot_urdf_path = os.path.join(base_dir, rel_path)
+        else:
+            robot_urdf_path = robot_name
+
+    return workspace_bounds, robot_urdf_path
 
 
 # 获取机器人工作空间边界
-workspace_bounds = get_robot_workspace_bounds(ROBOT_URDF_PATH)
+workspace_bounds, ROBOT_URDF_PATH = get_robot_workspace_bounds(ROBOT_NAME)
+print(f"机器人URDF路径: {ROBOT_URDF_PATH}")
 
 # 根据机器人工作空间设置场景生成参数
 length = 0.07  # 体素大小
@@ -128,39 +149,6 @@ def remove_dup(list_voxels):
     return new
 
 
-def write_mujoco_header(f, robot_urdf_path):
-    """写入MuJoCo格式的文件头部"""
-    f.write('<?xml version="1.0"?>\n')
-    f.write('<mujoco model="obstacle_scene">\n')
-    f.write('  <compiler angle="radian" coordinate="local"/>\n')
-    f.write('  <option timestep="0.001" gravity="0 0 -9.81"/>\n')
-    f.write("\n  <asset>\n")
-    f.write('    <material name="obstacle_mat" rgba="0.8 0.8 0.0 0.8"/>\n')
-    f.write('    <material name="ground_mat" rgba="0.5 0.5 0.5 1"/>\n')
-    f.write("  </asset>\n\n")
-    f.write("  <worldbody>\n")
-    f.write("    <!-- Ground plane -->\n")
-    f.write('    <geom name="ground" type="plane" size="3 3 0.1" material="ground_mat"/>\n\n')
-    # f.write("    <!-- Robot -->\n")
-    # f.write(f'    <body name="robot" file="{robot_urdf_path}"/>\n\n')
-    f.write("    <!-- Obstacles -->\n")
-
-
-def write_mujoco_obstacle(f, obstacle_id, scale, position, color):
-    """写入单个MuJoCo格式的障碍物"""
-    f.write(f'    <body name="obstacle_{obstacle_id}" pos="{position[0]:.6f} {position[1]:.6f} {position[2]:.6f}">\n')
-    f.write(
-        f'      <geom name="obs_{obstacle_id}" type="box" size="{scale[0] / 2:.6f} {scale[1] / 2:.6f} {scale[2] / 2:.6f}" rgba="{color} 0.8"/>\n'
-    )
-    f.write("    </body>\n")
-
-
-def write_mujoco_footer(f):
-    """写入MuJoCo格式的文件尾部"""
-    f.write("  </worldbody>\n")
-    f.write("</mujoco>\n")
-
-
 # 定义一个机器人基座周围的避让区域（立方体），防止障碍物生成得太近
 # 尺寸为 [min, max]，单位为米
 KEEPOUT_BOX = {
@@ -175,30 +163,24 @@ print(f"  Z: {KEEPOUT_BOX['z']}")
 
 
 voxel_dict = {}
-color = ["0.2 0.2 0.0", "0.5 0.5 0.0", "0.8 0.8 0.0"]
 for num_ob in [3, 6, 9, 12]:
     for i1 in range(0, len(zlist)):
         for j in range(0, len(ylist)):
             for k in range(0, len(xlist)):
                 voxel_dict[(k, j, i1)] = 0
-    os.makedirs("../trace_files/scene_benchmarks/dens" + str(num_ob), exist_ok=True)
-    # os.makedirs("voxel_object_collision/jaco/dens"+str(num_ob), exist_ok=True)
-    # fvoxel=open("voxel_object_collision/jaco/dens"+str(num_ob)+"/summary.txt","w")
+    output_dir = os.path.join(
+        "..",
+        "trace_files",
+        "scene_benchmarks",
+        f"dens{num_ob}",
+    )
+    os.makedirs(output_dir, exist_ok=True)
     print(num_ob)
     sum_voxels = 0
     for i in tqdm.tqdm(range(0, num_problems)):
-        # num_ob = int(sys.argv[1])  # int(random.uniform(4,4))
-        list_voxels = []
-        # fv= open("voxel_object_collision/jaco/dens"+str(num_ob)+"/scene_"+str(i)+".txt","w")
+        list_voxels: List[Tuple[int, int, int]] = []
+        obstacles = []
 
-        # MuJoCo格式文件
-        f = open(
-            "../trace_files/scene_benchmarks/dens" + str(num_ob) + "/obstacles_" + str(i) + ".xml",
-            "w",
-        )
-        write_mujoco_header(f, ROBOT_URDF_PATH)
-
-        # print(num_ob)
         objects = int(random.uniform(num_ob, num_ob + 2))
         for j in range(0, objects):
             # --- 修改: 循环生成障碍物，直到其不与基座避让区碰撞 ---
@@ -210,9 +192,15 @@ for num_ob in [3, 6, 9, 12]:
                 workspace_z_range = zend - zstart
 
                 # 障碍物尺寸为工作空间的5%-20%
-                xscale = random.uniform(workspace_x_range * 0.05, workspace_x_range * 0.2)
-                yscale = random.uniform(workspace_y_range * 0.05, workspace_y_range * 0.2)
-                zscale = random.uniform(workspace_z_range * 0.05, workspace_z_range * 0.2)
+                xscale = random.uniform(
+                    workspace_x_range * 0.05, workspace_x_range * 0.2
+                )
+                yscale = random.uniform(
+                    workspace_y_range * 0.05, workspace_y_range * 0.2
+                )
+                zscale = random.uniform(
+                    workspace_z_range * 0.05, workspace_z_range * 0.2
+                )
 
                 # 确保障碍物位置在工作空间内
                 xpos = random.uniform(xstart + xscale / 2, xend - xscale / 2)
@@ -225,39 +213,46 @@ for num_ob in [3, 6, 9, 12]:
                 obs_zmin, obs_zmax = zpos - zscale / 2, zpos + zscale / 2
 
                 # AABB (轴对齐包围盒) 重叠测试
-                x_overlap = (obs_xmin < KEEPOUT_BOX["x"][1] and obs_xmax > KEEPOUT_BOX["x"][0])
-                y_overlap = (obs_ymin < KEEPOUT_BOX["y"][1] and obs_ymax > KEEPOUT_BOX["y"][0])
-                z_overlap = (obs_zmin < KEEPOUT_BOX["z"][1] and obs_zmax > KEEPOUT_BOX["z"][0])
+                x_overlap = (
+                    obs_xmin < KEEPOUT_BOX["x"][1] and obs_xmax > KEEPOUT_BOX["x"][0]
+                )
+                y_overlap = (
+                    obs_ymin < KEEPOUT_BOX["y"][1] and obs_ymax > KEEPOUT_BOX["y"][0]
+                )
+                z_overlap = (
+                    obs_zmin < KEEPOUT_BOX["z"][1] and obs_zmax > KEEPOUT_BOX["z"][0]
+                )
 
                 if not (x_overlap and y_overlap and z_overlap):
                     # 如果不重叠，则此障碍物位置有效，跳出重试循环
                     break
             else:
                 # 如果循环完成（即达到最大重试次数）而没有break
-                print(f"\n警告: 场景 {i} 中, 无法为障碍物 {j} 找到避让区域外的位置 (已尝试 {max_retries} 次). 跳过此障碍物.")
+                print(
+                    f"\n警告: 场景 {i} 中, 无法为障碍物 {j} 找到避让区域外的位置 (已尝试 {max_retries} 次). 跳过此障碍物."
+                )
                 continue  # 跳到下一个障碍物j
 
             # --- 修改结束 ---
 
-            # 写入有效的障碍物到MuJoCo文件
-            write_mujoco_obstacle(
-                f,
-                j,
-                [xscale, yscale, zscale],
-                [xpos, ypos, zpos],
-                color[(j) % 3],
+            obstacles.append(
+                (
+                    (xscale / 2, yscale / 2, zscale / 2),
+                    (xpos, ypos, zpos),
+                )
             )
 
-            temp = find_collision(xpos, ypos, zpos, xpos + xscale, ypos + yscale, zpos + zscale)
-            list_voxels = list_voxels + temp
+            temp = find_collision(
+                xpos, ypos, zpos, xpos + xscale, ypos + yscale, zpos + zscale
+            )
+            list_voxels.extend(temp)
 
         uniq_voxels = remove_dup(list_voxels)
         sum_voxels += len(uniq_voxels)
 
         for v in uniq_voxels:
             voxel_dict[v] += 1
-            # fv.write("%s\n"%(str(v)))
 
-        write_mujoco_footer(f)
-        f.close()
-        # fv.close()
+        output_path = os.path.join(output_dir, f"obstacles_{i}.pkl")
+        with open(output_path, "wb") as pf:
+            pickle.dump(obstacles, pf)

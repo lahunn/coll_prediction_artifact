@@ -2,87 +2,71 @@
 """
 机器人工作空间分析程序
 
-该程序通过分析机器人URDF文件，计算机器人的大概工作空间范围。
+该程序通过分析 robot_method 中加载的机器人，计算机器人的大概工作空间范围。
 通过采样不同的关节配置，获取末端执行器的位置分布，从而估算工作空间边界。
 
 输出：x_start, x_end, y_start, y_end, z_start, z_end
 其中x,y方向的start和end是对称的。
 
 使用方法:
-python workspace_analyzer.py <robot_urdf_path> [output_json_file]
+python workspace_analyzer.py <robot_name> [output_json_file]
 
 示例:
-python workspace_analyzer.py /path/to/robot.urdf workspace.json
+python workspace_analyzer.py franka workspace.json
 """
 
-import pybullet as p
 import numpy as np
-import math
 import random
 import json
 import sys
-import os
+
+from robot_as.robot_method import RobotEnv
 
 
 class WorkspaceAnalyzer:
     """机器人工作空间分析器"""
 
-    def __init__(self, robot_urdf_path):
+    def __init__(self, robot_name):
         """
         初始化工作空间分析器
 
         Args:
-            robot_urdf_path: 机器人URDF文件路径
+            robot_name: 机器人名称
         """
-        self.robot_urdf_path = robot_urdf_path
-        self.robot_id = None
+        self.robot_name = robot_name
+        self.robot_env = None
         self.joint_limits = []
         self.valid_joints = []
-
-        # 连接PyBullet (无GUI模式)
-        self.physics_client = p.connect(p.DIRECT)
-        p.setGravity(0, 0, -9.81)
 
     def load_robot(self):
         """加载机器人模型"""
         try:
-            self.robot_id = p.loadURDF(self.robot_urdf_path, [0, 0, 0])
-            self._setup_joint_info()
-            print(f"成功加载机器人: {self.robot_urdf_path}")
-            print(f"机器人有 {len(self.valid_joints)} 个可动关节")
-            return True
+            self.robot_env = RobotEnv(self.robot_name)
+        except SystemExit:
+            return False
         except Exception as e:
             print(f"机器人加载失败: {e}")
             return False
 
+        self._setup_joint_info()
+        print(f"成功加载机器人: {self.robot_env.robot_file}")
+        print(f"机器人有 {len(self.valid_joints)} 个可动关节")
+        return True
+
     def _setup_joint_info(self):
         """设置关节信息"""
-        if self.robot_id is None:
+        if self.robot_env is None:
             return
 
-        num_joints = p.getNumJoints(self.robot_id)
-        self.joint_limits = []
-        self.valid_joints = []
+        self.joint_limits = list(
+            zip(self.robot_env.lower_bounds.tolist(), self.robot_env.upper_bounds.tolist())
+        )
+        self.valid_joints = list(self.robot_env.valid_joints)
 
-        for i in range(num_joints):
-            joint_info = p.getJointInfo(self.robot_id, i)
-            if joint_info[2] != p.JOINT_FIXED:  # 非固定关节
-                self.valid_joints.append(i)
-                lower_limit = joint_info[8]
-                upper_limit = joint_info[9]
-
-                # 处理无限制关节
-                if lower_limit == 0 and upper_limit == -1:
-                    lower_limit, upper_limit = -math.pi, math.pi
-                elif lower_limit >= upper_limit:
-                    lower_limit, upper_limit = -math.pi, math.pi
-
-                self.joint_limits.append((lower_limit, upper_limit))
-
-                joint_name = joint_info[1].decode("utf-8")
-                print(
-                    f"  关节 {i} ({joint_name}): [{lower_limit:.3f}, {upper_limit:.3f}]"
-                )
+        for idx, (lower_limit, upper_limit) in zip(self.valid_joints, self.joint_limits):
+            print(
+                f"  关节 {idx}: [{lower_limit:.3f}, {upper_limit:.3f}]"
+            )
 
     def sample_workspace(self, num_samples=1000):
         """
@@ -122,32 +106,18 @@ class WorkspaceAnalyzer:
 
     def set_robot_config(self, joint_angles):
         """设置机器人关节配置"""
-        if self.robot_id is None:
+        if self.robot_env is None:
             return
 
-        for i, angle in enumerate(joint_angles):
-            if i < len(self.valid_joints):
-                p.resetJointState(self.robot_id, self.valid_joints[i], angle)
+        self.robot_env.set_config(joint_angles)
 
     def get_end_effector_position(self):
         """获取末端执行器位置"""
-        if self.robot_id is None:
+        if self.robot_env is None:
             return None
 
-        num_joints = p.getNumJoints(self.robot_id)
-        if num_joints == 0:
-            # 如果没有关节，使用基座位置
-            pos, _ = p.getBasePositionAndOrientation(self.robot_id)
-            return pos
-
-        # 使用最后一个连杆作为末端执行器
-        try:
-            link_state = p.getLinkState(self.robot_id, num_joints - 1)
-            return link_state[0]  # 世界坐标位置
-        except Exception:
-            # 如果获取失败，尝试倒数第二个连杆
-            link_state = p.getLinkState(self.robot_id, num_joints - 2)
-            return link_state[0]
+        points = self.robot_env.get_robot_points(None, end_point=True)
+        return points[0] if points else None
 
     def analyze_workspace_bounds(self, positions):
         """
@@ -246,7 +216,9 @@ class WorkspaceAnalyzer:
 
     def disconnect(self):
         """断开PyBullet连接"""
-        p.disconnect()
+        if self.robot_env is not None:
+            self.robot_env.close()
+            self.robot_env = None
 
 
 def load_workspace_bounds(json_file):
@@ -270,20 +242,15 @@ def load_workspace_bounds(json_file):
 def main():
     """主程序"""
     if len(sys.argv) < 2:
-        print("用法: python workspace_analyzer.py <robot_urdf_path> [output_json_file]")
-        print("示例: python workspace_analyzer.py /path/to/robot.urdf workspace.json")
+        print("用法: python workspace_analyzer.py <robot_name> [output_json_file]")
+        print("示例: python workspace_analyzer.py franka workspace.json")
         return
 
-    robot_urdf_path = sys.argv[1]
-    output_file = sys.argv[2] if len(sys.argv) > 2 else "workspace_bounds.json"
-
-    # 验证URDF文件存在
-    if not os.path.exists(robot_urdf_path):
-        print(f"错误：URDF文件不存在: {robot_urdf_path}")
-        return
+    robot_name = sys.argv[1]
+    output_file = sys.argv[2] if len(sys.argv) > 2 else f"{robot_name}_workspace.json"
 
     # 创建工作空间分析器
-    analyzer = WorkspaceAnalyzer(robot_urdf_path)
+    analyzer = WorkspaceAnalyzer(robot_name)
 
     try:
         # 加载机器人

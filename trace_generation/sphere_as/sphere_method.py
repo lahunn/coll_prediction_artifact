@@ -4,6 +4,7 @@ import torch
 import sys
 import os
 import pickle
+from typing import Optional
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 from sphere_as.robot_sphere_analyzer import RobotSphereAnalyzer
@@ -15,15 +16,15 @@ class SphereEnv:
 
     def __init__(
         self,
-        robot_file="/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/franka_description/franka_panda.urdf",
-        robot_name="franka",
+        robot_env: RobotEnv,
+        robot_name: Optional[str] = None,
         SPH_GUI=None,
     ):
         """
         初始化球体环境
 
         Args:
-            robot_file: 机器人URDF文件路径（用于球体分析器）
+            robot_env: 复用的机器人环境实例
             SPH_GUI: 是否启用GUI模式
         """
         # 连接球体物理客户端
@@ -37,11 +38,15 @@ class SphereEnv:
         p.setGravity(0, 0, 0, physicsClientId=self.physics_client)
 
         # 初始化球体分析器
-        self.sphere_analyzer = RobotSphereAnalyzer(robot_name, device="cuda:0")
+        resolved_name = robot_name or getattr(robot_env, "robot_name", None)
+        if resolved_name is None:
+            raise ValueError("SphereEnv requires a valid robot name.")
 
-        # 初始化机器人环境（用于 link 邻接检查）
-        self.robot_env = RobotEnv(robot_file)
-        self.robot_name = robot_name
+        self.sphere_analyzer = RobotSphereAnalyzer(resolved_name, device="cuda:0")
+
+        # 复用传入的机器人环境（用于 link 邻接检查）
+        self.robot_env = robot_env
+        self.robot_name = resolved_name
         self.sphere_bodies = []
         self.sphere_obstacle_ids = []
 
@@ -102,16 +107,15 @@ class SphereEnv:
         if self.sphere_bodies:
             return
 
-        # 使用当前有效关节配置获取球体位置
-        # 注意：这里需要从外部传入当前配置，因为SphereEnv不管理机器人
-        # 暂时使用默认配置，实际使用时需要传入
-        current_config = [0.0] * 7  # 假设7DOF，实际需要传入
+        # 使用默认配置获取球体和link信息
         joint_config = torch.tensor(
-            current_config, dtype=torch.float32, device=torch.device("cuda:0")
+            [0.0] * 7, dtype=torch.float32, device=torch.device("cuda:0")
         ).unsqueeze(0)
-        world_spheres = self.sphere_analyzer.get_world_spheres(joint_config)
+        spheres, link_ids = self.sphere_analyzer.get_world_spheres_with_links(
+            joint_config
+        )
 
-        for x, y, z, radius in world_spheres:
+        for (x, y, z, radius), link_id in zip(spheres, link_ids):
             sphere_shape = p.createCollisionShape(
                 p.GEOM_SPHERE,
                 radius=float(radius),
@@ -124,6 +128,21 @@ class SphereEnv:
                 physicsClientId=self.physics_client,
             )
             self.sphere_bodies.append(sphere_body)
+
+        # 禁用同一link和相邻link的球体之间的碰撞检测
+        for i in range(len(link_ids)):
+            for j in range(i + 1, len(link_ids)):
+                if link_ids[i] == link_ids[j] or self.robot_env._are_links_adjacent(
+                    link_ids[i], link_ids[j]
+                ):
+                    p.setCollisionFilterPair(
+                        bodyUniqueIdA=self.sphere_bodies[i],
+                        bodyUniqueIdB=self.sphere_bodies[j],
+                        linkIndexA=-1,
+                        linkIndexB=-1,
+                        enableCollision=0,
+                        physicsClientId=self.physics_client,
+                    )
 
     def _update_sphere_positions(self, state):
         """
@@ -151,7 +170,7 @@ class SphereEnv:
 
         return sphere_coords
 
-    def _get_sphere_data_for_collision(self, state):
+    def _get_sphere_data(self, state):
         """
         获取关节配置下的球体数据（位置、半径、link ID）
 
@@ -171,116 +190,32 @@ class SphereEnv:
         radii = spheres[:, 3]  # numpy array
         return positions, radii, link_ids
 
-    def _check_sphere_pair_collision(self, pos1, r1, pos2, r2):
+    def _check_sphere_collision(self, state):
         """
-        检查两个球体是否碰撞
-
-        Args:
-            pos1: 球体1位置 [x, y, z]
-            r1: 球体1半径
-            pos2: 球体2位置 [x, y, z]
-            r2: 球体2半径
-
-        Returns:
-            bool: 是否碰撞
-        """
-        distance = np.linalg.norm(pos1 - pos2)
-        return distance <= (r1 + r2)
-
-    def _check_self_collision_geometric(self, state):
-        """
-        基于几何算法检查机器人自碰撞
+        检查球体与障碍物以及球体自碰撞（通过PyBullet碰撞检测）
 
         Args:
             state: 关节配置
 
         Returns:
-            tuple: (any_collision, sphere_colls) - 是否有自碰撞, 各球体自碰撞状态列表[0/1]
-        """
-        positions, radii, link_ids = self._get_sphere_data_for_collision(state)
-        n_spheres = len(positions)
-
-        # 初始化每个球体的碰撞状态，默认无碰撞
-        sphere_colls = [1] * n_spheres
-        any_collision = False
-
-        for i in range(n_spheres):
-            for j in range(i + 1, n_spheres):
-                # 跳过同一 link 的球体
-                if link_ids[i] == link_ids[j]:
-                    continue
-                # 跳过相邻 link 的球体
-                if self.robot_env._are_links_adjacent(link_ids[i], link_ids[j]):
-                    continue
-                # 检查碰撞
-                if self._check_sphere_pair_collision(
-                    positions[i], radii[i], positions[j], radii[j]
-                ):
-                    sphere_colls[i] = 0
-                    sphere_colls[j] = 0
-                    any_collision = True
-
-        return any_collision, sphere_colls
-
-    def _check_sphere_obstacle_collision(self):
-        """
-        检查球体与障碍物的碰撞
-
-        Returns:
             tuple: (是否有碰撞, 各球体碰撞状态列表[0/1])
         """
-        if not self.sphere_bodies or not self.sphere_obstacle_ids:
-            return False, [1] * len(self.sphere_bodies)
-
+        self._update_sphere_positions(state)
         p.performCollisionDetection(physicsClientId=self.physics_client)
-
-        # 获取所有接触点
-        contacts = p.getContactPoints(physicsClientId=self.physics_client)
 
         # 初始化碰撞状态，默认无碰撞
         sphere_colls = [1] * len(self.sphere_bodies)
         any_collision = False
 
-        # 检查接触点中是否有球体与障碍物的碰撞
-        for contact in contacts:
-            bodyA = contact[1]
-            bodyB = contact[2]
-
-            # 检查是否是球体与障碍物的碰撞
-            if bodyA in self.sphere_bodies and bodyB in self.sphere_obstacle_ids:
-                idx = self.sphere_bodies.index(bodyA)
-                sphere_colls[idx] = 0
-                any_collision = True
-            elif bodyB in self.sphere_bodies and bodyA in self.sphere_obstacle_ids:
-                idx = self.sphere_bodies.index(bodyB)
-                sphere_colls[idx] = 0
+        for i, sphere_body in enumerate(self.sphere_bodies):
+            contacts = p.getContactPoints(
+                bodyA=sphere_body, physicsClientId=self.physics_client
+            )
+            if len(contacts) > 0:
+                sphere_colls[i] = 0
                 any_collision = True
 
         return any_collision, sphere_colls
-
-    def _check_sphere_collision(self, state):
-        """
-        检查球体与障碍物以及球体自碰撞
-
-        Args:
-            state: 关节配置
-
-        Returns:
-            tuple: (是否有碰撞, 各球体碰撞状态列表[0/1])
-        """
-        # # 检查自碰撞
-        # self_any, self_colls = self._check_self_collision_geometric(state)
-
-        # # 检查与障碍物的碰撞
-        # obs_any, obs_colls = self._check_sphere_obstacle_collision()
-
-        # # 合并结果
-        # any_collision = self_any or obs_any
-        # sphere_colls = [
-        #     min(self_colls[i], obs_colls[i]) for i in range(len(self_colls))
-        # ]
-
-        return self._check_sphere_obstacle_collision()
 
     def _cleanup_sphere_bodies(self):
         """清理球体实体"""
