@@ -22,8 +22,7 @@ from utils.utils import calculate_expected_checks, calculate_baseline_expectatio
 
 # 添加 trace_generation 目录到 Python 路径
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
-from trace_generation.robot_as.ana_parameters import sphere_num, sphere_cost
-
+from trace_generation.robot_as.ana_parameters import get_robot_params
 
 
 def plot(code, ytest, name):
@@ -60,11 +59,11 @@ def create_bins(min_val, max_val, num_bins):
 def main():
     """主函数"""
     # 解析命令行参数
-    if len(sys.argv) != 7:
+    if len(sys.argv) < 7 or len(sys.argv) > 8:
         print(
-            "用法: python coord_hashing_sphere.py <密度等级> <坐标量化位数> <半径量化位数> <碰撞阈值> <自由样本采样率> <问题数量>"
+            "用法: python coord_hashing_sphere.py <密度等级> <坐标量化位数> <半径量化位数> <碰撞阈值> <自由样本采样率> <问题数量> [机器人名称]"
         )
-        print("示例: python coord_hashing_sphere.py dens6 8 6 0.1 0.3 100")
+        print("示例: python coord_hashing_sphere.py dens6 8 6 0.1 0.3 100 franka")
         sys.exit(1)
 
     density_level = sys.argv[1]
@@ -73,6 +72,13 @@ def main():
     collision_threshold = float(sys.argv[4])
     free_sample_rate = float(sys.argv[5])
     num_problems = int(sys.argv[6])
+    robot_name = sys.argv[7] if len(sys.argv) == 8 else "franka"
+
+    # 获取机器人参数
+    robot_params = get_robot_params(robot_name)
+    sphere_num = robot_params["sphere_num"]
+    sphere_cost = robot_params["sphere_cost"]
+
     # consider_radius = False
     consider_radius = True
 

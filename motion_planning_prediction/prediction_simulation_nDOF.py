@@ -26,7 +26,7 @@ import simulation_utils as su
 
 # 添加 trace_generation 目录到 Python 路径
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
-from trace_generation.robot_as.ana_parameters import obb_num, obb_cost
+from trace_generation.robot_as.ana_parameters import get_robot_params
 
 
 # --- Simulation Settings ---
@@ -46,10 +46,10 @@ total_link_checks = 0
 # --- Simulation Parameters from Command Line ---
 if len(sys.argv) < 7:
     print(
-        "Usage: python prediction_simulation_nDOF.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <num_benchmarks>"
+        "Usage: python prediction_simulation_nDOF.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <num_benchmarks> [robot_name]"
     )
     print(
-        "Example: python prediction_simulation_nDOF.py 0.5 0.1 8 ../trace_files/scene_benchmarks/bit_collision_data franka_14 100"
+        "Example: python prediction_simulation_nDOF.py 0.5 0.1 8 ../trace_files/scene_benchmarks/bit_collision_data franka_14 100 franka"
     )
     sys.exit(1)
 
@@ -59,9 +59,14 @@ qnoncoll_multiplier = int(sys.argv[3])
 data_folder = sys.argv[4]
 basename = sys.argv[5]
 num_benchmarks = int(sys.argv[6])
+robot_name = sys.argv[7]
 
-# 如果需要自适应，可以从第一个文件读取
-num_links = 8  # 可以根据实际机器人调整
+# 获取机器人参数
+robot_params = get_robot_params(robot_name)
+obb_num = robot_params["obb_num"]
+obb_cost = robot_params["obb_cost"]
+
+num_links = obb_num
 qnoncoll_len = num_links * qnoncoll_multiplier
 
 print("=== OBB碰撞检测预测仿真 ===")

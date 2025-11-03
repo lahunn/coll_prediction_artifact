@@ -18,7 +18,7 @@ from utils.utils import calculate_expected_checks, calculate_baseline_expectatio
 
 # 添加 trace_generation 目录到 Python 路径
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
-from trace_generation.robot_as.ana_parameters import obb_num, obb_cost
+from trace_generation.robot_as.ana_parameters import get_robot_params
 
 
 def load_benchmark_data(benchid, density="low"):
@@ -73,7 +73,7 @@ def quantize_coordinates(xtest_pred, num_bins=32):
     return code_pred_quant
 
 
-def evaluate_fixed_threshold(threshold, density, bench_ids, num_bins, update_prob):
+def evaluate_fixed_threshold(threshold, density, bench_ids, num_bins, update_prob, robot_params):
     """
     评估固定阈值策略在指定场景下的性能
 
@@ -83,15 +83,19 @@ def evaluate_fixed_threshold(threshold, density, bench_ids, num_bins, update_pro
         bench_ids: 场景ID列表
         num_bins: 分桶数量
         update_prob: 更新概率
+        robot_params: 机器人参数字典
 
     Returns:
         tuple: (平均成本, 平均baseline成本, 平均精确率, 平均召回率, 平均碰撞概率)
     """
+    obb_num = robot_params["obb_num"]
+    obb_cost = robot_params["obb_cost"]
+    
     strategy = FixedThresholdStrategy(threshold=threshold, update_prob=update_prob)
     all_costs = []
     all_baseline_costs = []
     all_collision_ratios = []
-    prec, rec = 0, 0
+    ele_prec, ele_rec = 0.0, 0.0
     for benchid in bench_ids:
         data = load_benchmark_data(benchid, density)
         if data is None:
@@ -102,17 +106,18 @@ def evaluate_fixed_threshold(threshold, density, bench_ids, num_bins, update_pro
 
         # 评估策略
         evaluate_strategy_on_trajectory(
-            strategy, code_pred_quant, label_pred, group_size=11
+            strategy, code_pred_quant, label_pred, group_size=obb_num
         )
 
         # 计算成本
-        prec, rec = strategy.get_metrics()
-        collision_ratio = strategy.get_collision_ratio()
+        prec, rec, ele_prec, ele_rec = strategy.get_metrics()
+        all_collision_ratio, ele_collision_ratio = strategy.get_collision_ratio(label_pred)
+        collision_ratio = ele_collision_ratio  # 使用元素级碰撞率
 
-        if prec > 0 and rec > 0 and collision_ratio > 0:
-            # 使用 calculate_expected_checks 计算预测器成本
+        if ele_prec > 0 and ele_rec > 0 and collision_ratio > 0:
+            # 使用 calculate_expected_checks 计算预测器成本（使用元素级指标）
             expected_checks = calculate_expected_checks(
-                R=collision_ratio, C=rec / 100.0, A=prec / 100.0, N=obb_num
+                R=collision_ratio, C=ele_rec / 100.0, A=ele_prec / 100.0, N=obb_num
             )
             cost = expected_checks * obb_cost
             all_costs.append(cost)
@@ -137,10 +142,10 @@ def evaluate_fixed_threshold(threshold, density, bench_ids, num_bins, update_pro
     )
     avg_collision_ratio = np.mean(all_collision_ratios) if all_collision_ratios else 0.0
 
-    return avg_cost, avg_baseline_cost, prec, rec, avg_collision_ratio
+    return avg_cost, avg_baseline_cost, ele_prec, ele_rec, avg_collision_ratio
 
 
-def optimize_fixed_threshold(density, bench_ids, num_bins, update_prob):
+def optimize_fixed_threshold(density, bench_ids, num_bins, update_prob, robot_params):
     """
     优化固定阈值策略的阈值参数
 
@@ -149,11 +154,11 @@ def optimize_fixed_threshold(density, bench_ids, num_bins, update_prob):
         bench_ids: 场景ID列表
         num_bins: 分桶数量
         update_prob: 更新概率
+        robot_params: 机器人参数字典
 
     Returns:
         tuple: (最佳阈值, 最低成本, baseline成本, 精确率, 召回率, 碰撞概率, 所有结果)
     """
-    global obb_num, obb_cost
     print(f"\n优化固定阈值策略 - {density}密度")
     print("-" * 70)
 
@@ -173,7 +178,7 @@ def optimize_fixed_threshold(density, bench_ids, num_bins, update_prob):
     for threshold in threshold_candidates:
         avg_cost, avg_baseline_cost, prec, rec, collision_ratio = (
             evaluate_fixed_threshold(
-                threshold, density, bench_ids, num_bins, update_prob
+                threshold, density, bench_ids, num_bins, update_prob, robot_params
             )
         )
 
@@ -217,18 +222,25 @@ def main():
     """主函数"""
     # 解析命令行参数
     if len(sys.argv) < 2:
-        print("用法: python optimize_s_parameters.py <bin_bits> [update_prob]")
-        print("示例: python optimize_s_parameters.py 4 0.5")
+        print("用法: python optimize_s_parameters.py <bin_bits> [update_prob] [robot_name]")
+        print("示例: python optimize_s_parameters.py 4 0.5 franka")
         sys.exit(1)
 
     bin_bits = int(sys.argv[1])
     update_prob = float(sys.argv[2]) if len(sys.argv) > 2 else 0.5
+    robot_name = sys.argv[3] if len(sys.argv) > 3 else "franka"
+    
+    # 获取机器人参数
+    robot_params = get_robot_params(robot_name)
+    
     num_bins = 2**bin_bits
     num_problems = 100
     print("=" * 70)
     print("S参数优化 - 基于计算成本")
     print("=" * 70)
     print("配置:")
+    print(f"  - 机器人: {robot_name}")
+    print(f"  - OBB数量: {robot_params['obb_num']}")
     print(f"  - 分桶数量: {num_bins} (2^{bin_bits})")
     print(f"  - 更新概率: {update_prob}")
     print("  - 优化目标: 最小化计算成本")
@@ -259,7 +271,7 @@ def main():
             best_fixed_rec,
             best_fixed_collision_ratio,
             fixed_results,
-        ) = optimize_fixed_threshold(density_name, bench_ids, num_bins, update_prob)
+        ) = optimize_fixed_threshold(density_name, bench_ids, num_bins, update_prob, robot_params)
 
         # 保存结果
         all_results[density_name] = {

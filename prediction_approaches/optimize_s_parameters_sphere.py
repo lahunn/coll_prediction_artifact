@@ -19,7 +19,7 @@ from utils.utils import calculate_expected_checks, calculate_baseline_expectatio
 
 # 添加 trace_generation 目录到 Python 路径
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
-from trace_generation.robot_as.ana_parameters import sphere_num, sphere_cost
+from trace_generation.robot_as.ana_parameters import get_robot_params
 
 
 def load_sphere_benchmark_data(benchid, density="low"):
@@ -132,6 +132,7 @@ def evaluate_fixed_threshold_sphere(
     num_bins_coord,
     num_bins_radius,
     update_prob,
+    robot_params,
     consider_radius=False,
 ):
     """
@@ -144,11 +145,15 @@ def evaluate_fixed_threshold_sphere(
         num_bins_coord: 坐标分桶数量
         num_bins_radius: 半径分桶数量
         update_prob: 更新概率
+        robot_params: 机器人参数字典
         consider_radius: 是否考虑半径
 
     Returns:
         tuple: (平均成本, 平均baseline成本, 平均精确率, 平均召回率, 平均碰撞概率)
     """
+    sphere_num = robot_params["sphere_num"]
+    sphere_cost = robot_params["sphere_cost"]
+    
     # 计算分桶边界
     x_bins, y_bins, z_bins, r_bins = compute_sphere_bins(
         density, num_bins_coord, num_bins_radius
@@ -158,7 +163,7 @@ def evaluate_fixed_threshold_sphere(
     all_costs = []
     all_baseline_costs = []
     all_collision_ratios = []
-    prec, rec = 0, 0
+    ele_prec, ele_rec = 0.0, 0.0
 
     for benchid in bench_ids:
         data = load_sphere_benchmark_data(benchid, density)
@@ -180,13 +185,14 @@ def evaluate_fixed_threshold_sphere(
         )
 
         # 计算成本
-        prec, rec = strategy.get_metrics()
-        collision_ratio = strategy.get_collision_ratio()
+        prec, rec, ele_prec, ele_rec = strategy.get_metrics()
+        all_collision_ratio, ele_collision_ratio = strategy.get_collision_ratio(yarr_sphere.flatten())
+        collision_ratio = ele_collision_ratio  # 使用元素级碰撞率
 
-        if prec > 0 and rec > 0 and collision_ratio > 0:
-            # 使用 calculate_expected_checks 计算预测器成本
+        if ele_prec > 0 and ele_rec > 0 and collision_ratio > 0:
+            # 使用 calculate_expected_checks 计算预测器成本（使用元素级指标）
             expected_checks = calculate_expected_checks(
-                R=collision_ratio, C=rec / 100.0, A=prec / 100.0, N=sphere_num
+                R=collision_ratio, C=ele_rec / 100.0, A=ele_prec / 100.0, N=sphere_num
             )
             cost = expected_checks * sphere_cost
             all_costs.append(cost)
@@ -211,7 +217,7 @@ def evaluate_fixed_threshold_sphere(
     )
     avg_collision_ratio = np.mean(all_collision_ratios) if all_collision_ratios else 0.0
 
-    return avg_cost, avg_baseline_cost, prec, rec, avg_collision_ratio
+    return avg_cost, avg_baseline_cost, ele_prec, ele_rec, avg_collision_ratio
 
 
 def optimize_fixed_threshold_sphere(
@@ -220,6 +226,7 @@ def optimize_fixed_threshold_sphere(
     num_bins_coord,
     num_bins_radius,
     update_prob,
+    robot_params,
     consider_radius=False,
 ):
     """
@@ -231,6 +238,7 @@ def optimize_fixed_threshold_sphere(
         num_bins_coord: 坐标分桶数量
         num_bins_radius: 半径分桶数量
         update_prob: 更新概率
+        robot_params: 机器人参数字典
         consider_radius: 是否考虑半径
 
     Returns:
@@ -260,6 +268,7 @@ def optimize_fixed_threshold_sphere(
                 num_bins_coord,
                 num_bins_radius,
                 update_prob,
+                robot_params,
                 consider_radius,
             )
         )
@@ -305,15 +314,19 @@ def main():
     # 解析命令行参数
     if len(sys.argv) < 3:
         print(
-            "用法: python optimize_s_parameters_sphere.py <coord_bin_bits> <radius_bin_bits> [update_prob] [consider_radius]"
+            "用法: python optimize_s_parameters_sphere.py <coord_bin_bits> <radius_bin_bits> [update_prob] [consider_radius] [robot_name]"
         )
-        print("示例: python optimize_s_parameters_sphere.py 4 0 0.5 0")
+        print("示例: python optimize_s_parameters_sphere.py 4 0 0.5 0 franka")
         sys.exit(1)
 
     coord_bin_bits = int(sys.argv[1])
     radius_bin_bits = int(sys.argv[2])
     update_prob = float(sys.argv[3]) if len(sys.argv) > 3 else 0.5
     consider_radius = bool(int(sys.argv[4])) if len(sys.argv) > 4 else False
+    robot_name = sys.argv[5] if len(sys.argv) > 5 else "franka"
+    
+    # 获取机器人参数
+    robot_params = get_robot_params(robot_name)
 
     num_bins_coord = 2**coord_bin_bits
     num_bins_radius = 2**radius_bin_bits
@@ -323,6 +336,8 @@ def main():
     print("球体碰撞预测的S参数优化 - 基于计算成本")
     print("=" * 70)
     print("配置:")
+    print(f"  - 机器人: {robot_name}")
+    print(f"  - Sphere数量: {robot_params['sphere_num']}")
     print(f"  - 坐标分桶数量: {num_bins_coord} (2^{coord_bin_bits})")
     print(f"  - 半径分桶数量: {num_bins_radius} (2^{radius_bin_bits})")
     print(f"  - 更新概率: {update_prob}")
@@ -361,6 +376,7 @@ def main():
             num_bins_coord,
             num_bins_radius,
             update_prob,
+            robot_params,
             consider_radius,
         )
 

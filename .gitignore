@@ -25,3 +25,5 @@ curobo_examples/*
 trace_generation/sphere_as/sphere_output/*.pkl
 trace_generation/sphere_as/test_sphere_outputs/*.pkl
 trace_generation/sphere_as/inconsistent_edge/*.pkl
+fcl_examples/*
+collision/*

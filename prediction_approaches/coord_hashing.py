@@ -21,7 +21,7 @@ from utils.utils import calculate_expected_checks, calculate_baseline_expectatio
 
 # 添加 trace_generation 目录到 Python 路径
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
-from trace_generation.robot_as.ana_parameters import obb_num, obb_cost
+from trace_generation.robot_as.ana_parameters import get_robot_params
 
 
 def plot(code, ytest, name):
@@ -52,11 +52,11 @@ def plot(code, ytest, name):
 def main():
     """主函数"""
     # 解析命令行参数
-    if len(sys.argv) != 6:
+    if len(sys.argv) < 6 or len(sys.argv) > 7:
         print(
-            "用法: python coord_hashing.py <密度等级> <量化位数> <碰撞阈值> <自由样本采样率> <问题数量>"
+            "用法: python coord_hashing.py <密度等级> <量化位数> <碰撞阈值> <自由样本采样率> <问题数量> [机器人名称]"
         )
-        print("示例: python coord_hashing.py dens6 8 0.1 0.3 100")
+        print("示例: python coord_hashing.py dens6 8 0.1 0.3 100 franka")
         sys.exit(1)
 
     density_level = sys.argv[1]
@@ -64,7 +64,13 @@ def main():
     collision_threshold = float(sys.argv[3])
     free_sample_rate = float(sys.argv[4])
     num_problems = int(sys.argv[5])
-    num_links = 11
+    robot_name = sys.argv[6] if len(sys.argv) == 7 else "franka"
+    
+    # 获取机器人参数
+    robot_params = get_robot_params(robot_name)
+    obb_num = robot_params["obb_num"]
+    obb_cost = robot_params["obb_cost"]
+    num_links = obb_num
 
     # 设置量化参数
     binnumber = 2**quantize_bits

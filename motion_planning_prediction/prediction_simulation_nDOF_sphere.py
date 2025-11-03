@@ -15,7 +15,7 @@ import simulation_utils as su
 
 # 添加 trace_generation 目录到 Python 路径
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
-from trace_generation.robot_as.ana_parameters import sphere_num, sphere_cost
+from trace_generation.robot_as.ana_parameters import get_robot_params
 
 
 # --- Simulation Settings ---
@@ -33,12 +33,12 @@ fall_oracle = 0
 total_sphere_checks = 0
 
 # --- Simulation Parameters from Command Line ---
-if len(sys.argv) < 6:
+if len(sys.argv) < 7:
     print(
-        "Usage: python prediction_simulation_nDOF_sphere.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <num_benchmarks>"
+        "Usage: python prediction_simulation_nDOF_sphere.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <num_benchmarks> [robot_name]"
     )
     print(
-        "Example: python prediction_simulation_nDOF_sphere.py 0.5 0.1 8 ../trace_files/scene_benchmarks/bit_collision_data franka_14 100"
+        "Example: python prediction_simulation_nDOF_sphere.py 0.5 0.1 8 ../trace_files/scene_benchmarks/bit_collision_data franka_14 100 franka"
     )
     sys.exit(1)
 
@@ -48,10 +48,14 @@ qnoncoll_multiplier = int(sys.argv[3])
 data_folder = sys.argv[4]
 basename = sys.argv[5]
 num_benchmarks = int(sys.argv[6])
+robot_name = sys.argv[7]
 
-# 从示例数据推断球体数量（假设Kuka有15个球体）
-# 如果需要自适应，可以从第一个文件读取
-num_spheres = 22  # 可以根据实际机器人调整
+# 获取机器人参数
+robot_params = get_robot_params(robot_name)
+sphere_num = robot_params["sphere_num"]
+sphere_cost = robot_params["sphere_cost"]
+
+num_spheres = sphere_num
 qnoncoll_len = num_spheres * qnoncoll_multiplier
 
 print("=== 球体碰撞检测预测仿真 ===")

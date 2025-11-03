@@ -1,14 +1,15 @@
 #!/bin/bash
 # 球体和OBB碰撞检测仿真测试脚本
 
-echo "========================================"
-echo "球体和OBB碰撞检测仿真测试"
-echo "========================================"
-
+# 默认机器人名称
+ROBOT_NAME="iiwa"
 # 检查数据文件夹
 SPHERE_DATA="../trace_files/scene_benchmarks/bit_collision_data"
 OBB_DATA="../trace_files/scene_benchmarks/bit_collision_data"
 BASE_NAME="iiwa_7"
+NUM_TESTS=200
+
+
 echo -e "\n[1/4] 检查数据文件夹..."
 if [ ! -d "$SPHERE_DATA" ]; then
     echo "警告: 球体数据文件夹不存在: $SPHERE_DATA"
@@ -32,10 +33,9 @@ echo "找到 $OBB_FILES 个OBB数据文件"
 
 # 运行球体仿真测试
 echo -e "\n[3/4] 运行球体碰撞检测仿真..."
-NUM_TESTS=5
 echo "测试前 $NUM_TESTS 个基准..."
-# python prediction_simulation_nDOF_sphere.py 碰撞阈值 更新率 非碰撞队列的长度比 SPHERE_DATA BASE_NAME NUM_TESTS
-python prediction_simulation_nDOF_sphere.py 0.5 0.1 8 $SPHERE_DATA $BASE_NAME $NUM_TESTS
+# python prediction_simulation_nDOF_sphere.py 碰撞阈值 更新率 非碰撞队列的长度比 SPHERE_DATA BASE_NAME NUM_TESTS [robot_name]
+python prediction_simulation_nDOF_sphere.py 0.5 0.1 8 $SPHERE_DATA $BASE_NAME $NUM_TESTS $ROBOT_NAME
 
 if [ $? -eq 0 ]; then
     echo "✓ 球体仿真测试通过"
@@ -48,8 +48,8 @@ fi
 echo -e "\n[4/4] 运行OBB碰撞检测仿真..."
 echo "测试前 $NUM_TESTS 个基准..."
 
-# python prediction_simulation_nDOF.py 碰撞阈值 更新率 非碰撞队列的长度比 OBB_DATA BASE_NAME NUM_TESTS
-python prediction_simulation_nDOF.py 0.5 0.1 8 $OBB_DATA $BASE_NAME $NUM_TESTS
+# python prediction_simulation_nDOF.py 碰撞阈值 更新率 非碰撞队列的长度比 OBB_DATA BASE_NAME NUM_TESTS [robot_name]
+python prediction_simulation_nDOF.py 0.5 0.1 8 $OBB_DATA $BASE_NAME $NUM_TESTS $ROBOT_NAME
 
 if [ $? -eq 0 ]; then
     echo "✓ OBB仿真测试通过"
@@ -61,7 +61,7 @@ fi
 echo -e "\n========================================"
 echo "所有测试通过! ✓"
 echo "========================================"
-echo -e "\n使用方法:"
-echo "  球体仿真: python prediction_simulation_nDOF_sphere.py 0.5 0.1 8 $SPHERE_DATA 100"
-echo "  OBB仿真:  python prediction_simulation_nDOF_obb.py 0.5 0.1 8 $OBB_DATA 100"
+echo -e "\n详细命令:"
+echo "  球体仿真: python prediction_simulation_nDOF_sphere.py 0.5 0.1 8 $SPHERE_DATA $BASE_NAME 100 $ROBOT_NAME"
+echo "  OBB仿真:  python prediction_simulation_nDOF.py 0.5 0.1 8 $OBB_DATA $BASE_NAME 100 $ROBOT_NAME"
 echo -e "\n查看详细使用指南: cat SPHERE_OBB_SIMULATION_GUIDE.md"
