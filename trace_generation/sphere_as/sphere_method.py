@@ -1,4 +1,3 @@
-import numpy as np
 import pybullet as p
 import torch
 import sys
@@ -59,16 +58,20 @@ class SphereEnv:
         self._cleanup_sphere_bodies()
         p.disconnect(physicsClientId=self.physics_client)
 
-    def init_obstacle_bodies(self, num_obstacles, initial_obstacles=None):
-        """初始化球体障碍物"""
-        self.sphere_obstacle_ids = []
-        for i in range(num_obstacles):
-            if initial_obstacles is not None and i < len(initial_obstacles):
-                halfExtents, basePosition = initial_obstacles[i]
-            else:
-                halfExtents = np.array([0.1, 0.1, 0.1])
-                basePosition = np.array([0, 0, -10])
+    def load_obstacles(self, obstacles):
+        """
+        加载并初始化球体障碍物
 
+        Args:
+            obstacles: 障碍物列表，每个元素为 (halfExtents, basePosition) 元组
+
+        Returns:
+            创建的障碍物body ID列表
+        """
+        self.cleanup_obstacles()
+        self.sphere_obstacle_ids = []
+
+        for halfExtents, basePosition in obstacles:
             sphere_colId = p.createCollisionShape(
                 p.GEOM_BOX,
                 halfExtents=halfExtents,
@@ -81,6 +84,8 @@ class SphereEnv:
                 physicsClientId=self.physics_client,
             )
             self.sphere_obstacle_ids.append(sphere_obstId)
+
+        return self.sphere_obstacle_ids
 
     def update_obstacle_poses(self, new_obstacles):
         """更新球体障碍物位置"""

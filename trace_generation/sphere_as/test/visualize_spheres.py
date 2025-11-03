@@ -21,8 +21,11 @@ import torch
 from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../"))
 # 导入球体分析器
 from robot_sphere_analyzer import RobotSphereAnalyzer
+from sphere_method import SphereEnv
+from robot_as.robot_method import RobotEnv
 
 # 机器人名称到URDF路径的映射字典
 # 基于content/configs/robot/目录下的yml配置文件
@@ -106,6 +109,11 @@ class SphereVisualizer:
         self.sphere_bodies = []
         self.sphere_analyzer = None
 
+        # SphereEnv 用于碰撞检测
+        self.robot_env = None
+        self.sphere_env = None
+        self.last_joint_config = None
+
     def load_robot(self):
         """加载机器人URDF模型"""
         # 机器人URDF路径映射 - 基于yml配置文件中的urdf_path和asset_root_path
@@ -171,6 +179,22 @@ class SphereVisualizer:
             return True
         except Exception as e:
             print(f"✗ 球体分析器初始化失败: {e}")
+            return False
+
+    def initialize_sphere_env(self):
+        """初始化 SphereEnv 用于碰撞检测"""
+        try:
+            # 创建 RobotEnv（使用 DIRECT 模式，不显示GUI）
+            self.robot_env = RobotEnv(self.robot_name, OBB_GUI=False)
+
+            # 创建 SphereEnv
+            self.sphere_env = SphereEnv(
+                robot_env=self.robot_env, robot_name=self.robot_name, SPH_GUI=False
+            )
+            print(f"✓ SphereEnv 初始化成功 ({self.robot_name})")
+            return True
+        except Exception as e:
+            print(f"✗ SphereEnv 初始化失败: {e}")
             return False
 
     def create_spheres(self, world_spheres, transparency=0.3):
@@ -247,7 +271,32 @@ class SphereVisualizer:
                     physicsClientId=self.physics_client,
                 )
 
-        except Exception:
+            # 检查配置是否发生变化，如果变化则执行碰撞检测
+            if self.sphere_env is not None:
+                config_changed = self.last_joint_config is None or not np.allclose(
+                    current_angles, self.last_joint_config, atol=1e-4
+                )
+
+                if config_changed:
+                    self.last_joint_config = np.array(current_angles)
+                    # 执行碰撞检测
+                    collision, coords, colls = (
+                        self.sphere_env.get_sphere_collision_data(current_angles)
+                    )
+
+                    # 输出碰撞检测结果
+                    colliding_spheres = [i for i, coll in enumerate(colls) if coll == 0]
+                    if collision:
+                        print(
+                            f"\n⚠️  检测到碰撞! 碰撞球体数: {len(colliding_spheres)}/{len(colls)}"
+                        )
+                        print(
+                            f"   碰撞球体索引: {colliding_spheres[:10]}{'...' if len(colliding_spheres) > 10 else ''}"
+                        )
+                    else:
+                        print(f"\n✓ 无碰撞 (检测了 {len(colls)} 个球体)")
+
+        except Exception as e:
             # 静默处理错误，避免刷屏
             pass
 
@@ -324,6 +373,12 @@ class SphereVisualizer:
 
         # 确保球体分析器已正确初始化
         assert self.sphere_analyzer is not None, "球体分析器初始化失败"
+
+        # 初始化 SphereEnv 用于碰撞检测
+        if not self.initialize_sphere_env():
+            print("警告: SphereEnv 初始化失败，碰撞检测功能不可用")
+        else:
+            print("✓ 碰撞检测功能已启用")
 
         # 获取关节配置
         if config_type == "zero":
@@ -404,9 +459,22 @@ class SphereVisualizer:
 
     def cleanup(self):
         """清理资源"""
-        self.clear_spheres()
-        p.disconnect(physicsClientId=self.physics_client)
-        print("✓ 资源已清理")
+        if self.sphere_env is not None:
+            try:
+                self.sphere_env.close()
+            except:
+                pass
+            self.sphere_env = None
+
+        if self.robot_env is not None:
+            try:
+                self.robot_env.close()
+            except:
+                pass
+            self.robot_env = None
+
+        if self.client_id is not None:
+            p.disconnect(self.client_id)
 
 
 def main():

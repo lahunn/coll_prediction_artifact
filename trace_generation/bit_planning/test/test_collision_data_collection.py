@@ -32,7 +32,7 @@ def main():
         (np.array([0.1, 0.1, 0.1]), np.array([0.5, 0.0, 0.3])),
         (np.array([0.15, 0.15, 0.1]), np.array([-0.3, 0.4, 0.2])),
     ]
-    obstacle_ids = obstacle_manager.init_obstacle_bodies(len(obstacles), obstacles)
+    obstacle_ids = obstacle_manager.load_obstacles(obstacles)
     env.load_obstacle_body_ids(obstacle_ids)
     print(f"✓ 创建了 {len(obstacles)} 个障碍物\n")
 

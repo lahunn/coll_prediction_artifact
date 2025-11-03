@@ -6,7 +6,6 @@ from utils.problem import ProblemManager
 from robot_as.obstacle_manager import ObstacleManager
 from robot_as.robot_method import RobotEnv
 from robot_as.collision_check import CollisionEnv
-import numpy as np
 
 
 class ModularEnv:
@@ -20,18 +19,19 @@ class ModularEnv:
     - collision_env: 碰撞检测环境
     """
 
-    def __init__(self, robot_file, map_file=None, GUI=False):
+    def __init__(self, robot_name, map_file=None, GUI=False, enable_self_collision=False):
         """
         初始化模块化环境
 
         Args:
-            robot_file: 机器人URDF文件路径
+            robot_name: 机器人名称（例如 'franka', 'ur5e'）
             map_file: 问题数据集文件路径
             GUI: 是否启用GUI模式
+            enable_self_collision: 是否启用自碰撞检测（可选，默认为False）
         """
         # 初始化各个组件
         self.problem_manager = ProblemManager(map_file)
-        self.robot_env = RobotEnv(robot_file, OBB_GUI=GUI)
+        self.robot_env = RobotEnv(robot_name, OBB_GUI=GUI, enable_self_collision=enable_self_collision)
         self.collision_env = CollisionEnv(self.robot_env)
         self.obstacle_manager = ObstacleManager(
             physics_client=self.robot_env.physics_client
@@ -287,7 +287,7 @@ class ModularEnv:
         )
 
         # 加载障碍物到环境中
-        self.obstacle_manager.load_and_init_obstacles_from_data(obstacles)
+        self.obstacle_manager.load_obstacles(obstacles)
 
         # 更新碰撞环境中的障碍物
         self.collision_env.load_obstacle_body_ids(

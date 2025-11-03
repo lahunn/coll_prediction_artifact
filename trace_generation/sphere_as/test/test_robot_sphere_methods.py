@@ -14,21 +14,26 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 from robot_as.modular_env import ModularEnv
 from sphere_method import SphereEnv
 
+robot_name = "iiwa"
+
 
 def print_link_names():
     """输出link名与link序号的对应关系"""
     print("=== Link名与序号对应关系 ===")
 
     # 初始化ModularEnv
-    robot_file = "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/franka_description/franka_panda.urdf"
-    modular_env = ModularEnv(robot_file)
+    modular_env = ModularEnv(robot_name)
     robot_env = modular_env.robot_env
 
     print("所有关节信息:")
-    num_joints = p.getNumJoints(robot_env.robotId, physicsClientId=robot_env.physics_client)
+    num_joints = p.getNumJoints(
+        robot_env.robotId, physicsClientId=robot_env.physics_client
+    )
     for i in range(num_joints):
-        joint_info = p.getJointInfo(robot_env.robotId, i, physicsClientId=robot_env.physics_client)
-        link_name = joint_info[12].decode('utf-8') if joint_info[12] else "N/A"
+        joint_info = p.getJointInfo(
+            robot_env.robotId, i, physicsClientId=robot_env.physics_client
+        )
+        link_name = joint_info[12].decode("utf-8") if joint_info[12] else "N/A"
         print(f"  关节 {i}: link名='{link_name}', 序号={i}")
 
     print(f"\n有效碰撞links ({len(robot_env.valid_collision_links)} 个):")
@@ -36,8 +41,10 @@ def print_link_names():
         if idx == -1:
             print(f"  Link序号: {idx}, 名称: 'base'")
         else:
-            joint_info = p.getJointInfo(robot_env.robotId, idx, physicsClientId=robot_env.physics_client)
-            link_name = joint_info[12].decode('utf-8') if joint_info[12] else "N/A"
+            joint_info = p.getJointInfo(
+                robot_env.robotId, idx, physicsClientId=robot_env.physics_client
+            )
+            link_name = joint_info[12].decode("utf-8") if joint_info[12] else "N/A"
             print(f"  Link序号: {idx}, 名称: '{link_name}'")
 
     modular_env.close()
@@ -48,8 +55,7 @@ def test_are_links_adjacent():
     print("=== 测试 _are_links_adjacent 方法 ===")
 
     # 初始化ModularEnv
-    robot_file = "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/franka_description/franka_panda.urdf"
-    modular_env = ModularEnv(robot_file)
+    modular_env = ModularEnv(robot_name)
     robot_env = modular_env.robot_env
 
     print(f"有效碰撞link数量: {len(robot_env.valid_collision_links)}")
@@ -89,17 +95,16 @@ def test_self_collision_geometric():
     """测试 sphere_env 中的自碰撞方法"""
     print("\n=== 测试自碰撞方法 _check_self_collision_geometric ===")
 
-    # 初始化ModularEnv（无GUI）
-    robot_file = "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/franka_description/franka_panda.urdf"
-    modular_env = ModularEnv(robot_file)
+    # 初始化ModularEnv（无GUI，启用自碰撞检测）
+    modular_env = ModularEnv(robot_name)
 
     # 初始化球体环境（无GUI）
-    sphere_env = SphereEnv(robot_file)
+    sphere_env = SphereEnv(robot_env=modular_env.robot_env, robot_name=robot_name)
 
     # 获取关节限位（假设franka的限位）
 
     # 生成100个随机配置
-    test_configs = modular_env.robot_env.sample_n_points(1000)
+    test_configs = modular_env.robot_env.sample_n_points(100)
 
     consistent_count = 0
     inconsistent_count = 0
@@ -110,12 +115,14 @@ def test_self_collision_geometric():
 
     for i, joint_state in enumerate(test_configs):
         # 检查modular_env的自碰撞（使用_state_fp，True表示无碰撞）
-        modular_free = modular_env._state_fp(joint_state)
+        modular_free, _, modular_link_colls = (
+            modular_env.collision_env._point_in_free_space(joint_state)
+        )
         modular_collision = not modular_free  # True if collision
 
         # 检查sphere_env的自碰撞
         sphere_env._update_sphere_positions(joint_state)
-        sphere_collision, _ = sphere_env._check_sphere_collision(joint_state)
+        sphere_collision, sphere_colls = sphere_env._check_sphere_collision(joint_state)
 
         modular_collision_count += int(modular_collision)
         sphere_collision_count += int(sphere_collision)
@@ -123,9 +130,16 @@ def test_self_collision_geometric():
         if modular_collision == sphere_collision:
             consistent_count += 1
         else:
+            # 获取碰撞的link和sphere序号
+            colliding_links = [
+                j for j, coll in enumerate(modular_link_colls) if coll == 0
+            ]
+            colliding_spheres = [j for j, coll in enumerate(sphere_colls) if coll == 0]
             print(
                 f"配置 {i} 不一致: Modular碰撞={modular_collision}, Sphere碰撞={sphere_collision}"
             )
+            print(f"  碰撞links: {colliding_links}")
+            print(f"  碰撞spheres: {colliding_spheres}")
             inconsistent_count += 1
 
         if (i + 1) % 10 == 0:
@@ -149,11 +163,10 @@ def test_random_obstacles_collision():
     print("\n=== 测试随机障碍物和随机pose的碰撞检测 ===")
 
     # 初始化ModularEnv（无GUI）
-    robot_file = "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/franka_description/franka_panda.urdf"
-    modular_env = ModularEnv(robot_file)
+    modular_env = ModularEnv(robot_name)
 
     # 初始化球体环境（无GUI）
-    sphere_env = SphereEnv(robot_file)
+    sphere_env = SphereEnv(robot_env=modular_env.robot_env, robot_name=robot_name)
 
     # 生成随机障碍物
     num_obstacles = 15
@@ -171,12 +184,12 @@ def test_random_obstacles_collision():
     )
 
     # 初始化球体环境的障碍物
-    sphere_env.init_obstacle_bodies(num_obstacles, obstacles)
+    sphere_env.load_obstacles(obstacles)
 
     print(f"生成了 {num_obstacles} 个随机障碍物")
 
     # 生成随机pose
-    num_poses = 1000
+    num_poses = 10000
     test_configs = modular_env.robot_env.sample_n_points(num_poses)
 
     print(f"测试 {num_poses} 个随机pose...")

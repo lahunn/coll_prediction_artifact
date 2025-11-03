@@ -59,7 +59,7 @@ def verify_collision(edge_data, method, robot_file, robot_name):
         modular_env = ModularEnv(robot_file)
         # 加载障碍物
         if obstacles:
-            modular_env.obstacle_manager.load_and_init_obstacles_from_data(obstacles)
+            modular_env.obstacle_manager.load_obstacles(obstacles)
 
         for i, edge in enumerate(edge_configs):
             # edge_collision = []
@@ -88,7 +88,7 @@ def verify_collision(edge_data, method, robot_file, robot_name):
         # 使用SphereEnv
         sphere_env = SphereEnv(robot_name=robot_name)
         if obstacles:
-            sphere_env.init_obstacle_bodies(len(obstacles), obstacles)
+            sphere_env.load_obstacles(obstacles)
 
         for i, edge in enumerate(edge_configs):
             edge_collision = False
@@ -209,7 +209,7 @@ def visualize_sphere_model(edge_data, robot_name="franka"):
     obstacles = edge_data.get("obstacles", [])
     if obstacles:
         print(f"加载 {len(obstacles)} 个障碍物")
-        sphere_env.init_obstacle_bodies(len(obstacles), obstacles)
+        sphere_env.load_obstacles(obstacles)
 
     edge_configs = edge_data.get("edge_configs", [])
     print(f"共 {len(edge_configs)} 个不一致edge")

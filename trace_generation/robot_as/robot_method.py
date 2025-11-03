@@ -29,17 +29,19 @@ class RobotEnv:
 
     """
 
-    def __init__(self, robot_name, OBB_GUI=None):
+    def __init__(self, robot_name, OBB_GUI=None, enable_self_collision=False):
         """
         初始化机器人环境（通过 robot_name 查找 URDF）
 
         Args:
             robot_name: 机器人名称，用于在 `robot_urdf_mapping` 中查找相对URDF路径
             OBB_GUI: 是否启用GUI模式（可选，默认为False）
+            enable_self_collision: 是否启用自碰撞检测（可选，默认为False）
         """
 
         # 将 robot_name 保存在实例中
         self.robot_name = robot_name
+        self.enable_self_collision = enable_self_collision
 
         # 从映射表获取相对URDF路径（映射内可能以 / 开头）
         rel_path = robot_urdf_mapping.get(robot_name)
@@ -181,13 +183,22 @@ class RobotEnv:
 
     def _disable_adjacent_link_collisions(self):
         """
-        禁用相邻连杆之间的碰撞检测
+        禁用连杆之间的碰撞检测
+        - 如果启用自碰撞检测，则只禁用相邻连杆之间的碰撞
+        - 如果禁用自碰撞检测，则禁用所有连杆之间的碰撞
         """
         for i in range(len(self.valid_collision_links)):
             for j in range(i + 1, len(self.valid_collision_links)):
                 link_a = self.valid_collision_links[i]
                 link_b = self.valid_collision_links[j]
-                if self._are_links_adjacent(link_a, link_b):
+
+                # 如果不启用自碰撞检测，禁用所有连杆间的碰撞
+                # 如果启用自碰撞检测，只禁用相邻连杆间的碰撞
+                should_disable = (
+                    not self.enable_self_collision
+                ) or self._are_links_adjacent(link_a, link_b)
+
+                if should_disable:
                     p.setCollisionFilterPair(
                         bodyUniqueIdA=self.robotId,
                         bodyUniqueIdB=self.robotId,

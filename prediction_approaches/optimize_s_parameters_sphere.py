@@ -3,6 +3,7 @@
 球体碰撞预测的S参数优化脚本
 在不同障碍物密度下寻找最佳的S参数阈值以,计算成本作为优化目标
 """
+
 # 用法 python optimize_s_parameters_sphere.py <coord_bin_bits> <radius_bin_bits> [update_prob] [consider_radius]
 # 示例 python optimize_s_parameters_sphere.py 4 0 0.5 0
 import sys
@@ -16,9 +17,9 @@ from collision_prediction_strategies import (
 )
 from utils.utils import calculate_expected_checks, calculate_baseline_expectation
 
-
-sphere_num = 61
-sphere_cost = 18
+# 添加 trace_generation 目录到 Python 路径
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
+from trace_generation.robot_as.ana_parameters import sphere_num, sphere_cost
 
 
 def load_sphere_benchmark_data(benchid, density="low"):
@@ -189,12 +190,14 @@ def evaluate_fixed_threshold_sphere(
             )
             cost = expected_checks * sphere_cost
             all_costs.append(cost)
-            
+
             # 使用 calculate_baseline_expectation 计算baseline成本
-            baseline_checks = calculate_baseline_expectation(N=sphere_num, R=collision_ratio)
+            baseline_checks = calculate_baseline_expectation(
+                N=sphere_num, R=collision_ratio
+            )
             baseline_cost = baseline_checks * sphere_cost
             all_baseline_costs.append(baseline_cost)
-            
+
             # 收集碰撞概率
             all_collision_ratios.append(collision_ratio)
 
@@ -203,7 +206,9 @@ def evaluate_fixed_threshold_sphere(
         strategy.reset_statistics()
 
     avg_cost = np.mean(all_costs) if all_costs else float("inf")
-    avg_baseline_cost = np.mean(all_baseline_costs) if all_baseline_costs else float("inf")
+    avg_baseline_cost = (
+        np.mean(all_baseline_costs) if all_baseline_costs else float("inf")
+    )
     avg_collision_ratio = np.mean(all_collision_ratios) if all_collision_ratios else 0.0
 
     return avg_cost, avg_baseline_cost, prec, rec, avg_collision_ratio
@@ -247,17 +252,21 @@ def optimize_fixed_threshold_sphere(
     results = []
 
     for threshold in threshold_candidates:
-        avg_cost, avg_baseline_cost, prec, rec, collision_ratio = evaluate_fixed_threshold_sphere(
-            threshold,
-            density,
-            bench_ids,
-            num_bins_coord,
-            num_bins_radius,
-            update_prob,
-            consider_radius,
+        avg_cost, avg_baseline_cost, prec, rec, collision_ratio = (
+            evaluate_fixed_threshold_sphere(
+                threshold,
+                density,
+                bench_ids,
+                num_bins_coord,
+                num_bins_radius,
+                update_prob,
+                consider_radius,
+            )
         )
 
-        results.append((threshold, avg_cost, avg_baseline_cost, prec, rec, collision_ratio))
+        results.append(
+            (threshold, avg_cost, avg_baseline_cost, prec, rec, collision_ratio)
+        )
 
         print(
             f"  阈值={threshold:8.4f}, 平均成本={avg_cost:7.4f}, "
@@ -280,7 +289,15 @@ def optimize_fixed_threshold_sphere(
     print(f"   召回率: {best_rec:.2f}%")
     print(f"   碰撞率: {best_collision_ratio:.4f}")
 
-    return best_threshold, best_cost, best_baseline_cost, best_prec, best_rec, best_collision_ratio, results
+    return (
+        best_threshold,
+        best_cost,
+        best_baseline_cost,
+        best_prec,
+        best_rec,
+        best_collision_ratio,
+        results,
+    )
 
 
 def main():
@@ -375,8 +392,8 @@ def main():
         print(f"  最佳阈值: {fixed_data['threshold']:.4f}")
         print(f"  平均成本: {fixed_data['cost']:.4f}")
         print(f"  Baseline成本: {fixed_data['baseline_cost']:.4f}")
-        if fixed_data['baseline_cost'] > 0:
-            speedup = fixed_data['baseline_cost'] / fixed_data['cost']
+        if fixed_data["baseline_cost"] > 0:
+            speedup = fixed_data["baseline_cost"] / fixed_data["cost"]
             print(f"  加速比: {speedup:.2f}x")
         print(f"  精确率: {fixed_data['precision']:.2f}%")
         print(f"  召回率: {fixed_data['recall']:.2f}%")
@@ -389,7 +406,11 @@ def main():
     print("密度,策略,参数,成本,Baseline成本,加速比,精确率,召回率,碰撞率")
     for density_name in ["low", "mid", "high"]:
         fixed_data = all_results[density_name]["fixed"]
-        speedup = fixed_data['baseline_cost'] / fixed_data['cost'] if fixed_data['cost'] > 0 else 0
+        speedup = (
+            fixed_data["baseline_cost"] / fixed_data["cost"]
+            if fixed_data["cost"] > 0
+            else 0
+        )
 
         print(
             f"{density_name},固定阈值,{fixed_data['threshold']:.4f},"
@@ -431,7 +452,11 @@ def main():
         # 写入每种密度的结果
         for density_name in ["low", "mid", "high"]:
             fixed_data = all_results[density_name]["fixed"]
-            speedup = fixed_data['baseline_cost'] / fixed_data['cost'] if fixed_data['cost'] > 0 else 0
+            speedup = (
+                fixed_data["baseline_cost"] / fixed_data["cost"]
+                if fixed_data["cost"] > 0
+                else 0
+            )
 
             # 固定阈值策略结果
             writer.writerow(
@@ -461,13 +486,30 @@ def main():
 
         # 写入表头
         writer.writerow(
-            ["密度", "策略类型", "参数值", "平均成本", "Baseline成本", "加速比", "精确率(%)", "召回率(%)", "碰撞率"]
+            [
+                "密度",
+                "策略类型",
+                "参数值",
+                "平均成本",
+                "Baseline成本",
+                "加速比",
+                "精确率(%)",
+                "召回率(%)",
+                "碰撞率",
+            ]
         )
 
         # 写入固定阈值策略的所有测试结果
         for density_name in ["low", "mid", "high"]:
             fixed_data = all_results[density_name]["fixed"]
-            for threshold, cost, baseline_cost, prec, rec, collision_ratio in fixed_data["all_results"]:
+            for (
+                threshold,
+                cost,
+                baseline_cost,
+                prec,
+                rec,
+                collision_ratio,
+            ) in fixed_data["all_results"]:
                 speedup = baseline_cost / cost if cost > 0 else 0
                 writer.writerow(
                     [

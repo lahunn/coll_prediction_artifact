@@ -47,29 +47,24 @@ class ObstacleManager:
 
         return groundId
 
-    def init_obstacle_bodies(self, num_obstacles, initial_obstacles=None):
+    def load_obstacles(self, obstacles):
         """
-        初始化障碍物体
+        加载并初始化障碍物到PyBullet环境中
 
         Args:
-            num_obstacles: 障碍物数量
-            initial_obstacles: 初始障碍物列表（可选）
+            obstacles: 障碍物列表，每个元素为 (halfExtents, basePosition) 元组
 
         Returns:
-            障碍物体ID列表
+            创建的障碍物body ID列表
         """
-        self.obstacles = initial_obstacles
+        self.obstacles = obstacles
+        self.cleanup_obstacles()
         self.obstacle_body_ids = []
-        for i in range(num_obstacles):
-            if initial_obstacles is not None and i < len(initial_obstacles):
-                halfExtents, basePosition = initial_obstacles[i]
-            else:
-                halfExtents = np.array([0.1, 0.1, 0.1])
-                basePosition = np.array([0, 0, -10])
+
+        for halfExtents, basePosition in obstacles:
             body_id = self.create_voxel(halfExtents, basePosition)
             self.obstacle_body_ids.append(body_id)
 
-        # 初始化球体障碍物（如果启用）
         return self.obstacle_body_ids
 
     def update_obstacle_poses(self, new_obstacles):
@@ -80,7 +75,7 @@ class ObstacleManager:
             new_obstacles: 新的障碍物位置列表
         """
         if not hasattr(self, "obstacle_body_ids"):
-            raise RuntimeError("请先调用 init_obstacle_bodies() 初始化障碍物")
+            raise RuntimeError("请先调用 load_obstacles() 初始化障碍物")
         for i, (_, basePosition) in enumerate(new_obstacles):
             if i < len(self.obstacle_body_ids):
                 p.resetBasePositionAndOrientation(
@@ -226,26 +221,3 @@ class ObstacleManager:
                 break
 
         return obstacles
-
-    def load_and_init_obstacles_from_data(self, obstacles):
-        """
-        从障碍物数据直接加载并初始化障碍物到PyBullet环境中
-
-        Args:
-            obstacles: 障碍物列表，每个元素为 (halfExtents, basePosition) 元组
-
-        Returns:
-            创建的障碍物body ID列表
-        """
-        self.obstacles = obstacles
-
-        # 清理现有障碍物
-        self.cleanup_obstacles()
-
-        self.obstacle_body_ids = []
-
-        for halfExtents, basePosition in obstacles:
-            body_id = self.create_voxel(halfExtents, basePosition)
-            self.obstacle_body_ids.append(body_id)
-
-        return self.obstacle_body_ids

@@ -58,7 +58,7 @@ def analyze_single_inconsistent_config(
 
     # 创建球体环境并分析
     sphere_env = SphereEnv(robot_name=robot_name)
-    sphere_env.init_obstacle_bodies(len(obstacles), obstacles)
+    sphere_env.load_obstacles(obstacles)
 
     # 获取球体数据
     collision, coords, colls = sphere_env.get_sphere_collision_data(config)
@@ -160,7 +160,7 @@ def analyze_inconsistency_statistics(problem_file, obb_data_dir, robot_name="fra
 
     # 创建球体环境
     sphere_env = SphereEnv(robot_name=robot_name)
-    sphere_env.init_obstacle_bodies(len(obstacles), obstacles)
+    sphere_env.load_obstacles(obstacles)
 
     # 统计
     total_configs = len(configs)

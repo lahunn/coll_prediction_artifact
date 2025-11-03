@@ -14,9 +14,9 @@ echo "========================================================================"
 mkdir -p maze_files
 
 # 机器人配置
-ROBOT_FILE="/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/franka_description/franka_panda.urdf"
-ROBOT_NAME="franka"
-WORKSPACE_FILE="../workspace_bound/${ROBOT_NAME}_panda_workspace.json"
+ROBOT_NAME="iiwa"
+WORKSPACE_FILE="../workspace_bound/${ROBOT_NAME}_workspace.json"
+# 注意: --robot-file 参数已弃用，现在使用 robot_urdf_mapping 从 robot_name 查找 URDF
 
 # 分析工作空间
 echo ""
@@ -27,7 +27,7 @@ if [ -f "$WORKSPACE_FILE" ]; then
     echo "✓ 工作空间文件 '$WORKSPACE_FILE' 已存在, 跳过分析."
 else
     echo "i 工作空间文件 '$WORKSPACE_FILE' 不存在, 开始分析..."
-    python ../workspace_bound/workspace_analyzer.py "$ROBOT_FILE" "$WORKSPACE_FILE"
+    python ../workspace_bound/workspace_analyzer.py "$ROBOT_NAME" "$WORKSPACE_FILE"
 
     if [ ! -f "$WORKSPACE_FILE" ]; then
         echo "✗ 工作空间分析失败, 未能创建 '$WORKSPACE_FILE'."
@@ -51,10 +51,9 @@ echo "========================================================================"
 echo "生成 franka 数据集"
 echo "========================================================================"
 python generate_problem_dataset.py \
-    --robot-file "$ROBOT_FILE" \
     --robot-name "$ROBOT_NAME" \
     --num-problems 200 \
-    --num-obstacles 5 \
+    --num-obstacles 10 \
     --max-time 60.0 \
     --workspace-min "$X_START" \
     --workspace-max "$X_END" \

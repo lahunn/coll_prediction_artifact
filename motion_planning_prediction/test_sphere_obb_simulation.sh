@@ -8,7 +8,7 @@ echo "========================================"
 # 检查数据文件夹
 SPHERE_DATA="../trace_files/scene_benchmarks/bit_collision_data"
 OBB_DATA="../trace_files/scene_benchmarks/bit_collision_data"
-BASE_NAME="franka_7"
+BASE_NAME="iiwa_7"
 echo -e "\n[1/4] 检查数据文件夹..."
 if [ ! -d "$SPHERE_DATA" ]; then
     echo "警告: 球体数据文件夹不存在: $SPHERE_DATA"
@@ -24,15 +24,15 @@ fi
 
 # 检查是否有数据文件
 echo -e "\n[2/4] 检查数据文件..."
-SPHERE_FILES=$(ls $SPHERE_DATA/franka_7_*_sphere.pkl 2>/dev/null | wc -l)
-OBB_FILES=$(ls $OBB_DATA/franka_7_*_obb.pkl 2>/dev/null | wc -l)
+SPHERE_FILES=$(ls $SPHERE_DATA/$BASE_NAME_*_sphere.pkl 2>/dev/null | wc -l)
+OBB_FILES=$(ls $OBB_DATA/$BASE_NAME_*_obb.pkl 2>/dev/null | wc -l)
 
 echo "找到 $SPHERE_FILES 个球体数据文件"
 echo "找到 $OBB_FILES 个OBB数据文件"
 
 # 运行球体仿真测试
 echo -e "\n[3/4] 运行球体碰撞检测仿真..."
-NUM_TESTS=10
+NUM_TESTS=5
 echo "测试前 $NUM_TESTS 个基准..."
 # python prediction_simulation_nDOF_sphere.py 碰撞阈值 更新率 非碰撞队列的长度比 SPHERE_DATA BASE_NAME NUM_TESTS
 python prediction_simulation_nDOF_sphere.py 0.5 0.1 8 $SPHERE_DATA $BASE_NAME $NUM_TESTS

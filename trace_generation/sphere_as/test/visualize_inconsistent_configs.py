@@ -119,7 +119,7 @@ def visualize_spheres(inconsistent_poses, obstacles, robot_name):
     # 加载障碍物
     if obstacles:
         print(f"加载 {len(obstacles)} 个障碍物")
-        sphere_env.init_obstacle_bodies(len(obstacles), obstacles)
+        sphere_env.load_obstacles(obstacles)
 
     print(f"共 {len(inconsistent_poses)} 个不一致配置")
 

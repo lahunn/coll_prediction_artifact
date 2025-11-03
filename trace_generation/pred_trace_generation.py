@@ -13,9 +13,7 @@ from typing import List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from robot_as.collision_check import CollisionEnv
-from robot_as.obstacle_manager import ObstacleManager
-from robot_as.robot_method import RobotEnv
+from robot_as.modular_env import ModularEnv
 from sphere_as.sphere_method import SphereEnv
 
 CollisionArrays = Tuple[
@@ -30,7 +28,7 @@ CollisionArrays = Tuple[
 ]
 
 
-def _sample_uniform(robot_env: RobotEnv) -> np.ndarray:
+def _sample_uniform(robot_env) -> np.ndarray:
     """Sample a joint configuration uniformly within the joint limits."""
 
     return np.random.uniform(robot_env.lower_bounds, robot_env.upper_bounds)
@@ -50,6 +48,7 @@ def sample_and_generate_data(
     obb_gui: bool = False,
     sphere_gui: bool = False,
     obstacle_file: Optional[str] = None,
+    enable_self_collision: bool = False,
 ) -> CollisionArrays:
     """Generate collision-labelled samples for the given robot.
 
@@ -57,10 +56,11 @@ def sample_and_generate_data(
         robot_name: Identifier understood by ``RobotEnv`` / ``SphereEnv``.
         numqueries: Number of configurations to sample.
         include_sphere_data: Whether to gather sphere-level annotations.
-    obb_gui: Open the PyBullet GUI for the robot/OBB environment.
-    sphere_gui: Open the PyBullet GUI for the sphere approximation.
+        obb_gui: Open the PyBullet GUI for the robot/OBB environment.
+        sphere_gui: Open the PyBullet GUI for the sphere approximation.
         obstacle_file: Optional path to a pickled obstacle description produced by
             ``scene_generator.py``.
+        enable_self_collision: Whether to enable self-collision detection (default: False).
 
     Returns:
         ``(qarr, dirarr, yarr, qarr_pose, yarr_pose, qarr_sphere,
@@ -69,15 +69,17 @@ def sample_and_generate_data(
         approximation.
     """
 
-    robot_env = RobotEnv(robot_name, OBB_GUI=obb_gui)
-    collision_env = CollisionEnv(robot_env)
+    modular_env = ModularEnv(
+        robot_name, GUI=obb_gui, enable_self_collision=enable_self_collision
+    )
+    robot_env = modular_env.robot_env
+    collision_env = modular_env.collision_env
 
     valid_links = [idx for idx in robot_env.valid_collision_links if idx != -1]
     num_links = len(valid_links)
 
     if num_links == 0:
-        robot_env.close()
-        collision_env.close()
+        modular_env.close()
         raise RuntimeError(
             f"Robot '{robot_name}' exposes no valid collision links; "
             "cannot build link-level data."
@@ -97,15 +99,17 @@ def sample_and_generate_data(
     yarr_sphere: Optional[np.ndarray] = None
     num_spheres = 0
 
+    obstacles = None
     if obstacle_file is not None:
         if not os.path.exists(obstacle_file):
             raise FileNotFoundError(f"Obstacle file not found: {obstacle_file}")
         with open(obstacle_file, "rb") as pf:
             obstacles = pickle.load(pf)
 
-        obstacle_manager = ObstacleManager(robot_env.physics_client)
-        obstacle_manager.load_and_init_obstacles_from_data(obstacles)
-        collision_env.load_obstacle_body_ids(obstacle_manager.obstacle_body_ids)
+        modular_env.obstacle_manager.load_obstacles(obstacles)
+        collision_env.load_obstacle_body_ids(
+            modular_env.obstacle_manager.obstacle_body_ids
+        )
 
     if need_sphere_env:
         sphere_env = SphereEnv(
@@ -113,6 +117,11 @@ def sample_and_generate_data(
             robot_name=robot_name,
             SPH_GUI=sphere_gui,
         )
+
+        # 如果有障碍物，也加载到 sphere_env 中
+        if obstacles is not None:
+            sphere_env.load_obstacles(obstacles)
+
         _, initial_coords, _ = sphere_env.get_sphere_collision_data(
             robot_env.init_state
         )
@@ -174,8 +183,7 @@ def sample_and_generate_data(
 
         sample_count += 1
 
-    robot_env.close()
-    collision_env.close()
+    modular_env.close()
     if sphere_env is not None:
         sphere_env.close()
 
@@ -268,6 +276,11 @@ def main():
         default=None,
         help="Optional NumPy random seed for reproducibility",
     )
+    parser.add_argument(
+        "--enable-self-collision",
+        action="store_true",
+        help="Enable self-collision detection for the robot",
+    )
 
     args = parser.parse_args()
 
@@ -290,6 +303,7 @@ def main():
         obb_gui=args.obb_vis,
         sphere_gui=args.sphere_vis,
         obstacle_file=args.obstacle_file,
+        enable_self_collision=args.enable_self_collision,
     )
 
     save_results(
@@ -305,11 +319,22 @@ def main():
         yarr_sphere=yarr_sphere,
     )
 
-    free_count = int(yarr_pose.sum())
+    obb_free_count = int(yarr_pose.sum())
+    obb_colliding_count = args.numqueries - obb_free_count
+
     print(
-        f"Saved {args.numqueries} samples for '{args.robot_name}' into "
-        f"{args.foldername}_rs (free: {free_count}, colliding: {args.numqueries - free_count})."
+        f"Saved {args.numqueries} samples for '{args.robot_name}' into {args.foldername}_rs"
     )
+    print(f"  OBB method: free={obb_free_count}, colliding={obb_colliding_count}")
+
+    if yarr_sphere is not None:
+        sphere_free_count = int(
+            yarr_sphere.reshape(args.numqueries, -1).all(axis=1).sum()
+        )
+        sphere_colliding_count = args.numqueries - sphere_free_count
+        print(
+            f"  Sphere method: free={sphere_free_count}, colliding={sphere_colliding_count}"
+        )
 
 
 if __name__ == "__main__":

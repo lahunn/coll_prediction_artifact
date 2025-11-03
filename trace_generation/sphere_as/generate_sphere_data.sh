@@ -4,7 +4,7 @@
 
 OBSTACLE_DIR="../../trace_files/bit_traces"
 COLLISION_DIR="../../trace_files/scene_benchmarks/bit_collision_data"
-ROBOT_NAME="franka"
+ROBOT_NAME="iiwa"
 
 # 默认范围
 START=1

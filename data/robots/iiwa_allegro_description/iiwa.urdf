@@ -209,14 +209,14 @@
       <geometry>
         <mesh filename="meshes/iiwa7/collision/link_5.obj"/>
       </geometry>
-      <material name="Orange"/>
+      <material name="Red"/>
     </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0 0 -0.026"/>
       <geometry>
         <mesh filename="meshes/iiwa7/collision/link_5.obj"/>
       </geometry>
-      <material name="Orange"/>
+      <material name="Red"/>
     </collision>
   </link>
   <joint name="iiwa7_joint_6" type="revolute">
@@ -269,14 +269,14 @@
       <geometry>
         <mesh filename="meshes/iiwa7/collision/link_7.obj"/>
       </geometry>
-      <material name="Grey"/>
+      <material name="Black"/>
     </visual>
     <collision>
       <origin rpy="0 0 0" xyz="0 0 -0.0005"/>
       <geometry>
         <mesh filename="meshes/iiwa7/collision/link_7.obj"/>
       </geometry>
-      <material name="Grey"/>
+      <material name="Black"/>
     </collision>
   </link>
   <joint name="iiwa7_joint_ee" type="fixed">

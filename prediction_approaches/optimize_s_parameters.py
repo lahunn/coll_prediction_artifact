@@ -16,9 +16,9 @@ from collision_prediction_strategies import (
 )
 from utils.utils import calculate_expected_checks, calculate_baseline_expectation
 
-
-obb_num = 11
-obb_cost = 42
+# 添加 trace_generation 目录到 Python 路径
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
+from trace_generation.robot_as.ana_parameters import obb_num, obb_cost
 
 
 def load_benchmark_data(benchid, density="low"):

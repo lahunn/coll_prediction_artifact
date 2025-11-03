@@ -8,9 +8,15 @@
 """
 
 import sys
+import os
 import numpy as np
 from tqdm import tqdm
 import simulation_utils as su
+
+# 添加 trace_generation 目录到 Python 路径
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
+from trace_generation.robot_as.ana_parameters import sphere_num, sphere_cost
+
 
 # --- Simulation Settings ---
 binnumber = 16
@@ -45,7 +51,7 @@ num_benchmarks = int(sys.argv[6])
 
 # 从示例数据推断球体数量（假设Kuka有15个球体）
 # 如果需要自适应，可以从第一个文件读取
-num_spheres = 61  # 可以根据实际机器人调整
+num_spheres = 22  # 可以根据实际机器人调整
 qnoncoll_len = num_spheres * qnoncoll_multiplier
 
 print("=== 球体碰撞检测预测仿真 ===")
@@ -115,7 +121,7 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
             sample_rate,
             bins,
             qnoncoll_len=qnoncoll_len,
-            cycle_check=72,
+            cycle_check=sphere_cost,
         )
 
         all_prediction += edge_query_count
@@ -134,5 +140,6 @@ print("最终统计:")
 print(f"  实际查询总数 (球体数): {total_sphere_checks}")
 print(f"  预测查询总数: {fall_prediction:.2f}")
 print(f"  Oracle查询总数: {fall_oracle}")
+print(f"  预测成本: {fall_prediction * sphere_cost:.2f}")
 print(f"  查询减少率: {(1 - fall_prediction / total_sphere_checks) * 100:.2f}%")
 print("=" * 50)

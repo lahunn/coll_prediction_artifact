@@ -4,11 +4,13 @@
 使用球体的位置坐标(x,y,z)和半径作为哈希键值
 
 使用示例：
+python coord_hashing_sphere.py <密度等级> <坐标量化位数> <半径量化位数> <碰撞阈值> <自由样本采样率> <问题数量>"
 python coord_hashing_sphere.py dens9 8 6 0.1 0.3 100
 python coord_hashing_sphere.py dens6 4 2 0.05 0.5 50
 """
 
 import sys
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import pickle
@@ -18,8 +20,10 @@ from collision_prediction_strategies import (
 )
 from utils.utils import calculate_expected_checks, calculate_baseline_expectation
 
-sphere_num = 61
-sphere_cost = 18
+# 添加 trace_generation 目录到 Python 路径
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
+from trace_generation.robot_as.ana_parameters import sphere_num, sphere_cost
+
 
 
 def plot(code, ytest, name):
@@ -57,7 +61,9 @@ def main():
     """主函数"""
     # 解析命令行参数
     if len(sys.argv) != 7:
-        print("用法: python coord_hashing_sphere.py <密度等级> <坐标量化位数> <半径量化位数> <碰撞阈值> <自由样本采样率> <问题数量>")
+        print(
+            "用法: python coord_hashing_sphere.py <密度等级> <坐标量化位数> <半径量化位数> <碰撞阈值> <自由样本采样率> <问题数量>"
+        )
         print("示例: python coord_hashing_sphere.py dens6 8 6 0.1 0.3 100")
         sys.exit(1)
 
@@ -69,7 +75,6 @@ def main():
     num_problems = int(sys.argv[6])
     # consider_radius = False
     consider_radius = True
-
 
     # 收集所有场景的数据来确定坐标和半径的范围
     all_positions = []
@@ -156,7 +161,10 @@ def main():
     # 计算预期成本（姿态级）
     if ele_precision > 0 and ele_recall > 0 and ele_collision_ratio > 0:
         expected_checks = calculate_expected_checks(
-            R=ele_collision_ratio, C=ele_recall / 100.0, A=ele_precision / 100.0, N=sphere_num
+            R=ele_collision_ratio,
+            C=ele_recall / 100.0,
+            A=ele_precision / 100.0,
+            N=sphere_num,
         )
         pred_cost = expected_checks * sphere_cost
 

@@ -18,6 +18,7 @@
 import argparse
 import json
 import sys
+import os
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -25,7 +26,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # 添加当前目录到路径以导入 robot_sphere_analyzer
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../"))
+
 from robot_sphere_analyzer import RobotSphereAnalyzer
 
 
@@ -124,13 +126,14 @@ class SphereRadiusAnalyzer:
         # 查找最大和最小半径的连杆
         max_radius_link = None
         min_radius_link = None
+        max_radius_value = None
+        min_radius_value = None
+
         if len(link_radii) > 0:
-            max_radius_link = max(
-                link_radii.items(), key=lambda x: np.max(x[1])
-            )
-            min_radius_link = min(
-                link_radii.items(), key=lambda x: np.min(x[1])
-            )
+            max_radius_link = max(link_radii.items(), key=lambda x: np.max(x[1]))
+            min_radius_link = min(link_radii.items(), key=lambda x: np.min(x[1]))
+            max_radius_value = float(np.max(max_radius_link[1]))
+            min_radius_value = float(np.min(min_radius_link[1]))
 
         self.analysis_result = {
             "robot_name": self.robot_name,
@@ -141,9 +144,9 @@ class SphereRadiusAnalyzer:
             "link_radii": link_radii,
             "extremes": {
                 "max_radius_link": max_radius_link[0] if max_radius_link else None,
-                "max_radius_value": float(np.max(max_radius_link[1])) if max_radius_link else None,
+                "max_radius_value": max_radius_value,
                 "min_radius_link": min_radius_link[0] if min_radius_link else None,
-                "min_radius_value": float(np.min(min_radius_link[1])) if min_radius_link else None,
+                "min_radius_value": min_radius_value,
             },
         }
 
@@ -155,6 +158,10 @@ class SphereRadiusAnalyzer:
             self.analyze()
 
         result = self.analysis_result
+        if result is None:
+            print("无法生成分析报告")
+            return
+
         stats = result["global_statistics"]
 
         print("\n" + "=" * 70)
@@ -164,25 +171,29 @@ class SphereRadiusAnalyzer:
         # 全局统计
         print("\n【全局统计】")
         print(f"  总球体数: {stats['count']}")
-        if stats['count'] > 0:
+        if stats["count"] > 0:
             print(f"  半径范围: [{stats['min']:.4f}, {stats['max']:.4f}] m")
             print(f"  平均半径: {stats['mean']:.4f} m")
             print(f"  中位数: {stats['median']:.4f} m")
             print(f"  标准差: {stats['std']:.4f} m")
 
             print("\n【百分位数】")
-            for p, value in stats['percentiles'].items():
+            for p, value in stats["percentiles"].items():
                 print(f"  {p}%: {value:.4f} m")
 
         # 极值信息
         extremes = result["extremes"]
         print("\n【极值信息】")
-        if extremes['max_radius_link']:
-            print(f"  最大半径: {extremes['max_radius_value']:.4f} m "
-                  f"(连杆: {extremes['max_radius_link']})")
-        if extremes['min_radius_link']:
-            print(f"  最小半径: {extremes['min_radius_value']:.4f} m "
-                  f"(连杆: {extremes['min_radius_link']})")
+        if extremes["max_radius_link"]:
+            print(
+                f"  最大半径: {extremes['max_radius_value']:.4f} m "
+                f"(连杆: {extremes['max_radius_link']})"
+            )
+        if extremes["min_radius_link"]:
+            print(
+                f"  最小半径: {extremes['min_radius_value']:.4f} m "
+                f"(连杆: {extremes['min_radius_link']})"
+            )
 
         # 各连杆统计
         print("\n【各连杆半径统计】")
@@ -190,7 +201,7 @@ class SphereRadiusAnalyzer:
         for link_name, lstats in sorted(link_stats.items()):
             print(f"\n  {link_name}:")
             print(f"    球体数: {lstats['count']}")
-            if lstats['count'] > 0:
+            if lstats["count"] > 0:
                 print(f"    范围: [{lstats['min']:.4f}, {lstats['max']:.4f}] m")
                 print(f"    均值: {lstats['mean']:.4f} m")
                 print(f"    中位数: {lstats['median']:.4f} m")
@@ -198,7 +209,7 @@ class SphereRadiusAnalyzer:
         print("\n" + "=" * 70)
 
     def plot_histogram(
-        self, bins: int = 20, save_path: str = None, show: bool = True
+        self, bins: int = 20, save_path: str | None = None, show: bool = True
     ):
         """绘制半径分布直方图
 
@@ -209,6 +220,10 @@ class SphereRadiusAnalyzer:
         """
         if self.analysis_result is None:
             self.analyze()
+
+        if self.analysis_result is None:
+            print("没有分析结果可以绘制")
+            return
 
         all_radii = self.analysis_result["all_radii"]
         stats = self.analysis_result["global_statistics"]
@@ -221,37 +236,57 @@ class SphereRadiusAnalyzer:
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
 
         # 子图1: 全局半径直方图
-        ax1.hist(all_radii, bins=bins, color='steelblue', alpha=0.7, edgecolor='black')
-        ax1.axvline(stats['mean'], color='red', linestyle='--', linewidth=2,
-                    label=f'Mean: {stats["mean"]:.4f} m')
-        ax1.axvline(stats['median'], color='green', linestyle='--', linewidth=2,
-                    label=f'Median: {stats["median"]:.4f} m')
-        ax1.set_xlabel('Radius (m)', fontsize=12)
-        ax1.set_ylabel('Frequency', fontsize=12)
-        ax1.set_title(f'{self.robot_name} - Sphere Radius Distribution', fontsize=14, fontweight='bold')
+        ax1.hist(all_radii, bins=bins, color="steelblue", alpha=0.7, edgecolor="black")
+        ax1.axvline(
+            stats["mean"],
+            color="red",
+            linestyle="--",
+            linewidth=2,
+            label=f"Mean: {stats['mean']:.4f} m",
+        )
+        ax1.axvline(
+            stats["median"],
+            color="green",
+            linestyle="--",
+            linewidth=2,
+            label=f"Median: {stats['median']:.4f} m",
+        )
+        ax1.set_xlabel("Radius (m)", fontsize=12)
+        ax1.set_ylabel("Frequency", fontsize=12)
+        ax1.set_title(
+            f"{self.robot_name} - Sphere Radius Distribution",
+            fontsize=14,
+            fontweight="bold",
+        )
         ax1.legend()
         ax1.grid(alpha=0.3)
 
         # 子图2: 各连杆半径箱线图
+        if self.analysis_result is None:
+            return
         link_radii = self.analysis_result["link_radii"]
         link_names = sorted(link_radii.keys())
         radii_data = [link_radii[name] for name in link_names]
 
         bp = ax2.boxplot(radii_data, labels=link_names, patch_artist=True)
-        for patch in bp['boxes']:
-            patch.set_facecolor('lightblue')
+        for patch in bp["boxes"]:
+            patch.set_facecolor("lightblue")
 
-        ax2.set_xlabel('Link', fontsize=12)
-        ax2.set_ylabel('Radius (m)', fontsize=12)
-        ax2.set_title(f'{self.robot_name} - Radius Distribution by Link', fontsize=14, fontweight='bold')
-        ax2.grid(alpha=0.3, axis='y')
-        plt.setp(ax2.xaxis.get_majorticklabels(), rotation=45, ha='right')
+        ax2.set_xlabel("Link", fontsize=12)
+        ax2.set_ylabel("Radius (m)", fontsize=12)
+        ax2.set_title(
+            f"{self.robot_name} - Radius Distribution by Link",
+            fontsize=14,
+            fontweight="bold",
+        )
+        ax2.grid(alpha=0.3, axis="y")
+        plt.setp(ax2.xaxis.get_majorticklabels(), rotation=45, ha="right")
 
         plt.tight_layout()
 
         # 保存图表
         if save_path:
-            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            plt.savefig(save_path, dpi=300, bbox_inches="tight")
             print(f"\n图表已保存: {save_path}")
 
         # 显示图表
@@ -269,16 +304,21 @@ class SphereRadiusAnalyzer:
         if self.analysis_result is None:
             self.analyze()
 
+        if self.analysis_result is None:
+            print("没有分析结果可以保存")
+            return
+
+        result = self.analysis_result
         # 准备可序列化的数据
         output_data = {
-            "robot_name": self.analysis_result["robot_name"],
-            "device": self.analysis_result["device"],
-            "global_statistics": self.analysis_result["global_statistics"],
-            "link_statistics": self.analysis_result["link_statistics"],
-            "extremes": self.analysis_result["extremes"],
+            "robot_name": result["robot_name"],
+            "device": result["device"],
+            "global_statistics": result["global_statistics"],
+            "link_statistics": result["link_statistics"],
+            "extremes": result["extremes"],
         }
 
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             json.dump(output_data, f, indent=2, ensure_ascii=False)
 
         print(f"\n统计信息已保存: {output_path}")
@@ -295,7 +335,11 @@ class SphereRadiusAnalyzer:
         if self.analysis_result is None:
             self.analyze()
 
-        all_radii = self.analysis_result["all_radii"]
+        if self.analysis_result is None:
+            return np.array([]), np.array([])
+
+        result = self.analysis_result
+        all_radii = result["all_radii"]
         if len(all_radii) == 0:
             return np.array([]), np.array([])
 
@@ -384,6 +428,7 @@ def main():
     except Exception as e:
         print(f"\n❌ 分析失败: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

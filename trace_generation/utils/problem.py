@@ -100,7 +100,7 @@ class ProblemManager:
 
         # 初始化障碍物管理器（如果提供）
         if obstacle_manager:
-            obstacle_manager.load_and_init_obstacles_from_data(obstacles)
+            obstacle_manager.load_obstacles(obstacles)
 
         # 保存当前问题
         self.current_problem = {

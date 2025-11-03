@@ -153,7 +153,7 @@ def visualize_standard_dataset(dataset_file, robot_file):
         print(f"  碰撞率: {scene['collision_rate']:.4f}")
 
         # 加载障碍物
-        env.obstacle_manager.load_and_init_obstacles_from_data(scene["obstacles"])
+        env.obstacle_manager.load_obstacles(scene["obstacles"])
         env.collision_env.load_obstacle_body_ids(env.obstacle_manager.obstacle_body_ids)
 
         for config_idx_in_scene, (
@@ -214,7 +214,7 @@ def compare_collision_methods(robot_file, num_obstacles=10, num_configs=5000):
     print(f"生成 {len(obstacles)} 个障碍物")
 
     # 初始化Sphere环境的障碍物
-    sphere_env.init_obstacle_bodies(len(obstacles), obstacles)
+    sphere_env.load_obstacles(obstacles)
 
     # 生成随机配置
     configs = obb_env.sample_n_points(num_configs)

@@ -161,14 +161,20 @@ def generate_problem_dataset(
     voxel_size_range=(0.12, 0.20),
     safe_zone_radius=0.5,
     visualize=False,
+    enable_self_collision=False,
 ):
     """生成完整的问题数据集"""
-    robot_name = robot_name
     # 不再传递config_output_file,使用内存记录
-    print(f"机器人: {robot_file}, 问题数: {num_problems}, 障碍物: {num_obstacles}")
+    print(f"机器人: {robot_name}, 问题数: {num_problems}, 障碍物: {num_obstacles}")
+    print(f"自碰撞检测: {'启用' if enable_self_collision else '禁用'}")
 
-    # 先创建模块化环境
-    modular_env = ModularEnv(robot_file, map_file=None, GUI=visualize)
+    # 先创建模块化环境 (使用 robot_name 而不是 robot_file)
+    modular_env = ModularEnv(
+        robot_name,
+        map_file=None,
+        GUI=visualize,
+        enable_self_collision=enable_self_collision,
+    )
     config_dim = modular_env.config_dim
 
     if output_file is None:
@@ -256,8 +262,15 @@ def generate_problem_dataset(
 def main():
     parser = argparse.ArgumentParser(description="生成机器人路径规划问题数据集")
 
-    parser.add_argument("--robot-file", type=str, default="kuka_iiwa/model_0.urdf")
-    parser.add_argument("--robot-name", type=str, default="kuka_iiwa")
+    parser.add_argument(
+        "--robot-file",
+        type=str,
+        default="kuka_iiwa/model_0.urdf",
+        help="(Deprecated) Robot URDF file path",
+    )
+    parser.add_argument(
+        "--robot-name", type=str, default="kuka_iiwa", help="Robot name identifier"
+    )
     parser.add_argument("--num-problems", type=int, default=3000)
     parser.add_argument("--num-obstacles", type=int, default=10)
     parser.add_argument("--output-file", type=str, default=None)
@@ -268,6 +281,11 @@ def main():
     parser.add_argument("--voxel-size-max", type=float, default=0.12)
     parser.add_argument("--safe-zone-radius", type=float, default=0.3)
     parser.add_argument("--visualize", action="store_true")
+    parser.add_argument(
+        "--enable-self-collision",
+        action="store_true",
+        help="Enable self-collision detection",
+    )
 
     args = parser.parse_args()
 
@@ -282,6 +300,7 @@ def main():
         voxel_size_range=(args.voxel_size_min, args.voxel_size_max),
         safe_zone_radius=args.safe_zone_radius,
         visualize=args.visualize,
+        enable_self_collision=args.enable_self_collision,
     )
 
     return 0

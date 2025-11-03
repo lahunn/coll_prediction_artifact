@@ -25,9 +25,7 @@ def load_obstacles_to_env(modular_env, obstacles):
         obstacles: 障碍物列表 [(halfExtents, basePosition), ...]
     """
     # 加载障碍物到环境中
-    modular_env.obstacle_manager.load_and_init_obstacles_from_data(obstacles)
-
-    # 更新碰撞环境中的障碍物
+        modular_env.obstacle_manager.load_obstacles(obstacles)    # 更新碰撞环境中的障碍物
     modular_env.collision_env.load_obstacle_body_ids(
         modular_env.obstacle_manager.obstacle_body_ids
     )
