@@ -2,6 +2,17 @@ import numpy as np
 import random
 import pickle
 import sys
+from collections import deque, namedtuple
+
+# Constants
+NUM_OOCDS = 7
+MAX_COLLISION_COUNT = 15
+DEFAULT_QNONCOLL_LEN = 56
+DEFAULT_QCOLL_LEN = 8
+DEFAULT_CYCLE_CHECK = 40
+
+# Named tuple for OOCD state
+OOCDState = namedtuple("OOCDState", ["hash_key", "result", "busy", "free_cycle"])
 
 
 def reutrn_keyy(code):
@@ -141,20 +152,20 @@ def update_collision_dict(colldict, hash_key, is_free, sample_rate):
         if (
             is_free == 1
             and random.random() <= sample_rate
-            and colldict[hash_key][is_free] < 15
+            and colldict[hash_key][is_free] < MAX_COLLISION_COUNT
         ):
             colldict[hash_key][is_free] += 1
-        elif colldict[hash_key][is_free] < 15 and is_free == 0:
+        elif colldict[hash_key][is_free] < MAX_COLLISION_COUNT and is_free == 0:
             colldict[hash_key][is_free] += 1
     else:
         colldict[hash_key] = [0, 0]
         if (
             is_free == 1
             and random.random() <= sample_rate
-            and colldict[hash_key][is_free] < 15
+            and colldict[hash_key][is_free] < MAX_COLLISION_COUNT
         ):
             colldict[hash_key][is_free] += 1
-        elif colldict[hash_key][is_free] < 15 and is_free == 0:
+        elif colldict[hash_key][is_free] < MAX_COLLISION_COUNT and is_free == 0:
             colldict[hash_key][is_free] += 1
     return colldict
 
@@ -179,21 +190,23 @@ def simulate_parallel_collision_detection(
     threshold,
     sample_rate,
     bins,
-    qnoncoll_len=56,
-    qcoll_len=8,
-    cycle_check=40,
+    qnoncoll_len=DEFAULT_QNONCOLL_LEN,
+    qcoll_len=DEFAULT_QCOLL_LEN,
+    cycle_check=DEFAULT_CYCLE_CHECK,
 ):
     """
     模拟并行的碰撞检测过程，该过程结合了硬件检测器 (OOCD) 和基于历史的碰撞预测。
     """
-    # 初始化7个硬件碰撞检测器 (OOCD)，每个检测器的状态为 [key, 真实碰撞结果, 是否繁忙, 完成周期]
-    oocds = [[0, 0, 0, 0] for _ in range(7)]
-    # qcoll: 预测为会碰撞的配置队列
-    # qnoncoll: 预测为不会碰撞的配置队列
-    qcoll, qnoncoll = [], []
+    # 初始化7个硬件碰撞检测器 (OOCD)
+    oocds = [
+        OOCDState(hash_key=0, result=0, busy=0, free_cycle=0) for _ in range(NUM_OOCDS)
+    ]
+    # 使用deque替代list，提高队列操作效率
+    qcoll = deque(maxlen=qcoll_len)  # 预测碰撞任务队列
+    qnoncoll = deque(maxlen=qnoncoll_len)  # 预测无碰撞任务队列
     cycle = 0  # 仿真周期计数器
-    first_two_running = 0
-    first_two_checked = 0
+    first_two_running = 0  # 当前正在运行的前两个任务计数
+    first_two_checked = 0  # 前两个任务开始处理的周期标记
     coll_found = 0  # 是否发现真实碰撞的标志
     links_remaining = len(linklist)  # 剩余待处理的配置数量
     everything_free = 0  # 所有任务是否完成的标志
@@ -205,41 +218,48 @@ def simulate_parallel_collision_detection(
         for oocd_id in range(len(oocds)):
             oocd = oocds[oocd_id]
             # 如果一个检测器任务已完成 (繁忙状态且到达完成周期)
-            if oocd[2] == 1 and oocd[3] <= cycle:
+            if oocd.busy == 1 and oocd.free_cycle <= cycle:
                 query_count += 1  # 增加硬件查询计数
-                if oocd[1] == 0:  # 假设0代表真实发生碰撞
+                if oocd.result == 0:  # 假设0代表真实发生碰撞
                     coll_found = 1
                 # 根据真实的检测结果，更新碰撞历史表
                 colldict = update_collision_dict(
-                    colldict, oocd[0], oocd[1], sample_rate
+                    colldict, oocd.hash_key, oocd.result, sample_rate
                 )
 
             # 如果一个检测器现在空闲 (到达完成周期)
-            if oocd[3] <= cycle:
+            if oocd.free_cycle <= cycle:
                 # 优先从“预测碰撞”队列 (qcoll) 中取任务
                 if len(qcoll) > 0 and first_two_checked < cycle:
                     first_two_running += 1
                     if first_two_running == 1:
                         first_two_checked = cycle + cycle_check
                     # 分配新任务给这个OOCD
-                    oocds[oocd_id] = [qcoll[0][0], qcoll[0][1], 1, cycle + cycle_check]
-                    del qcoll[0]
+                    oocds[oocd_id] = OOCDState(
+                        hash_key=qcoll[0][0],
+                        result=qcoll[0][1],
+                        busy=1,
+                        free_cycle=cycle + cycle_check,
+                    )
+                    qcoll.popleft()
                 # 如果qcoll为空，则从“预测不碰撞”队列 (qnoncoll) 中取任务
                 elif (
                     len(qnoncoll) == qnoncoll_len
                     or (links_remaining == 0 and len(qnoncoll) > 0)
                     and first_two_checked < cycle
                 ):
-                    oocds[oocd_id] = [
-                        qnoncoll[0][0],
-                        qnoncoll[0][1],
-                        1,
-                        cycle + cycle_check,
-                    ]
-                    del qnoncoll[0]
+                    oocds[oocd_id] = OOCDState(
+                        hash_key=qnoncoll[0][0],
+                        result=qnoncoll[0][1],
+                        busy=1,
+                        free_cycle=cycle + cycle_check,
+                    )
+                    qnoncoll.popleft()
                 else:
                     # 如果两个队列都没有任务，则OOCD变为空闲状态
-                    oocds[oocd_id] = [0, 0, 0, 0]
+                    oocds[oocd_id] = OOCDState(
+                        hash_key=0, result=0, busy=0, free_cycle=0
+                    )
 
         # --- 步骤2: 预测下一个配置并放入相应队列 ---
         if len(linklist) > 0:
@@ -269,7 +289,7 @@ def simulate_parallel_collision_detection(
         # 如果所有输入配置都已处理，所有检测器都空闲，且所有队列都为空
         if (
             links_remaining == 0
-            and not any(oocd[3] > cycle for oocd in oocds)
+            and not any(oocd.free_cycle > cycle for oocd in oocds)
             and not qnoncoll
             and not qcoll
         ):
@@ -280,8 +300,8 @@ def simulate_parallel_collision_detection(
     # --- 步骤4: 计算仿真结束时仍在运行的任务 ---
     # 对于未完成的检查，按其已执行的比例计入查询总数
     for oocd in oocds:
-        if oocd[3] > cycle:
-            query_count += (cycle_check - oocd[3] + cycle) / cycle_check
+        if oocd.free_cycle > cycle:
+            query_count += (cycle_check - oocd.free_cycle + cycle) / cycle_check
 
     # 返回总查询数、更新后的碰撞历史表和是否找到碰撞的标志
     return query_count, colldict, coll_found
