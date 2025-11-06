@@ -7,7 +7,7 @@ ROBOT_NAME="iiwa"
 SPHERE_DATA="../trace_files/scene_benchmarks/bit_collision_data"
 OBB_DATA="../trace_files/scene_benchmarks/bit_collision_data"
 BASE_NAME="iiwa_7"
-NUM_TESTS=200
+NUM_TESTS=50
 
 
 echo -e "\n[1/4] 检查数据文件夹..."

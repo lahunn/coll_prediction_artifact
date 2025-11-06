@@ -23,6 +23,7 @@ import os
 import numpy as np
 from tqdm import tqdm
 import simulation_utils as su
+import csv
 
 # 添加 trace_generation 目录到 Python 路径
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
@@ -42,6 +43,7 @@ for i in range(binnumber):
 fall_prediction = 0
 fall_oracle = 0
 total_link_checks = 0
+fall_cycle = 0
 
 # --- Simulation Parameters from Command Line ---
 if len(sys.argv) < 7:
@@ -85,6 +87,7 @@ benchrange = range(1, num_benchmarks + 1)
 for benchid in tqdm(benchrange, desc="处理基准测试"):
     all_prediction = 0
     all_oracle = 0
+    all_cycle = 0
     colldict = {}
 
     # 加载OBB数据
@@ -129,7 +132,7 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
         linklist, linklist_coll = su.csp_rearrange(edge, edge_coll, groupsize=4)
 
         # --- Run Centralized Simulation ---
-        edge_query_count, colldict, _ = su.simulate_parallel_collision_detection(
+        edge_query_count, colldict, _, cycle = su.simulate_parallel_collision_detection(
             linklist,
             linklist_coll,
             colldict,
@@ -138,12 +141,15 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
             bins,
             qnoncoll_len=qnoncoll_len,
             cycle_check=obb_cost,
+            num_oocds=7,
         )
 
         all_prediction += edge_query_count
+        all_cycle += cycle
 
     fall_oracle += all_oracle
     fall_prediction += all_prediction
+    fall_cycle += all_cycle
 
     # 每处理10个benchmark打印一次
     if (benchid) % 10 == 0:
@@ -156,6 +162,13 @@ print("最终统计:")
 print(f"  实际查询总数 (link数): {total_link_checks}")
 print(f"  预测查询总数: {fall_prediction:.2f}")
 print(f"  Oracle查询总数: {fall_oracle}")
-print(f"  预测成本: {fall_prediction * obb_cost:.2f}")
+print(f"  预测周期总数 (成本): {fall_cycle}")
 print(f"  查询减少率: {(1 - fall_prediction / total_link_checks) * 100:.2f}%")
 print("=" * 50)
+
+# 输出到CSV
+csv_file = 'result_files/obb_results.csv'
+reduction_rate = (1 - fall_prediction / total_link_checks) * 100 if total_link_checks > 0 else 0
+with open(csv_file, 'a', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    writer.writerow([threshold, sample_rate, qnoncoll_multiplier, basename, num_benchmarks, robot_name, total_link_checks, fall_prediction, fall_oracle, fall_cycle, reduction_rate])

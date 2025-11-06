@@ -193,13 +193,14 @@ def simulate_parallel_collision_detection(
     qnoncoll_len=DEFAULT_QNONCOLL_LEN,
     qcoll_len=DEFAULT_QCOLL_LEN,
     cycle_check=DEFAULT_CYCLE_CHECK,
+    num_oocds=NUM_OOCDS,
 ):
     """
     模拟并行的碰撞检测过程，该过程结合了硬件检测器 (OOCD) 和基于历史的碰撞预测。
     """
-    # 初始化7个硬件碰撞检测器 (OOCD)
+    # 初始化硬件碰撞检测器 (OOCD)
     oocds = [
-        OOCDState(hash_key=0, result=0, busy=0, free_cycle=0) for _ in range(NUM_OOCDS)
+        OOCDState(hash_key=0, result=0, busy=0, free_cycle=0) for _ in range(num_oocds)
     ]
     # 使用deque替代list，提高队列操作效率
     qcoll = deque(maxlen=qcoll_len)  # 预测碰撞任务队列
@@ -304,4 +305,4 @@ def simulate_parallel_collision_detection(
             query_count += (cycle_check - oocd.free_cycle + cycle) / cycle_check
 
     # 返回总查询数、更新后的碰撞历史表和是否找到碰撞的标志
-    return query_count, colldict, coll_found
+    return query_count, colldict, coll_found, cycle

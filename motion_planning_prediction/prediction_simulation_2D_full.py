@@ -58,7 +58,7 @@ for benchid in tqdm(benchrange):
         linklist, linklist_coll = su.csp_rearrange(edge, edge_coll, groupsize=4)
 
         # --- Run Centralized Simulation ---
-        edge_query_count, colldict, _ = su.simulate_parallel_collision_detection(
+        edge_query_count, colldict, _, cycle = su.simulate_parallel_collision_detection(
             linklist,
             linklist_coll,
             colldict,

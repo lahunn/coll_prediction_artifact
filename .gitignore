@@ -27,3 +27,4 @@ trace_generation/sphere_as/test_sphere_outputs/*.pkl
 trace_generation/sphere_as/inconsistent_edge/*.pkl
 fcl_examples/*
 collision/*
+trace_generation/geo_collision/cpp_collision/build/*

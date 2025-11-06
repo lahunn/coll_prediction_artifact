@@ -12,9 +12,9 @@
 
 # 默认碰撞检测参数（用于向后兼容）
 obb_num = 8  # 默认OBB包围盒数量
-obb_cost = 3  # OBB碰撞检测成本
+obb_cost = 45  # OBB碰撞检测成本
 sphere_num = 22  # 默认球体数量
-sphere_cost = 1  # 球体碰撞检测成本
+sphere_cost = 15  # 球体碰撞检测成本
 
 # 各机器人的OBB数量（通常等于Link数量）
 ROBOT_OBB_NUM = {
