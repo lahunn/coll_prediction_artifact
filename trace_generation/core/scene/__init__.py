@@ -1,0 +1,3 @@
+"""
+Scene and obstacle management.
+"""

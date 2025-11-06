@@ -1,2 +1,0 @@
-python visualize_inconsistent_configs.py --input-file /home/lanh/project/robot_sim/coll_prediction_artifact/trace_files/scene_benchmarks/bit_collision_data/franka_7_0001_inconsistent.pkl --option urdf &
-python visualize_inconsistent_configs.py --input-file /home/lanh/project/robot_sim/coll_prediction_artifact/trace_files/scene_benchmarks/bit_collision_data/franka_7_0001_inconsistent.pkl --option spheres &
