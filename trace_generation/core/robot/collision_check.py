@@ -2,8 +2,8 @@ import numpy as np
 import pybullet as p
 import time
 
-from core.robot.collision_data_manager import CollisionDataManager
-from utils.planning_utils import distance
+from trace_generation.core.robot.collision_data_manager import CollisionDataManager
+from trace_generation.utils.planning_utils import distance
 
 
 class CollisionEnv:

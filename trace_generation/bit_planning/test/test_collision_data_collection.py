@@ -3,14 +3,10 @@
 使用示例: 展示如何使用collision_env保存碰撞数据
 """
 
-import sys
-
-sys.path.append("..")
 from trace_generation.robot_as.collision_check import CollisionEnv
 from robot_as.robot_method import RobotEnv
 from trace_generation.robot_as.obstacle_manager import ObstacleManager
 import numpy as np
-
 
 def main():
     print("=== 碰撞数据收集示例 ===\n")
@@ -68,7 +64,6 @@ def main():
     env.close()
     robot_env.close()
     print("\n=== 测试完成 ===")
-
 
 if __name__ == "__main__":
     main()

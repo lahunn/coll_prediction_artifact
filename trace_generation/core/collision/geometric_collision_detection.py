@@ -572,7 +572,7 @@ def cuboid_cuboid(cuboid_a: Cuboid, cuboid_b: Cuboid) -> int:
     abs_r31, abs_r32, abs_r33 = abs(r31), abs(r32), abs(r33)
 
     epsilon = 1e-10  # 数值容差，与C++版本保持一致
-    
+
     # === G1: 测试A的3个面轴 ===
     proj_a1 = abs(
         cuboid_a.axis_1_x * dx + cuboid_a.axis_1_y * dy + cuboid_a.axis_1_z * dz
@@ -650,9 +650,9 @@ def cuboid_cuboid(cuboid_a: Cuboid, cuboid_b: Cuboid) -> int:
     # === G3: 测试9个叉积轴 ===
     # 参考：Real-Time Collision Detection by Christer Ericson
     # 叉积轴计算：T · (A_i × B_j) 与投影半径比较
-    
+
     epsilon = 1e-10  # 数值容差，与C++版本保持一致
-    
+
     # 测试L = A1 × B1
     d_l = abs(dz * r21 - dy * r31)
     ra = cuboid_a.axis_2_r * abs_r31 + cuboid_a.axis_3_r * abs_r21

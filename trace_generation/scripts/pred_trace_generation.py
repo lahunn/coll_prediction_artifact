@@ -8,17 +8,15 @@ The implementation relies on the shared environments in ``core.robot`` and
 from __future__ import annotations
 
 import os
-import sys
 import pickle
 from typing import List, Optional, Sequence, Tuple
 
 import numpy as np
 
 # Add parent directory to path to allow imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from core.robot.modular_env import ModularEnv
-from core.collision.sphere_method import SphereEnv
+from trace_generation.core.robot.modular_env import ModularEnv
+from trace_generation.core.collision.sphere_method import SphereEnv
 
 CollisionArrays = Tuple[
     np.ndarray,
@@ -31,18 +29,15 @@ CollisionArrays = Tuple[
     Optional[np.ndarray],
 ]
 
-
 def _sample_uniform(robot_env) -> np.ndarray:
     """Sample a joint configuration uniformly within the joint limits."""
 
     return np.random.uniform(robot_env.lower_bounds, robot_env.upper_bounds)
 
-
 def _format_orientation(quaternion: Sequence[float]) -> str:
     """Encode orientation quaternions as compact strings."""
 
     return ",".join(f"{value:+.3f}" for value in quaternion)
-
 
 def sample_and_generate_data(
     robot_name: str,
@@ -202,7 +197,6 @@ def sample_and_generate_data(
         yarr_sphere,
     )
 
-
 def save_results(
     foldername: str,
     filenumber: str,
@@ -235,7 +229,6 @@ def save_results(
             os.path.join(output_folder, f"obstacles_{filenumber}_sphere.pkl"), "wb"
         ) as f:
             pickle.dump((qarr_sphere, rarr_sphere, yarr_sphere), f)
-
 
 def main():
     """CLI entry point using the simplified sampling helpers."""
@@ -339,7 +332,6 @@ def main():
         print(
             f"  Sphere method: free={sphere_free_count}, colliding={sphere_colliding_count}"
         )
-
 
 if __name__ == "__main__":
     main()

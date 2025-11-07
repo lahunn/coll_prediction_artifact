@@ -10,7 +10,6 @@ python coord_hashing_sphere.py dens6 4 2 0.05 0.5 50
 """
 
 import sys
-import os
 import numpy as np
 import matplotlib.pyplot as plt
 import pickle
@@ -21,9 +20,7 @@ from collision_prediction_strategies import (
 from utils.utils import calculate_expected_checks, calculate_baseline_expectation
 
 # 添加 trace_generation 目录到 Python 路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
 from trace_generation.config.ana_parameters import get_robot_params
-
 
 def plot(code, ytest, name):
     """绘制二维散点图显示碰撞和非碰撞样本的分布"""
@@ -49,12 +46,10 @@ def plot(code, ytest, name):
     plt.clf()
     plt.close()
 
-
 def create_bins(min_val, max_val, num_bins):
     """创建等间距的分桶边界"""
     margin = (max_val - min_val) * 0.01
     return np.linspace(min_val - margin, max_val + margin, num_bins + 1)[:-1]
-
 
 def main():
     """主函数"""
@@ -192,7 +187,6 @@ def main():
         f"Elem: {ele_precision:.2f}%, {ele_recall:.2f}%, {ele_collision_ratio:.4f}, "
         f"Cost: {pred_cost:.2f}, {baseline_cost:.2f}, {speedup:.2f}"
     )
-
 
 if __name__ == "__main__":
     main()

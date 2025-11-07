@@ -2,7 +2,7 @@ import numpy as np
 from copy import deepcopy
 from algorithm.bit_star import BITStar
 from environment.maze_env import MazeEnv
-from utils.plot import plot_edges
+from trace_generation.utils.plot import plot_edges
 from config import set_random_seed
 import torch
 from torch_geometric.utils import add_self_loops

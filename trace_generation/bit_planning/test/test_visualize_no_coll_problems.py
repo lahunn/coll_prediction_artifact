@@ -6,15 +6,12 @@
 使用 ModularEnv 加载障碍物和机器人，按顺序可视化每个配置。
 """
 
-import sys
 import os
 import pickle
 import time
 
 # 添加项目路径
-sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 from trace_generation.robot_as.modular_env import ModularEnv
-
 
 def load_obstacles_to_env(modular_env, obstacles):
     """
@@ -29,7 +26,6 @@ def load_obstacles_to_env(modular_env, obstacles):
     modular_env.collision_env.load_obstacle_body_ids(
         modular_env.obstacle_manager.obstacle_body_ids
     )
-
 
 def visualize_problem_sequence(modular_env, problem, delay=1.0):
     """
@@ -65,7 +61,6 @@ def visualize_problem_sequence(modular_env, problem, delay=1.0):
         time.sleep(delay * 0.5)  # 路径点显示稍快
 
     print("问题可视化完成")
-
 
 def main():
     # 文件路径
@@ -115,7 +110,6 @@ def main():
         print("环境已清理")
 
     return 0
-
 
 if __name__ == "__main__":
     exit(main())

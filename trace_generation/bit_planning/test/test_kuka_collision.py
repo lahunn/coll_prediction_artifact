@@ -1,11 +1,8 @@
 import sys
-import os
 
 # 添加路径
-sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 
 from environment.kuka_env_old import KukaEnv
-
 
 def test_kuka_collision():
     """
@@ -75,7 +72,6 @@ def test_kuka_collision():
 
     print("KukaEnv collision test completed successfully!")
     return True
-
 
 if __name__ == "__main__":
     success = test_kuka_collision()

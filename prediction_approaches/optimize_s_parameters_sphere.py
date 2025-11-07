@@ -18,9 +18,7 @@ from collision_prediction_strategies import (
 from utils.utils import calculate_expected_checks, calculate_baseline_expectation
 
 # 添加 trace_generation 目录到 Python 路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
 from trace_generation.config.ana_parameters import get_robot_params
-
 
 def load_sphere_benchmark_data(benchid, density="low"):
     """
@@ -49,7 +47,6 @@ def load_sphere_benchmark_data(benchid, density="low"):
         qarr_sphere, rarr_sphere, yarr_sphere = pickle.load(f)
 
     return qarr_sphere, rarr_sphere, yarr_sphere
-
 
 def compute_sphere_bins(density, num_bins_coord, num_bins_radius):
     """
@@ -99,7 +96,6 @@ def compute_sphere_bins(density, num_bins_coord, num_bins_radius):
 
     return x_bins, y_bins, z_bins, r_bins
 
-
 def quantize_sphere_data(qarr_sphere, rarr_sphere, x_bins, y_bins, z_bins, r_bins):
     """
     量化球体位置和半径数据
@@ -123,7 +119,6 @@ def quantize_sphere_data(qarr_sphere, rarr_sphere, x_bins, y_bins, z_bins, r_bin
     radius_quant = np.digitize(rarr_sphere.flatten(), r_bins, right=True)
 
     return position_quant, radius_quant
-
 
 def evaluate_fixed_threshold_sphere(
     threshold,
@@ -219,7 +214,6 @@ def evaluate_fixed_threshold_sphere(
 
     return avg_cost, avg_baseline_cost, ele_prec, ele_rec, avg_collision_ratio
 
-
 def optimize_fixed_threshold_sphere(
     density,
     bench_ids,
@@ -307,7 +301,6 @@ def optimize_fixed_threshold_sphere(
         best_collision_ratio,
         results,
     )
-
 
 def main():
     """主函数"""
@@ -542,7 +535,6 @@ def main():
                 )
 
     print(f"✅ 详细结果已保存到: {detailed_csv}")
-
 
 if __name__ == "__main__":
     main()

@@ -6,17 +6,13 @@
 使用ModularEnv和球体模型分别计算碰撞数据，并进行对比。
 """
 
-import sys
-import os
 import pickle
 import argparse
 
 # 添加项目路径
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../"))
 
 from sphere_method import SphereEnv
 from robot_as.robot_method import RobotEnv
-
 
 def compare_collision(
     obstacle_config_file,
@@ -127,7 +123,6 @@ def compare_collision(
     if output_file:
         sphere_env.save_collision_data(output_file)
 
-
 def main():
     parser = argparse.ArgumentParser(description="对比OBB和球体碰撞检测结果")
 
@@ -158,7 +153,6 @@ def main():
     )
 
     return 0
-
 
 if __name__ == "__main__":
     exit(main())

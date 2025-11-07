@@ -3,16 +3,11 @@
 测试程序：调用 _setup_joint_info 方法，获取并输出所有有效关节信息
 """
 
-import sys
-import os
-
 # 添加项目路径
-sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 
 import pybullet as p
 from trace_generation.robot_as.collision_check import CollisionEnv
 from robot_as.robot_method import RobotEnv
-
 
 def test_joint_info():
     """测试关节信息获取功能"""
@@ -199,7 +194,6 @@ def test_joint_info():
         # 清理资源
         env.close()
         robot_env.close()
-
 
 if __name__ == "__main__":
     test_joint_info()

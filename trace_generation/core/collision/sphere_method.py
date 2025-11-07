@@ -1,13 +1,10 @@
 import pybullet as p
 import torch
-import sys
-import os
 import pickle
 from typing import Optional
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
-from sphere_as.robot_sphere_analyzer import RobotSphereAnalyzer
-from robot_as.robot_method import RobotEnv
+from trace_generation.core.robot.sphere_analyzer import RobotSphereAnalyzer
+from trace_generation.core.robot.environment import RobotEnv
 
 
 class SphereEnv:

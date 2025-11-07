@@ -2,7 +2,9 @@ import numpy as np
 import pybullet as p
 import sys
 import os
-from utils.planning_utils import uniform_sample
+
+# 添加 trace_generation 到 Python 路径
+from trace_generation.utils.planning_utils import uniform_sample
 
 robot_urdf_mapping = {
     "franka": "data/robots/franka_description/franka_panda.urdf",
@@ -18,7 +20,6 @@ robot_urdf_mapping = {
     "ur5e_robotiq_2f_140": "data/robots/ur_description/ur5e_robotiq_2f_140.urdf",
     "ur10e": "data/robots/ur_description/ur10e.urdf",
 }
-
 
 class RobotEnv:
     """机器人环境类，负责加载URDF、关节信息管理和机器人姿态控制
@@ -289,8 +290,6 @@ class RobotEnv:
         Returns:
             采样点列表
         """
-
-        sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 
         if need_negative:
             samples = uniform_sample(

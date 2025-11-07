@@ -1,6 +1,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include "collision_detection.h"
+#include "sphere_collision_checker.h"
 
 namespace py = pybind11;
 using namespace collision;
@@ -155,4 +156,61 @@ PYBIND11_MODULE(cpp_collision, m) {
     m.def("cuboid_triangle", &cuboid_triangle,
           "OBB-三角形碰撞检测",
           py::arg("cuboid"), py::arg("triangle"));
+
+    // ========================================================================
+    // 绑定 SphereCollisionChecker 类
+    // ========================================================================
+    py::class_<SphereCollisionChecker>(m, "SphereCollisionChecker")
+        .def(py::init<>(),
+             "创建球体碰撞检测器实例")
+        
+        // 配置方法
+        .def("set_obstacles", &SphereCollisionChecker::set_obstacles,
+             "设置障碍物列表\n\n"
+             "Args:\n"
+             "    obstacles (List[AABB]): AABB 障碍物列表",
+             py::arg("obstacles"))
+        
+        .def("set_adjacent_pairs", &SphereCollisionChecker::set_adjacent_pairs,
+             "设置需要忽略碰撞的相邻球体对\n\n"
+             "Args:\n"
+             "    pairs (List[Tuple[int, int]]): 球体索引对列表",
+             py::arg("pairs"))
+        
+        .def("clear_obstacles", &SphereCollisionChecker::clear_obstacles,
+             "清空所有障碍物")
+        
+        // 碰撞检测方法
+        .def("check_collisions", &SphereCollisionChecker::check_collisions,
+             "检查单个关节配置的球体碰撞\n\n"
+             "Args:\n"
+             "    sphere_coords (List[List[float]]): 球体坐标列表，每个为 [x, y, z, r]\n\n"
+             "Returns:\n"
+             "    Tuple[bool, List[int]]: (是否碰撞, 碰撞标志数组)\n"
+             "        - 第一个元素: True 表示存在碰撞\n"
+             "        - 第二个元素: 每个球体的碰撞状态 (1=无碰撞, 0=有碰撞)",
+             py::arg("sphere_coords"))
+        
+        .def("check_collisions_batch", &SphereCollisionChecker::check_collisions_batch,
+             "批量检查多个关节配置的球体碰撞\n\n"
+             "Args:\n"
+             "    batch_coords (List[List[List[float]]]): 批量球体坐标\n\n"
+             "Returns:\n"
+             "    List[Tuple[bool, List[int]]]: 每个配置的碰撞检测结果",
+             py::arg("batch_coords"))
+        
+        // 查询方法
+        .def("get_obstacle_count", &SphereCollisionChecker::get_obstacle_count,
+             "获取当前障碍物数量")
+        
+        .def("get_adjacent_pairs_count", &SphereCollisionChecker::get_adjacent_pairs_count,
+             "获取当前邻接对数量")
+        
+        .def("__repr__",
+             [](const SphereCollisionChecker &checker) {
+                 return "<SphereCollisionChecker obstacles=" + 
+                        std::to_string(checker.get_obstacle_count()) + 
+                        " adjacent_pairs=" + 
+                        std::to_string(checker.get_adjacent_pairs_count()) + ">";
+             });
 }

@@ -28,3 +28,4 @@ trace_generation/sphere_as/inconsistent_edge/*.pkl
 fcl_examples/*
 collision/*
 trace_generation/core/collision/cpp_collision/build/*
+coll_prediction_artifact.egg-info/*

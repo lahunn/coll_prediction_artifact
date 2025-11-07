@@ -39,10 +39,16 @@ endif()
 
 # 创建 Python 扩展模块
 if(TARGET pybind11::module)
-    pybind11_add_module(cpp_collision bindings.cpp)
+    pybind11_add_module(cpp_collision 
+        bindings.cpp
+        sphere_collision_checker.cpp
+    )
 else()
     # 手动创建扩展模块
-    Python3_add_library(cpp_collision MODULE bindings.cpp)
+    Python3_add_library(cpp_collision MODULE 
+        bindings.cpp
+        sphere_collision_checker.cpp
+    )
     target_link_libraries(cpp_collision PRIVATE pybind11::module)
     set_target_properties(cpp_collision PROPERTIES
         CXX_VISIBILITY_PRESET "hidden"

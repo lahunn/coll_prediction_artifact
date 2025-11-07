@@ -9,7 +9,6 @@ import sys
 import os
 
 # 添加trace_generation到路径
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 def test_backward_compatibility():
     """测试向后兼容性 - 旧导入仍然可用"""
@@ -39,7 +38,6 @@ def test_backward_compatibility():
     except Exception as e:
         print(f"\n❌ 向后兼容测试失败: {e}\n")
         return False
-
 
 def test_new_imports():
     """测试新的导入路径"""
@@ -72,7 +70,6 @@ def test_new_imports():
         traceback.print_exc()
         return False
 
-
 def test_collision_detection():
     """测试碰撞检测功能"""
     print("=" * 60)
@@ -103,7 +100,6 @@ def test_collision_detection():
         import traceback
         traceback.print_exc()
         return False
-
 
 def test_cpp_extension():
     """测试C++扩展"""
@@ -141,7 +137,6 @@ def test_cpp_extension():
         import traceback
         traceback.print_exc()
         return False
-
 
 def main():
     """运行所有测试"""
@@ -194,7 +189,6 @@ def main():
     else:
         print("\n⚠️  没有测试被执行\n")
         return 2
-
 
 if __name__ == "__main__":
     exit(main())

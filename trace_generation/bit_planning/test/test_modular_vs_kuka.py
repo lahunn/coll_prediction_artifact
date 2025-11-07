@@ -1,12 +1,9 @@
 import sys
-import os
 
 # 添加路径
-sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 
 from trace_generation.robot_as.modular_env import ModularEnv
 from environment.kuka_env_old import KukaEnv
-
 
 def test_modular_vs_kuka():
     """
@@ -95,7 +92,6 @@ def test_modular_vs_kuka():
 
     print("All tests passed!")
     return True
-
 
 if __name__ == "__main__":
     success = test_modular_vs_kuka()

@@ -19,12 +19,9 @@ import numpy as np
 import random
 import json
 import sys
-import os
 
 # 添加项目根目录到路径
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../"))
-from core.robot.environment import RobotEnv
-
+from trace_generation.core.robot.environment import RobotEnv
 
 class WorkspaceAnalyzer:
     """机器人工作空间分析器"""
@@ -62,14 +59,17 @@ class WorkspaceAnalyzer:
             return
 
         self.joint_limits = list(
-            zip(self.robot_env.lower_bounds.tolist(), self.robot_env.upper_bounds.tolist())
+            zip(
+                self.robot_env.lower_bounds.tolist(),
+                self.robot_env.upper_bounds.tolist(),
+            )
         )
         self.valid_joints = list(self.robot_env.valid_joints)
 
-        for idx, (lower_limit, upper_limit) in zip(self.valid_joints, self.joint_limits):
-            print(
-                f"  关节 {idx}: [{lower_limit:.3f}, {upper_limit:.3f}]"
-            )
+        for idx, (lower_limit, upper_limit) in zip(
+            self.valid_joints, self.joint_limits
+        ):
+            print(f"  关节 {idx}: [{lower_limit:.3f}, {upper_limit:.3f}]")
 
     def sample_workspace(self, num_samples=1000):
         """
@@ -223,7 +223,6 @@ class WorkspaceAnalyzer:
             self.robot_env.close()
             self.robot_env = None
 
-
 def load_workspace_bounds(json_file):
     """
     从JSON文件加载工作空间边界
@@ -240,7 +239,6 @@ def load_workspace_bounds(json_file):
     except Exception as e:
         print(f"加载工作空间文件失败: {e}")
         return None
-
 
 def main():
     """主程序"""
@@ -274,7 +272,6 @@ def main():
 
     finally:
         analyzer.disconnect()
-
 
 if __name__ == "__main__":
     main()

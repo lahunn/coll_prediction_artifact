@@ -1,7 +1,7 @@
-from utils.problem import ProblemManager
-from core.scene.obstacle_manager import ObstacleManager
-from core.robot.environment import RobotEnv
-from core.robot.collision_check import CollisionEnv
+from trace_generation.utils.problem import ProblemManager
+from trace_generation.core.scene.obstacle_manager import ObstacleManager
+from trace_generation.core.robot.environment import RobotEnv
+from trace_generation.core.robot.collision_check import CollisionEnv
 
 
 class ModularEnv:

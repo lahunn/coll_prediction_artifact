@@ -17,9 +17,7 @@ from collision_prediction_strategies import (
 from utils.utils import calculate_expected_checks, calculate_baseline_expectation
 
 # 添加 trace_generation 目录到 Python 路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
 from trace_generation.config.ana_parameters import get_robot_params
-
 
 def load_benchmark_data(benchid, density="low"):
     """
@@ -49,7 +47,6 @@ def load_benchmark_data(benchid, density="low"):
 
     return xtest_pred, dirr_pred, label_pred
 
-
 def quantize_coordinates(xtest_pred, num_bins=32):
     """
     量化坐标数据
@@ -71,7 +68,6 @@ def quantize_coordinates(xtest_pred, num_bins=32):
 
     code_pred_quant = np.digitize(xtest_pred, bins, right=True)
     return code_pred_quant
-
 
 def evaluate_fixed_threshold(threshold, density, bench_ids, num_bins, update_prob, robot_params):
     """
@@ -144,7 +140,6 @@ def evaluate_fixed_threshold(threshold, density, bench_ids, num_bins, update_pro
 
     return avg_cost, avg_baseline_cost, ele_prec, ele_rec, avg_collision_ratio
 
-
 def optimize_fixed_threshold(density, bench_ids, num_bins, update_prob, robot_params):
     """
     优化固定阈值策略的阈值参数
@@ -216,7 +211,6 @@ def optimize_fixed_threshold(density, bench_ids, num_bins, update_prob, robot_pa
         best_collision_ratio,
         results,
     )
-
 
 def main():
     """主函数"""
@@ -433,7 +427,6 @@ def main():
                 )
 
     print(f"✅ 详细结果已保存到: {detailed_csv}")
-
 
 if __name__ == "__main__":
     main()

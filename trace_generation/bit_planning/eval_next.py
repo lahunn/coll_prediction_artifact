@@ -3,7 +3,7 @@ from environment import MazeEnv, KukaEnv, Kuka2Env
 from next_model import Model3D, Model2D
 from algorithm import NEXT_plan, RRTS_plan
 from config import set_random_seed
-from utils.plot import plot_edges as plot_tree
+from trace_generation.utils.plot import plot_edges as plot_tree
 from tqdm import tqdm
 from algorithm.bit_star import BITStar
 import torch

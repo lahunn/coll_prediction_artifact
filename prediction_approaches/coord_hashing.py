@@ -9,7 +9,6 @@ python coord_hashing.py dens6 6 0.2 0.2 100    # 低密度场景，6位量化，
 """
 
 import sys
-import os
 import matplotlib.pyplot as plt
 import numpy as np
 import pickle
@@ -20,9 +19,7 @@ from collision_prediction_strategies import (
 from utils.utils import calculate_expected_checks, calculate_baseline_expectation
 
 # 添加 trace_generation 目录到 Python 路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
 from trace_generation.config.ana_parameters import get_robot_params
-
 
 def plot(code, ytest, name):
     """绘制二维散点图显示碰撞和非碰撞样本的分布"""
@@ -47,7 +44,6 @@ def plot(code, ytest, name):
     plt.savefig(name)
     plt.clf()
     plt.close()
-
 
 def main():
     """主函数"""
@@ -143,7 +139,6 @@ def main():
         f"Elem: {ele_precision:.2f}%, {ele_recall:.2f}%, {ele_collision_ratio:.4f}, "
         f"Cost: {pred_cost:.2f}, {baseline_cost:.2f}, {speedup:.2f}"
     )
-
 
 if __name__ == "__main__":
     main()

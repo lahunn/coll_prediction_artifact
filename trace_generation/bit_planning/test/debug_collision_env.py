@@ -19,18 +19,13 @@ Collision Environment Debug Script
    - Sphere客户端：蓝色背景，显示球体近似碰撞检测
 """
 
-import sys
-import os
-
 # 添加项目路径
-sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 
 import numpy as np
 import argparse
 import time
 from trace_generation.robot_as.collision_check import CollisionEnv
 from robot_as.robot_method import RobotEnv
-
 
 def get_test_obstacles():
     """获取测试用的障碍物配置"""
@@ -39,7 +34,6 @@ def get_test_obstacles():
         (np.array([0.15, 0.15, 0.1]), np.array([-0.3, 0.4, 0.2])),  # 障碍物2
         (np.array([0.08, 0.08, 0.2]), np.array([0.2, -0.3, 0.4])),  # 障碍物3
     ]
-
 
 def get_test_configs():
     """获取测试用的机器人配置"""
@@ -52,7 +46,6 @@ def get_test_configs():
         np.array([-0.8, 0.8, 0.2, 0.5, -0.3, -0.8, 0.1]),  # 配置3
         np.array([0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2]),  # 配置4
     ]
-
 
 def get_sphere_debug_configs():
     """获取测试用的机器人配置"""
@@ -69,7 +62,6 @@ def get_sphere_debug_configs():
         np.array([-0.8, 0.8, 0.2, 0.5, -0.3, -0.8, 0.1, 0.0, 0.0, 0.04, 0.04]),  # 配置3
         np.array([0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.0, 0.0, 0.04, 0.04]),  # 配置4
     ]
-
 
 def debug_obb_collision(env, obstacles, configs, is_gui=False):
     """调试 OBB 碰撞检测"""
@@ -106,7 +98,6 @@ def debug_obb_collision(env, obstacles, configs, is_gui=False):
 
     print("\nOBB 调试完成")
 
-
 def debug_sphere_collision(env, obstacles, configs, is_gui=False):
     """调试 Sphere 碰撞检测"""
     print("=== 调试 Sphere 碰撞检测 ===")
@@ -137,7 +128,6 @@ def debug_sphere_collision(env, obstacles, configs, is_gui=False):
             input()
 
     print("\nSphere 调试完成")
-
 
 def debug_both_collision(env, obstacles, configs):
     """同时调试 OBB 和 Sphere 碰撞检测"""
@@ -181,7 +171,6 @@ def debug_both_collision(env, obstacles, configs):
         time.sleep(1)  # 短暂暂停
 
     print("\n双重调试完成")
-
 
 def main():
     parser = argparse.ArgumentParser(description="Collision Environment Debug Tool")
@@ -249,7 +238,6 @@ def main():
         env.close()
         robot_env.close()
         print("调试环境已清理")
-
 
 if __name__ == "__main__":
     main()

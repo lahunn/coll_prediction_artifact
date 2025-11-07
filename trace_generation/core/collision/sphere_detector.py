@@ -11,14 +11,15 @@ import pickle
 from typing import Optional, List, Tuple
 
 # 使用新的模块结构导入
-from core.robot.sphere_analyzer import RobotSphereAnalyzer
-from core.robot.environment import RobotEnv
-from core.collision.geometric_collision_detection import (
+from trace_generation.core.robot.sphere_analyzer import RobotSphereAnalyzer
+from trace_generation.core.robot.environment import RobotEnv
+from trace_generation.core.collision.geometric_collision_detection import (
     Sphere,
     AABB,
     sphere_aabb,
     sphere_sphere,
 )
+from trace_generation.core.collision.cpp_collision import cpp_collision
 
 
 class SphereEnvGeometric:
@@ -65,6 +66,13 @@ class SphereEnvGeometric:
         self.link_data = []
         self.link_coll_data = []
 
+        # ====================================================================
+        # 尝试加载 C++ 加速模块
+        # ====================================================================
+        self.cpp_checker = cpp_collision.SphereCollisionChecker()
+        self.use_cpp = True
+        print("✓ [SphereEnvGeometric] 使用 C++ 加速碰撞检测")
+
     def close(self):
         """关闭环境（保留接口一致性）"""
         self.obstacles_aabb.clear()
@@ -99,6 +107,10 @@ class SphereEnvGeometric:
                 max_z=cz + hz,
             )
             self.obstacles_aabb.append(aabb)
+
+        # 同步障碍物到 C++ 检测器
+        if self.use_cpp:
+            self.cpp_checker.set_obstacles(self.obstacles_aabb)
 
         # 返回障碍物索引列表
         return list(range(len(self.obstacles_aabb)))
@@ -158,6 +170,11 @@ class SphereEnvGeometric:
                 ):
                     self.adjacent_sphere_pairs.add((i, j))
 
+        # 同步邻接对到 C++ 检测器
+        if self.use_cpp:
+            pairs_list = list(self.adjacent_sphere_pairs)
+            self.cpp_checker.set_adjacent_pairs(pairs_list)
+
     def _get_sphere_data(self, state) -> Tuple:
         """
         获取关节配置下的球体数据（位置、半径、link ID）
@@ -204,7 +221,7 @@ class SphereEnvGeometric:
 
     def _check_sphere_collision(self, state) -> Tuple[bool, List[int]]:
         """
-        检查球体与障碍物以及球体自碰撞（使用几何计算）
+        检查球体碰撞（包括障碍物碰撞和自碰撞）
 
         Args:
             state: 关节配置
@@ -219,6 +236,30 @@ class SphereEnvGeometric:
         # 获取当前状态下的球体信息
         sphere_coords = self._update_sphere_positions(state)
 
+        # ====================================================================
+        # 使用 C++ 加速（如果可用）
+        # ====================================================================
+        if self.use_cpp:
+            any_collision, sphere_colls = self.cpp_checker.check_collisions(
+                sphere_coords
+            )
+            return any_collision, sphere_colls
+
+        # ====================================================================
+        # Python 实现（作为备用）
+        # ====================================================================
+        return self._check_sphere_collision_python(sphere_coords)
+
+    def _check_sphere_collision_python(self, sphere_coords) -> Tuple[bool, List[int]]:
+        """
+        Python 版本的球体碰撞检测（作为 C++ 的备用实现）
+
+        Args:
+            sphere_coords: 球体坐标列表 [[x, y, z, r], ...]
+
+        Returns:
+            tuple: (是否有碰撞, 各球体碰撞状态列表[0/1])
+        """
         # 初始化碰撞状态，默认无碰撞（1表示无碰撞）
         sphere_colls = [1] * len(sphere_coords)
         any_collision = False
