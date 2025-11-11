@@ -35,6 +35,7 @@ class SphereEnvGeometric:
         robot_env: RobotEnv,
         robot_name: Optional[str] = None,
         SPH_GUI=None,  # 保留接口一致性，但不使用
+        return_cycles: bool = False,  # 新增：是否返回周期数
     ):
         """
         初始化球体环境
@@ -43,6 +44,7 @@ class SphereEnvGeometric:
             robot_env: 复用的机器人环境实例
             robot_name: 机器人名称
             SPH_GUI: GUI标志（保留接口但不使用，因为无可视化）
+            return_cycles: 是否返回周期数（默认False保持向后兼容）
         """
         # 初始化球体分析器
         resolved_name = robot_name or getattr(robot_env, "robot_name", None)
@@ -65,6 +67,10 @@ class SphereEnvGeometric:
         # 数据收集
         self.link_data = []
         self.link_coll_data = []
+        self.link_coll_cycles = []  # 新增：存储每次碰撞检测的周期数
+
+        # 是否返回周期数
+        self.return_cycles = return_cycles
 
         # ====================================================================
         # 尝试加载 C++ 加速模块
@@ -72,6 +78,8 @@ class SphereEnvGeometric:
         self.cpp_checker = cpp_collision.SphereCollisionChecker()
         self.use_cpp = True
         print("✓ [SphereEnvGeometric] 使用 C++ 加速碰撞检测")
+        if self.return_cycles:
+            print("✓ [SphereEnvGeometric] 周期计数已启用")
 
     def close(self):
         """关闭环境（保留接口一致性）"""
@@ -110,7 +118,19 @@ class SphereEnvGeometric:
 
         # 同步障碍物到 C++ 检测器
         if self.use_cpp:
-            self.cpp_checker.set_obstacles(self.obstacles_aabb)
+            # 转换为C++的AABB类型
+            cpp_aabbs = []
+            for aabb in self.obstacles_aabb:
+                cpp_aabb = cpp_collision.AABB(
+                    aabb.min_x,
+                    aabb.min_y,
+                    aabb.min_z,
+                    aabb.max_x,
+                    aabb.max_y,
+                    aabb.max_z,
+                )
+                cpp_aabbs.append(cpp_aabb)
+            self.cpp_checker.set_obstacles(cpp_aabbs)
 
         # 返回障碍物索引列表
         return list(range(len(self.obstacles_aabb)))
@@ -219,7 +239,7 @@ class SphereEnvGeometric:
 
         return sphere_coords
 
-    def _check_sphere_collision(self, state) -> Tuple[bool, List[int]]:
+    def _check_sphere_collision(self, state):
         """
         检查球体碰撞（包括障碍物碰撞和自碰撞）
 
@@ -227,8 +247,13 @@ class SphereEnvGeometric:
             state: 关节配置
 
         Returns:
-            tuple: (是否有碰撞, 各球体碰撞状态列表[0/1])
-                  0表示碰撞，1表示无碰撞
+            如果 self.return_cycles=False: (bool, List[int])
+                - 是否有碰撞
+                - 各球体碰撞状态列表[0/1] (0表示碰撞，1表示无碰撞)
+            如果 self.return_cycles=True: (bool, List[int], List[int])
+                - 是否有碰撞
+                - 各球体碰撞状态列表[0/1]
+                - 各球体的周期数列表
         """
         # 确保元数据已初始化
         self._initialize_sphere_metadata()
@@ -240,9 +265,11 @@ class SphereEnvGeometric:
         # 使用 C++ 加速（如果可用）
         # ====================================================================
         if self.use_cpp:
-            any_collision, sphere_colls = self.cpp_checker.check_collisions(
-                sphere_coords
+            any_collision, sphere_colls, sphere_cycles = (
+                self.cpp_checker.check_collisions(sphere_coords)
             )
+            if self.return_cycles:
+                return any_collision, sphere_colls, sphere_cycles
             return any_collision, sphere_colls
 
         # ====================================================================
@@ -250,7 +277,7 @@ class SphereEnvGeometric:
         # ====================================================================
         return self._check_sphere_collision_python(sphere_coords)
 
-    def _check_sphere_collision_python(self, sphere_coords) -> Tuple[bool, List[int]]:
+    def _check_sphere_collision_python(self, sphere_coords):
         """
         Python 版本的球体碰撞检测（作为 C++ 的备用实现）
 
@@ -258,10 +285,12 @@ class SphereEnvGeometric:
             sphere_coords: 球体坐标列表 [[x, y, z, r], ...]
 
         Returns:
-            tuple: (是否有碰撞, 各球体碰撞状态列表[0/1])
+            如果 self.return_cycles=False: (bool, List[int])
+            如果 self.return_cycles=True: (bool, List[int], List[int])
         """
         # 初始化碰撞状态，默认无碰撞（1表示无碰撞）
         sphere_colls = [1] * len(sphere_coords)
+        sphere_cycles = [0] * len(sphere_coords)  # 每个球体的周期数
         any_collision = False
 
         # 检查每个球体与障碍物的碰撞
@@ -271,6 +300,7 @@ class SphereEnvGeometric:
             # 检查与所有AABB障碍物的碰撞
             for aabb in self.obstacles_aabb:
                 collision_result, cycles = sphere_aabb(sphere, aabb)
+                sphere_cycles[i] += cycles  # 累加该球体的周期
                 if collision_result == 0:  # 0表示碰撞
                     sphere_colls[i] = 0
                     any_collision = True
@@ -294,14 +324,19 @@ class SphereEnvGeometric:
                 sphere_j = Sphere(xj, yj, zj, rj)
 
                 collision_result = sphere_sphere(sphere_i, sphere_j)
+                # sphere_sphere 固定1周期，分配给两个球体
+                sphere_cycles[i] += 1
+                sphere_cycles[j] += 1
                 if collision_result == 0:  # 0表示碰撞
                     sphere_colls[i] = 0
                     sphere_colls[j] = 0
                     any_collision = True
 
+        if self.return_cycles:
+            return any_collision, sphere_colls, sphere_cycles
         return any_collision, sphere_colls
 
-    def get_sphere_collision_data(self, state) -> Tuple:
+    def get_sphere_collision_data(self, state):
         """
         获取球体碰撞数据
 
@@ -309,22 +344,27 @@ class SphereEnvGeometric:
             state: 关节配置状态
 
         Returns:
-            tuple: (collision, coords, colls)
-                  collision: 是否有任何碰撞
-                  coords: 球体坐标列表
-                  colls: 各球体碰撞状态
+            如果 self.return_cycles=False: (collision, coords, colls)
+            如果 self.return_cycles=True: (collision, coords, colls, cycles)
         """
         coords = self._update_sphere_positions(state)
-        collision, colls = self._check_sphere_collision(state)
-        return collision, coords, colls
+        result = self._check_sphere_collision(state)
 
-    def store_sphere_data(self, coords, colls, is_edge=True):
+        if self.return_cycles:
+            collision, colls, cycles = result  # pyright: ignore[reportAssignmentType]
+            return collision, coords, colls, cycles
+        else:
+            collision, colls = result  # pyright: ignore[reportAssignmentType]
+            return collision, coords, colls
+
+    def store_sphere_data(self, coords, colls, cycles=None, is_edge=True):
         """
         存储球体数据
 
         Args:
             coords: 坐标数据
             colls: 碰撞标签
+            cycles: 周期数据（可选，如果return_cycles=True时提供）
             is_edge: 是否为边数据
         """
         if not coords:
@@ -333,9 +373,13 @@ class SphereEnvGeometric:
         if is_edge:
             self.link_data.append(coords)
             self.link_coll_data.append(colls)
+            if self.return_cycles and cycles is not None:
+                self.link_coll_cycles.append(cycles)
         else:
             self.link_data.append([coords])
             self.link_coll_data.append([colls])
+            if self.return_cycles and cycles is not None:
+                self.link_coll_cycles.append([cycles])
 
     def save_collision_data(self, output_file: str):
         """
@@ -345,8 +389,14 @@ class SphereEnvGeometric:
             output_file: 输出文件路径
         """
         with open(output_file, "wb") as f:
-            pickle.dump((self.link_data, self.link_coll_data), f)
-        print(f"保存球体碰撞数据到: {output_file}")
+            if self.return_cycles:
+                pickle.dump(
+                    (self.link_data, self.link_coll_data, self.link_coll_cycles), f
+                )
+                print(f"保存球体碰撞数据（含周期数）到: {output_file}")
+            else:
+                pickle.dump((self.link_data, self.link_coll_data), f)
+                print(f"保存球体碰撞数据到: {output_file}")
 
     def get_collision_stats(self) -> dict:
         """

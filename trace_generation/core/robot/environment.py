@@ -21,6 +21,7 @@ robot_urdf_mapping = {
     "ur10e": "data/robots/ur_description/ur10e.urdf",
 }
 
+
 class RobotEnv:
     """机器人环境类，负责加载URDF、关节信息管理和机器人姿态控制
 
@@ -50,11 +51,21 @@ class RobotEnv:
             print(f"错误: 未找到机器人名称 '{robot_name}' 对应的URDF路径")
             sys.exit(1)
 
-        # 计算基准根目录：robot_method 所在路径的上两级目录
-        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        # 计算基准根目录：先找到trace_generation目录，再找项目根目录
+        trace_gen_dir = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "..")
+        )
+        project_root = os.path.dirname(trace_gen_dir)
+        robot_file_root = os.path.join(project_root, rel_path)
 
-        # 最终URDF路径
-        robot_file = os.path.join(base_dir, rel_path)
+        # 选择存在的路径
+        if os.path.exists(robot_file_root):
+            robot_file = robot_file_root
+        else:
+            print("错误: URDF文件未找到")
+            print(f"  尝试路径: {robot_file_root}")
+            sys.exit(1)
+
         self.robot_file = robot_file
 
         # 连接PyBullet

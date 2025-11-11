@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """
-基于几何计算的OBB碰撞检测实现 - 不依赖PyBullet
+基于几何计算的OBB碰撞检测实现
 
 使用geometric_collision_detection模块中的几何碰撞检测函数
 假设环境中只有AABB格式的障碍物，使用OBB表示机器人连杆
+
+注意：虽然使用几何碰撞检测算法，但仍需要PyBullet来计算正向运动学
 """
 
 import numpy as np
 import time
 import importlib
+import pybullet as p
 from typing import Optional, List, Tuple, Dict, Any
 
 from trace_generation.core.collision.geometric_collision_detection import (
@@ -16,6 +19,7 @@ from trace_generation.core.collision.geometric_collision_detection import (
     AABB,
     cuboid_aabb,
 )
+from trace_generation.core.robot.obb_forward_kinematics import OBBForwardKinematics
 
 
 class OBBCollisionEnv:
@@ -58,6 +62,70 @@ class OBBCollisionEnv:
         # 机器人状态相关
         self.valid_collision_links = []  # 有效的碰撞检测连杆索引
         self._initialize_robot_links()
+        
+        # 初始化PyBullet和正向运动学（用于计算OBB位姿）
+        self.physics_client = p.connect(p.DIRECT)  # 无GUI模式
+        self.robot_id = self._load_robot_urdf(robot_name)
+        self.obb_fk = OBBForwardKinematics(self.robot_id) if self.robot_id is not None else None
+
+    def _load_robot_urdf(self, robot_name: str) -> Optional[int]:
+        """
+        加载机器人URDF文件
+
+        Args:
+            robot_name: 机器人名称
+
+        Returns:
+            机器人ID，如果加载失败则返回None
+        """
+        import os
+        
+        # 机器人URDF映射（从environment.py复制）
+        robot_urdf_mapping = {
+            "franka": "data/robots/franka_description/franka_panda.urdf",
+            "iiwa": "data/robots/iiwa_allegro_description/iiwa.urdf",
+            "kinova_gen3": "data/robots/kinova/kinova_gen3_7dof.urdf",
+            "ur5e": "data/robots/ur_description/ur5e.urdf",
+        }
+        
+        rel_path = robot_urdf_mapping.get(robot_name)
+        if rel_path is None:
+            print(f"警告: 未找到机器人 {robot_name} 的URDF路径")
+            return None
+        
+        # 计算URDF文件路径
+        # 从当前文件位置向上找到trace_generation目录，再找项目根目录
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        trace_gen_dir = os.path.abspath(os.path.join(current_dir, "../.."))
+        project_root = os.path.dirname(trace_gen_dir)
+        
+        # 尝试两个可能的路径
+        robot_file_trace = os.path.join(trace_gen_dir, rel_path)
+        robot_file_root = os.path.join(project_root, rel_path)
+        
+        robot_file = None
+        if os.path.exists(robot_file_trace):
+            robot_file = robot_file_trace
+        elif os.path.exists(robot_file_root):
+            robot_file = robot_file_root
+        else:
+            print(f"警告: URDF文件未找到")
+            print(f"  尝试路径1: {robot_file_trace}")
+            print(f"  尝试路径2: {robot_file_root}")
+            return None
+        
+        try:
+            robot_id = p.loadURDF(
+                robot_file,
+                [0, 0, 0],
+                [0, 0, 0, 1],
+                useFixedBase=True,
+                physicsClientId=self.physics_client,
+            )
+            return robot_id
+        except Exception as e:
+            print(f"警告: 加载URDF文件失败: {e}")
+            return None
 
     def _load_robot_obb_config(self, robot_name: str) -> List[Dict[str, Any]]:
         """
@@ -72,7 +140,7 @@ class OBBCollisionEnv:
         try:
             # 动态导入机器人配置模块
             config_module = importlib.import_module(
-                f"core.robot.robot_config.{robot_name}_obbs"
+                f"trace_generation.core.robot.robot_config.{robot_name}_obbs"
             )
             obb_data = getattr(config_module, f"{robot_name}_obbs_with_transform", None)
 
@@ -179,36 +247,56 @@ class OBBCollisionEnv:
     def close(self):
         """关闭碰撞检测环境"""
         self.cleanup_obstacles()
+        # 断开PyBullet连接
+        if hasattr(self, 'physics_client') and self.physics_client is not None:
+            try:
+                p.disconnect(self.physics_client)
+            except Exception:
+                pass  # 忽略断开连接时的错误
         self.link_obbs.clear()
 
     def _get_world_transform(
         self, obb_info: Dict[str, Any], joint_config: Optional[np.ndarray] = None
     ) -> np.ndarray:
         """
-        获取OBB在世界坐标系下的变换矩阵
+        获取OBB在世界坐标系中的变换矩阵
 
-        注意：这里简化实现，假设机器人处于零位姿
-        在实际应用中，需要根据关节配置计算正向运动学
+        使用PyBullet的正向运动学计算给定关节配置下OBB的世界坐标变换
 
         Args:
             obb_info: OBB信息字典
-            joint_config: 关节配置（暂时未使用）
+            joint_config: 关节配置
 
         Returns:
             4x4变换矩阵
         """
-        # 如果OBB数据中直接包含transform，使用它
-        if "transform" in obb_info:
-            return obb_info["transform"].copy()
-
-        # 否则，从position和rotation_matrix构造
-        transform = np.eye(4)
-        if "position" in obb_info:
-            transform[:3, 3] = obb_info["position"]
-        if "rotation_matrix" in obb_info:
-            transform[:3, :3] = obb_info["rotation_matrix"]
-
-        return transform
+        # 如果没有正向运动学计算器或没有关节配置，使用默认transform
+        if self.obb_fk is None or joint_config is None:
+            if "transform" in obb_info:
+                return obb_info["transform"].copy()
+            
+            # 否则，从position和rotation_matrix构造
+            transform = np.eye(4)
+            if "position" in obb_info:
+                transform[:3, 3] = obb_info["position"]
+            if "rotation_matrix" in obb_info:
+                transform[:3, :3] = obb_info["rotation_matrix"]
+            return transform
+        
+        # 使用正向运动学计算OBB的世界变换
+        # 1. 设置机器人关节配置
+        self.obb_fk.set_joint_configuration(joint_config.tolist())
+        
+        # 2. 计算OBB在当前配置下的世界位姿
+        obb_poses = self.obb_fk.compute_obb_poses([obb_info], joint_config.tolist())
+        
+        if len(obb_poses) > 0:
+            return obb_poses[0]["transform"]
+        else:
+            # 如果计算失败，回退到默认transform
+            if "transform" in obb_info:
+                return obb_info["transform"].copy()
+            return np.eye(4)
 
     def _create_cuboid_from_obb(
         self, obb_info: Dict[str, Any], joint_config: Optional[np.ndarray] = None

@@ -15,7 +15,7 @@ mkdir -p maze_files
 
 # 机器人配置
 ROBOT_NAME="iiwa"
-WORKSPACE_FILE="../workspace_bound/${ROBOT_NAME}_workspace.json"
+WORKSPACE_FILE="../data/workspace_bounds/${ROBOT_NAME}_workspace.json"
 # 注意: --robot-file 参数已弃用，现在使用 robot_urdf_mapping 从 robot_name 查找 URDF
 
 # 分析工作空间
@@ -27,7 +27,7 @@ if [ -f "$WORKSPACE_FILE" ]; then
     echo "✓ 工作空间文件 '$WORKSPACE_FILE' 已存在, 跳过分析."
 else
     echo "i 工作空间文件 '$WORKSPACE_FILE' 不存在, 开始分析..."
-    python ../workspace_bound/workspace_analyzer.py "$ROBOT_NAME" "$WORKSPACE_FILE"
+    python ../data/workspace_bounds/workspace_analyzer.py "$ROBOT_NAME" "$WORKSPACE_FILE"
 
     if [ ! -f "$WORKSPACE_FILE" ]; then
         echo "✗ 工作空间分析失败, 未能创建 '$WORKSPACE_FILE'."
@@ -48,13 +48,13 @@ echo "使用工作空间范围: X=[$X_START, $X_END], Z=[$Z_START, $Z_END]"
 # 生成数据集
 echo ""
 echo "========================================================================"
-echo "生成 franka 数据集"
+echo "生成 $ROBOT_NAME 数据集"
 echo "========================================================================"
 python generate_problem_dataset.py \
     --robot-name "$ROBOT_NAME" \
-    --num-problems 200 \
-    --num-obstacles 10 \
-    --max-time 60.0 \
+    --num-problems 50 \
+    --num-obstacles 6 \
+    --max-time 5.0 \
     --workspace-min "$X_START" \
     --workspace-max "$X_END" \
     --safe-zone-radius 0.15 \
@@ -62,9 +62,9 @@ python generate_problem_dataset.py \
     --voxel-size-max 0.20
 
 if [ $? -eq 0 ]; then
-    echo "✓ Franka 数据集生成成功"
+    echo "✓ $ROBOT_NAME 数据集生成成功"
 else
-    echo "✗ Franka 数据集生成失败"
+    echo "✗ $ROBOT_NAME 数据集生成失败"
 fi
 
 echo ""

@@ -19,9 +19,10 @@ import argparse
 
 # 添加项目路径
 
-from robot_as.modular_env import ModularEnv
-from algorithm.bit_star import BITStar
+from trace_generation.core.robot.modular_env import ModularEnv
+from trace_generation.bit_planning.algorithm.bit_star import BITStar
 from trace_generation.utils.planning_utils import uniform_sample, distance
+
 
 def visualize_problem(modular_env, obstacles, start=None, goal=None, path=None):
     """可视化问题场景（需要GUI模式）"""
@@ -54,6 +55,7 @@ def visualize_problem(modular_env, obstacles, start=None, goal=None, path=None):
             time.sleep(0.1)
     except KeyboardInterrupt:
         pass
+
 
 def generate_single_problem(
     modular_env,
@@ -116,6 +118,7 @@ def generate_single_problem(
 
     return None
 
+
 def reconstruct_path(edges, start, goal):
     """从边字典重构路径"""
     from collections import deque
@@ -143,6 +146,7 @@ def reconstruct_path(edges, start, goal):
         return None
 
     return list(path)
+
 
 def generate_problem_dataset(
     robot_file,
@@ -206,8 +210,7 @@ def generate_problem_dataset(
 
         if (
             problem is not None
-            and modular_env.collision_env.data_manager.edge_fp_call_count > 100
-            and modular_env.collision_env.data_manager.edge_fp_call_count < 10000
+            and modular_env.collision_env.data_manager.edge_fp_call_count > 10
         ):
             problems.append(problem)
             success_count += 1
@@ -251,6 +254,7 @@ def generate_problem_dataset(
     )
 
     return problems
+
 
 def main():
     parser = argparse.ArgumentParser(description="生成机器人路径规划问题数据集")
@@ -297,6 +301,7 @@ def main():
     )
 
     return 0
+
 
 if __name__ == "__main__":
     exit(main())

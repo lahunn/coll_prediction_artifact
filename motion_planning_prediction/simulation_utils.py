@@ -62,6 +62,51 @@ def csp_rearrange(edge, edgeyarr, groupsize=8):
     return group, grouparr
 
 
+def csp_rearrange_with_cycles(edge, edgeyarr, edge_cycles, groupsize=8):
+    """
+    根据分层采样策略（CSP）重排路径上的姿态，同时重排周期数据。
+    
+    Args:
+        edge: 边数据 [pose][sphere]
+        edgeyarr: 碰撞标记 [pose][sphere]
+        edge_cycles: 周期数据 [pose][sphere]
+        groupsize: 分组大小（默认8）
+    
+    Returns:
+        group: 展平后的边数据
+        grouparr: 展平后的碰撞标记
+        group_cycles: 展平后的周期数据
+    """
+    num_steps = len(edge)
+
+    # --- 1. 分层重排姿态（包括周期数据）---
+    rearr = [edge[-1]]
+    rearryarr = [edgeyarr[-1]]
+    rearr_cycles = [edge_cycles[-1]]
+
+    # 分层采样顺序
+    for i in [0, 4, 2, 6, 1, 5, 3, 7]:
+        for j in range(i, num_steps - 1, 8):
+            rearr.append(edge[j])
+            rearryarr.append(edgeyarr[j])
+            rearr_cycles.append(edge_cycles[j])
+
+    # --- 2. 展平数据结构 ---
+    group = []
+    grouparr = []
+    group_cycles = []
+    
+    # 遍历重排后的每个姿态
+    for pose, posecoll, pose_cycles in zip(rearr, rearryarr, rearr_cycles):
+        # 遍历该姿态下的每个球体
+        for sphere, sphere_coll, sphere_cycle in zip(pose, posecoll, pose_cycles):
+            group.append(sphere)
+            grouparr.append(sphere_coll)
+            group_cycles.append(sphere_cycle)
+
+    return group, grouparr, group_cycles
+
+
 def load_data(planner_type, benchid, dimension):
     """
     Loads motion trace data from a pickle file based on planner, benchmark ID, and dimension.
@@ -102,27 +147,44 @@ def load_sphere_data(basename, benchid, data_folder):
     """
     Loads sphere collision data from a pickle file.
     Format: (sphere_link_data, sphere_link_coll_data)
+
+    Returns:
+        sphere_link_data, sphere_link_coll_data
     """
     filename = f"{data_folder}/{basename}_{benchid:04d}_sphere.pkl"
     try:
         with open(filename, "rb") as f:
             data = pickle.load(f)
-            # 新格式: (sphere_link_data, sphere_link_coll_data)
             if isinstance(data, tuple) and len(data) == 2:
-                return data
-            # 兼容旧格式: (qarr, rarr, yarr)
-            elif isinstance(data, tuple) and len(data) == 3:
-                print(
-                    f"Warning: Old format detected in {filename}, converting...",
-                    file=sys.stderr,
-                )
-                qarr_sphere, rarr_sphere, yarr_sphere = data
-                return qarr_sphere, yarr_sphere  # 返回坐标和碰撞标签
-            else:
-                return None, None
+                return data[0], data[1]
     except FileNotFoundError:
-        print(f"Warning: Sphere data file not found at {filename}", file=sys.stderr)
-        return None, None
+        pass
+
+    print(f"Warning: Sphere data file not found at {filename}", file=sys.stderr)
+    return None, None
+
+
+def load_sphere_data_with_cycles(basename, benchid, data_folder):
+    """
+    Loads sphere collision data with cycles from a pickle file.
+    Format: (sphere_link_data, sphere_link_coll_data, sphere_link_coll_cycles)
+
+    Returns:
+        sphere_link_data, sphere_link_coll_data, sphere_link_coll_cycles
+    """
+    filename = f"{data_folder}/{basename}_{benchid:04d}_sphere_geometric_cycles.pkl"
+    try:
+        with open(filename, "rb") as f:
+            data = pickle.load(f)
+            if isinstance(data, tuple) and len(data) == 3:
+                sphere_link_data, sphere_link_coll_data, sphere_link_coll_cycles = data
+                if isinstance(sphere_link_coll_cycles, list):
+                    return sphere_link_data, sphere_link_coll_data, sphere_link_coll_cycles
+    except FileNotFoundError:
+        pass
+
+    print(f"Warning: Sphere data with cycles file not found at {filename}", file=sys.stderr)
+    return None, None, None
 
 
 def load_obb_data(basename, benchid, data_folder):
@@ -181,6 +243,32 @@ def predict_collision(colldict, hash_key, threshold):
             return False  # Predict free
     else:
         return False  # Predict free for unseen configurations
+
+
+def calculate_accuracy(predictions, actuals):
+    """
+    计算预测准确率
+    
+    Args:
+        predictions: 预测结果列表 (True/False)
+        actuals: 实际结果列表 (0/1, 0表示碰撞)
+    
+    Returns:
+        float: 准确率 (0-1)
+    """
+    if not predictions or not actuals or len(predictions) != len(actuals):
+        return 0.0
+    
+    correct = 0
+    for pred, act in zip(predictions, actuals):
+        # pred: True表示预测碰撞, False表示预测无碰撞
+        # act: 0表示实际碰撞, 1表示实际无碰撞
+        pred_collision = pred
+        actual_collision = (act == 0)
+        if pred_collision == actual_collision:
+            correct += 1
+    
+    return correct / len(predictions)
 
 
 def simulate_parallel_collision_detection(
@@ -306,3 +394,285 @@ def simulate_parallel_collision_detection(
 
     # 返回总查询数、更新后的碰撞历史表和是否找到碰撞的标志
     return query_count, colldict, coll_found, cycle
+
+
+def simulate_parallel_collision_detection_real_cycles(
+    linklist,
+    linklist_coll,
+    linklist_cycles,
+    colldict,
+    threshold,
+    sample_rate,
+    bins,
+    qnoncoll_len=DEFAULT_QNONCOLL_LEN,
+    qcoll_len=DEFAULT_QCOLL_LEN,
+    num_oocds=NUM_OOCDS,
+):
+    """
+    使用真实周期数的并行碰撞检测仿真。
+    
+    与 simulate_parallel_collision_detection 的区别：
+    - 使用 linklist_cycles 中的真实周期数，而不是固定的 cycle_check
+    - 每个 OOCD 根据实际任务的周期数来确定完成时间
+    
+    参数:
+        linklist: 配置列表（已展平并重排）
+        linklist_coll: 碰撞标志列表（已展平并重排）
+        linklist_cycles: 周期数列表（已展平并重排，与 linklist 对应）
+        其他参数与原函数相同
+    """
+    # 初始化硬件碰撞检测器 (OOCD)
+    oocds = [
+        OOCDState(hash_key=0, result=0, busy=0, free_cycle=0) for _ in range(num_oocds)
+    ]
+    # 使用deque替代list，提高队列操作效率
+    qcoll = deque(maxlen=qcoll_len)  # 预测碰撞任务队列
+    qnoncoll = deque(maxlen=qnoncoll_len)  # 预测无碰撞任务队列
+    cycle = 0  # 仿真周期计数器
+    first_two_running = 0  # 当前正在运行的前两个任务计数
+    first_two_checked = 0  # 前两个任务开始处理的周期标记
+    coll_found = 0  # 是否发现真实碰撞的标志
+    links_remaining = len(linklist)  # 剩余待处理的配置数量
+    everything_free = 0  # 所有任务是否完成的标志
+    query_count = 0.0  # 实际执行的硬件查询总数
+
+    # 主循环：直到发现碰撞或所有任务完成
+    while not coll_found and not everything_free:
+        # --- 步骤1: 处理硬件检测器 (OOCD) 的状态 ---
+        for oocd_id in range(len(oocds)):
+            oocd = oocds[oocd_id]
+            # 如果一个检测器任务已完成 (繁忙状态且到达完成周期)
+            if oocd.busy == 1 and oocd.free_cycle <= cycle:
+                query_count += 1  # 增加硬件查询计数
+                if oocd.result == 0:  # 假设0代表真实发生碰撞
+                    coll_found = 1
+                # 根据真实的检测结果，更新碰撞历史表
+                colldict = update_collision_dict(
+                    colldict, oocd.hash_key, oocd.result, sample_rate
+                )
+
+            # 如果一个检测器现在空闲 (到达完成周期)
+            if oocd.free_cycle <= cycle:
+                # 优先从"预测碰撞"队列 (qcoll) 中取任务
+                if len(qcoll) > 0 and first_two_checked < cycle:
+                    first_two_running += 1
+                    if first_two_running == 1:
+                        # 使用真实的周期数
+                        first_two_checked = cycle + qcoll[0][2]
+                    # 分配新任务给这个OOCD，使用真实周期数
+                    oocds[oocd_id] = OOCDState(
+                        hash_key=qcoll[0][0],
+                        result=qcoll[0][1],
+                        busy=1,
+                        free_cycle=cycle + qcoll[0][2],  # 使用真实周期数
+                    )
+                    qcoll.popleft()
+                # 如果qcoll为空，则从"预测不碰撞"队列 (qnoncoll) 中取任务
+                elif (
+                    len(qnoncoll) == qnoncoll_len
+                    or (links_remaining == 0 and len(qnoncoll) > 0)
+                    and first_two_checked < cycle
+                ):
+                    oocds[oocd_id] = OOCDState(
+                        hash_key=qnoncoll[0][0],
+                        result=qnoncoll[0][1],
+                        busy=1,
+                        free_cycle=cycle + qnoncoll[0][2],  # 使用真实周期数
+                    )
+                    qnoncoll.popleft()
+                else:
+                    # 如果两个队列都没有任务，则OOCD变为空闲状态
+                    oocds[oocd_id] = OOCDState(
+                        hash_key=0, result=0, busy=0, free_cycle=0
+                    )
+
+        # --- 步骤2: 预测下一个配置并放入相应队列 ---
+        if len(linklist) > 0:
+            link, linkcoll, link_cycle = linklist[0], linklist_coll[0], linklist_cycles[0]
+
+            # 将配置数据"量化"以生成用于查询历史表的键 (key)
+            code_quant = np.digitize(link, bins, right=True)
+            keyy = reutrn_keyy(code_quant)
+
+            # 使用历史表进行碰撞预测
+            is_collision_predicted = predict_collision(colldict, keyy, threshold)
+
+            # 根据预测结果，将配置放入不同的队列（包含周期数）
+            if is_collision_predicted:
+                if len(qcoll) < qcoll_len:  # 如果队列未满
+                    qcoll.append([keyy, linkcoll, link_cycle])
+                    del linklist[0]
+                    del linklist_coll[0]
+                    del linklist_cycles[0]
+            else:
+                if len(qnoncoll) < qnoncoll_len:  # 如果队列未满
+                    qnoncoll.append([keyy, linkcoll, link_cycle])
+                    del linklist[0]
+                    del linklist_coll[0]
+                    del linklist_cycles[0]
+
+        # --- 步骤3: 检查仿真是否结束 ---
+        links_remaining = len(linklist)
+        # 如果所有输入配置都已处理，所有检测器都空闲，且所有队列都为空
+        if (
+            links_remaining == 0
+            and not any(oocd.free_cycle > cycle for oocd in oocds)
+            and not qnoncoll
+            and not qcoll
+        ):
+            everything_free = 1  # 设置结束标志
+
+        cycle += 1  # 时间周期前进
+
+    # --- 步骤4: 计算仿真结束时仍在运行的任务 ---
+    # 对于未完成的检查，按其已执行的比例计入查询总数
+    for oocd in oocds:
+        if oocd.free_cycle > cycle:
+            # 注意：这里无法精确知道该OOCD任务的原始周期数
+            # 简化处理：假设已完成的比例为 (已执行周期 / 总周期)
+            # 但由于我们不知道原始周期数，这里保持简单，计为部分查询
+            query_count += 0.5  # 简化处理
+
+    # 返回总查询数、更新后的碰撞历史表和是否找到碰撞的标志
+    return query_count, colldict, coll_found, cycle
+
+
+def simulate_parallel_collision_detection_with_tracking(
+    linklist,
+    linklist_coll,
+    colldict,
+    threshold,
+    sample_rate,
+    bins,
+    qnoncoll_len=DEFAULT_QNONCOLL_LEN,
+    qcoll_len=DEFAULT_QCOLL_LEN,
+    cycle_check=DEFAULT_CYCLE_CHECK,
+    num_oocds=NUM_OOCDS,
+):
+    """
+    带预测跟踪的并行碰撞检测仿真，返回预测结果用于准确率计算。
+    
+    返回值:
+        query_count: 总查询数
+        colldict: 更新后的碰撞历史表
+        coll_found: 是否找到碰撞
+        cycle: 总周期数
+        predictions: 预测结果列表
+        actuals: 实际结果列表
+    """
+    # 初始化硬件碰撞检测器 (OOCD)
+    oocds = [
+        OOCDState(hash_key=0, result=0, busy=0, free_cycle=0) for _ in range(num_oocds)
+    ]
+    # 使用deque替代list，提高队列操作效率
+    qcoll = deque(maxlen=qcoll_len)  # 预测碰撞任务队列
+    qnoncoll = deque(maxlen=qnoncoll_len)  # 预测无碰撞任务队列
+    cycle = 0  # 仿真周期计数器
+    first_two_running = 0  # 当前正在运行的前两个任务计数
+    first_two_checked = 0  # 前两个任务开始处理的周期标记
+    coll_found = 0  # 是否发现真实碰撞的标志
+    links_remaining = len(linklist)  # 剩余待处理的配置数量
+    everything_free = 0  # 所有任务是否完成的标志
+    query_count = 0.0  # 实际执行的硬件查询总数
+    
+    # 准确率跟踪变量
+    predictions = []  # 预测结果
+    actuals = []  # 实际结果
+
+    # 主循环：直到发现碰撞或所有任务完成
+    while not coll_found and not everything_free:
+        # --- 步骤1: 处理硬件检测器 (OOCD) 的状态 ---
+        for oocd_id in range(len(oocds)):
+            oocd = oocds[oocd_id]
+            # 如果一个检测器任务已完成 (繁忙状态且到达完成周期)
+            if oocd.busy == 1 and oocd.free_cycle <= cycle:
+                query_count += 1  # 增加硬件查询计数
+                if oocd.result == 0:  # 假设0代表真实发生碰撞
+                    coll_found = 1
+                # 根据真实的检测结果，更新碰撞历史表
+                colldict = update_collision_dict(
+                    colldict, oocd.hash_key, oocd.result, sample_rate
+                )
+
+            # 如果一个检测器现在空闲 (到达完成周期)
+            if oocd.free_cycle <= cycle:
+                # 优先从"预测碰撞"队列 (qcoll) 中取任务
+                if len(qcoll) > 0 and first_two_checked < cycle:
+                    first_two_running += 1
+                    if first_two_running == 1:
+                        first_two_checked = cycle + cycle_check
+                    # 分配新任务给这个OOCD
+                    oocds[oocd_id] = OOCDState(
+                        hash_key=qcoll[0][0],
+                        result=qcoll[0][1],
+                        busy=1,
+                        free_cycle=cycle + cycle_check,
+                    )
+                    qcoll.popleft()
+                # 如果qcoll为空，则从"预测不碰撞"队列 (qnoncoll) 中取任务
+                elif (
+                    len(qnoncoll) == qnoncoll_len
+                    or (links_remaining == 0 and len(qnoncoll) > 0)
+                    and first_two_checked < cycle
+                ):
+                    oocds[oocd_id] = OOCDState(
+                        hash_key=qnoncoll[0][0],
+                        result=qnoncoll[0][1],
+                        busy=1,
+                        free_cycle=cycle + cycle_check,
+                    )
+                    qnoncoll.popleft()
+                else:
+                    # 如果两个队列都没有任务，则OOCD变为空闲状态
+                    oocds[oocd_id] = OOCDState(
+                        hash_key=0, result=0, busy=0, free_cycle=0
+                    )
+
+        # --- 步骤2: 预测下一个配置并放入相应队列 ---
+        if len(linklist) > 0:
+            link, linkcoll = linklist[0], linklist_coll[0]
+
+            # 将配置数据"量化"以生成用于查询历史表的键 (key)
+            code_quant = np.digitize(link, bins, right=True)
+            keyy = reutrn_keyy(code_quant)
+
+            # 使用历史表进行碰撞预测
+            is_collision_predicted = predict_collision(colldict, keyy, threshold)
+
+            # 记录预测结果用于准确率计算
+            predictions.append(is_collision_predicted)
+            actuals.append(linkcoll)
+
+            # 根据预测结果，将配置放入不同的队列
+            if is_collision_predicted:
+                if len(qcoll) < qcoll_len:  # 如果队列未满
+                    qcoll.append([keyy, linkcoll])
+                    del linklist[0]
+                    del linklist_coll[0]
+            else:
+                if len(qnoncoll) < qnoncoll_len:  # 如果队列未满
+                    qnoncoll.append([keyy, linkcoll])
+                    del linklist[0]
+                    del linklist_coll[0]
+
+        # --- 步骤3: 检查仿真是否结束 ---
+        links_remaining = len(linklist)
+        # 如果所有输入配置都已处理，所有检测器都空闲，且所有队列都为空
+        if (
+            links_remaining == 0
+            and not any(oocd.free_cycle > cycle for oocd in oocds)
+            and not qnoncoll
+            and not qcoll
+        ):
+            everything_free = 1  # 设置结束标志
+
+        cycle += 1  # 时间周期前进
+
+    # --- 步骤4: 计算仿真结束时仍在运行的任务 ---
+    # 对于未完成的检查，按其已执行的比例计入查询总数
+    for oocd in oocds:
+        if oocd.free_cycle > cycle:
+            query_count += 0.5  # 简化处理
+
+    # 返回总查询数、更新后的碰撞历史表和是否找到碰撞的标志，以及预测跟踪数据
+    return query_count, colldict, coll_found, cycle, predictions, actuals

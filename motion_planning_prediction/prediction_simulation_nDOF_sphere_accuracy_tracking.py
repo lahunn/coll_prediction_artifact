@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-球体碰撞检测预测仿真程序（nDOF机器人）
+球体碰撞检测预测仿真程序（nDOF机器人）- 准确率跟踪版本
 
-使用球体近似进行碰撞检测的预测策略评估
+使用球体近似进行碰撞检测的预测策略评估，并跟踪预测准确率随训练数据量的变化
 数据格式: sphere_link_data[edge][pose][sphere] = [x, y, z, radius]
          sphere_link_coll_data[edge][pose][sphere] = 1 or 0
 """
@@ -31,13 +31,20 @@ fall_oracle = 0
 total_sphere_checks = 0
 fall_cycle = 0
 
+# --- Accuracy Tracking ---
+accuracy_stages = []  # Accuracy at each stage
+training_sizes = []  # Corresponding training data sizes
+stage_size = 50  # Calculate accuracy every 50 edges
+current_predictions = []
+current_actuals = []
+
 # --- Simulation Parameters from Command Line ---
 if len(sys.argv) < 7:
     print(
-        "Usage: python prediction_simulation_nDOF_sphere.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <num_benchmarks> [robot_name]"
+        "Usage: python prediction_simulation_nDOF_sphere_accuracy_tracking.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <num_benchmarks> [robot_name]"
     )
     print(
-        "Example: python prediction_simulation_nDOF_sphere.py 0.5 0.1 8 ../trace_files/scene_benchmarks/bit_collision_data franka_14 100 franka"
+        "Example: python prediction_simulation_nDOF_sphere_accuracy_tracking.py 0.5 0.1 8 ../trace_files/scene_benchmarks/bit_collision_data franka_14 100 franka"
     )
     sys.exit(1)
 
@@ -57,13 +64,15 @@ sphere_cost = robot_params["sphere_cost"]
 num_spheres = sphere_num
 qnoncoll_len = num_spheres * qnoncoll_multiplier
 
-print("=== 球体碰撞检测预测仿真 ===")
-print(f"阈值: {threshold}")
-print(f"采样率: {sample_rate}")
-print(f"队列长度倍数: {qnoncoll_multiplier}")
-print(f"非碰撞队列长度: {qnoncoll_len}")
-print(f"数据文件夹: {data_folder}")
-print(f"基准测试数量: {num_benchmarks}")
+print(
+    "=== Sphere Collision Detection Prediction Simulation (Accuracy Tracking Version) ==="
+)
+print(f"Threshold: {threshold}")
+print(f"Sample Rate: {sample_rate}")
+print(f"Queue Length Multiplier: {qnoncoll_multiplier}")
+print(f"Non-collision Queue Length: {qnoncoll_len}")
+print(f"Data Folder: {data_folder}")
+print(f"Number of Benchmarks: {num_benchmarks}")
 print("=" * 50)
 
 # --- Benchmark Range ---
@@ -77,8 +86,8 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
     colldict = {}
 
     # 加载球体数据（支持新的3元组格式）
-    sphere_link_data, sphere_link_coll_data = (
-        su.load_sphere_data(basename, benchid, data_folder)
+    sphere_link_data, sphere_link_coll_data = su.load_sphere_data(
+        basename, benchid, data_folder
     )
 
     if sphere_link_data is None or sphere_link_coll_data is None:
@@ -119,21 +128,38 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
         # 将edge数据重排为适合CSP策略的顺序
         linklist, linklist_coll = su.csp_rearrange(edge, edge_coll, groupsize=4)
 
-        # --- Run Centralized Simulation ---
-        edge_query_count, colldict, _, cycle = su.simulate_parallel_collision_detection(
-            linklist,
-            linklist_coll,
-            colldict,
-            threshold,
-            sample_rate,
-            bins,
-            qnoncoll_len=qnoncoll_len,
-            cycle_check=sphere_cost,
-            num_oocds=7,
+        # --- Run Centralized Simulation with Accuracy Tracking ---
+        edge_query_count, colldict, _, cycle, edge_predictions, edge_actuals = (
+            su.simulate_parallel_collision_detection_with_tracking(
+                linklist,
+                linklist_coll,
+                colldict,
+                threshold,
+                sample_rate,
+                bins,
+                qnoncoll_len=qnoncoll_len,
+                cycle_check=sphere_cost,
+                num_oocds=7,
+            )
         )
 
         all_prediction += edge_query_count
         all_cycle += cycle
+
+        # 收集预测结果用于准确率计算
+        current_predictions.extend(edge_predictions)
+        current_actuals.extend(edge_actuals)
+
+        # 阶段性计算准确率
+        total_processed_edges = sum(
+            len(sphere_link_data[:benchid]) for benchid in range(1, benchid)
+        ) + (edge_idx + 1)
+        if total_processed_edges % stage_size == 0 and current_predictions:
+            accuracy = su.calculate_accuracy(current_predictions, current_actuals)
+            accuracy_stages.append(accuracy)
+            training_sizes.append(len(colldict))  # 当前训练数据量（历史字典大小）
+            current_predictions = []
+            current_actuals = []
 
     fall_oracle += all_oracle
     fall_prediction += all_prediction
@@ -177,3 +203,37 @@ with open(csv_file, "a", newline="") as csvfile:
             reduction_rate,
         ]
     )
+
+# 输出准确率曲线数据到单独的CSV文件
+if accuracy_stages:
+    accuracy_csv_file = "result_files/sphere_accuracy_curve.csv"
+    with open(accuracy_csv_file, "a", newline="") as csvfile:
+        writer = csv.writer(csvfile)
+        # 写入表头（如果文件为空）
+        if csvfile.tell() == 0:
+            writer.writerow(
+                [
+                    "threshold",
+                    "sample_rate",
+                    "qnoncoll_multiplier",
+                    "training_size",
+                    "accuracy",
+                    "stage",
+                ]
+            )
+
+        # 写入准确率曲线数据
+        for i, (size, acc) in enumerate(zip(training_sizes, accuracy_stages)):
+            writer.writerow(
+                [
+                    threshold,
+                    sample_rate,
+                    qnoncoll_multiplier,
+                    size,
+                    acc,
+                    i + 1,  # 阶段编号
+                ]
+            )
+
+    print(f"准确率曲线数据已保存到 {accuracy_csv_file}")
+    print(f"记录了 {len(accuracy_stages)} 个准确率阶段")

@@ -9,10 +9,8 @@
 """
 
 import sys
-import os
 import time
 import numpy as np
-from pathlib import Path
 
 from trace_generation.core.robot.environment import RobotEnv
 from trace_generation.core.collision.sphere_detector import SphereEnvGeometric
@@ -25,7 +23,7 @@ def test_correctness_comparison():
     print("正确性对比测试：C++ vs PyBullet")
     print("=" * 80)
 
-    robot_name = "franka"
+    robot_name = "iiwa"
     print(f"\n1. 初始化环境: {robot_name}")
     robot_env = RobotEnv(robot_name)
 
@@ -51,7 +49,7 @@ def test_correctness_comparison():
 
     # 测试多个随机关节配置
     print("\n4. 测试随机关节配置...")
-    num_tests = 100
+    num_tests = 1000
     mismatches = 0
     mismatch_details = []
 
@@ -116,7 +114,7 @@ def test_performance_comparison():
     print("性能对比测试：C++ vs PyBullet")
     print("=" * 80)
 
-    robot_name = "franka"
+    robot_name = "iiwa"
     robot_env = RobotEnv(robot_name)
 
     # 创建检测器
@@ -205,12 +203,12 @@ def test_scalability():
     print("可扩展性测试：不同障碍物数量")
     print("=" * 80)
 
-    robot_name = "franka"
+    robot_name = "iiwa"
     robot_env = RobotEnv(robot_name)
 
     # 测试不同数量的障碍物
     obstacle_counts = [5, 10, 20, 50]
-    num_tests = 200
+    num_tests = 1000
 
     print(f"\n测试配置数: {num_tests}")
     print(f"障碍物数量: {obstacle_counts}")
