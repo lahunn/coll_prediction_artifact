@@ -186,9 +186,10 @@ PYBIND11_MODULE(cpp_collision, m) {
              "Args:\n"
              "    sphere_coords (List[List[float]]): 球体坐标列表，每个为 [x, y, z, r]\n\n"
              "Returns:\n"
-             "    Tuple[bool, List[int]]: (是否碰撞, 碰撞标志数组)\n"
+             "    Tuple[bool, List[int], List[int]]: (是否碰撞, 碰撞标志数组, 每个球体的周期数)\n"
              "        - 第一个元素: True 表示存在碰撞\n"
-             "        - 第二个元素: 每个球体的碰撞状态 (1=无碰撞, 0=有碰撞)",
+             "        - 第二个元素: 每个球体的碰撞状态 (1=无碰撞, 0=有碰撞)\n"
+             "        - 第三个元素: 每个球体的周期数列表",
              py::arg("sphere_coords"))
         
         .def("check_collisions_batch", &SphereCollisionChecker::check_collisions_batch,
@@ -196,7 +197,7 @@ PYBIND11_MODULE(cpp_collision, m) {
              "Args:\n"
              "    batch_coords (List[List[List[float]]]): 批量球体坐标\n\n"
              "Returns:\n"
-             "    List[Tuple[bool, List[int]]]: 每个配置的碰撞检测结果",
+             "    List[Tuple[bool, List[int], List[int]]]: 每个配置的碰撞检测结果(碰撞状态, 标志数组, 各球体周期数)",
              py::arg("batch_coords"))
         
         // 查询方法

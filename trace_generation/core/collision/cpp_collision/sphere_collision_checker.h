@@ -70,20 +70,21 @@ public:
     /**
      * 检查单个关节配置的球体碰撞
      * @param sphere_coords 球体坐标列表，每个球体为 [x, y, z, radius]
-     * @return pair<bool, vector<int>>
+     * @return tuple<bool, vector<int>, vector<int>>
      *         - first: 是否存在碰撞
      *         - second: 碰撞标志数组 (1=无碰撞, 0=有碰撞)
+     *         - third: 每个球体的周期数列表
      */
-    std::pair<bool, std::vector<int>> check_collisions(
+    std::tuple<bool, std::vector<int>, std::vector<int>> check_collisions(
         const std::vector<std::array<double, 4>>& sphere_coords
     );
     
     /**
      * 批量检查多个关节配置的球体碰撞
      * @param batch_coords 多个关节配置的球体坐标
-     * @return 每个配置的碰撞检测结果
+     * @return 每个配置的碰撞检测结果 (碰撞状态, 碰撞标志数组, 每个球体周期数)
      */
-    std::vector<std::pair<bool, std::vector<int>>> check_collisions_batch(
+    std::vector<std::tuple<bool, std::vector<int>, std::vector<int>>> check_collisions_batch(
         const std::vector<std::vector<std::array<double, 4>>>& batch_coords
     );
     
@@ -112,24 +113,6 @@ private:
     // ========================================================================
     // 私有辅助方法
     // ========================================================================
-    
-    /**
-     * 检查单个球体与所有障碍物的碰撞
-     * @param sphere 球体
-     * @return true 如果无碰撞，false 如果有碰撞
-     */
-    bool check_sphere_obstacle_collision(const Sphere& sphere);
-    
-    /**
-     * 检查球体自碰撞
-     * @param sphere_coords 所有球体坐标
-     * @param collision_flags 输出碰撞标志数组
-     * @return true 如果存在自碰撞
-     */
-    bool check_sphere_self_collision(
-        const std::vector<std::array<double, 4>>& sphere_coords,
-        std::vector<int>& collision_flags
-    );
     
     /**
      * 判断两个球体索引是否为邻接对

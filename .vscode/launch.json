@@ -177,6 +177,47 @@
       "args": [
         "--urdf"
       ]
+    },
+    {
+      "name": "调试 performance_bottleneck_analysis.py",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/motion_planning_prediction/performance_bottleneck_analysis.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/motion_planning_prediction",
+      "args": [
+        "0.5",
+        "0.1",
+        "8",
+        "../trace_files/scene_benchmarks/bit_collision_data",
+        "iiwa_7",
+        "40",
+        "iiwa",
+        "7"
+      ]
+    },
+    {
+      "name": "调试 generate_sphere_data.py",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/trace_generation/scripts/generate_sphere_data.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/trace_generation/scripts",
+      "args": [
+        "--obstacle-config-file",
+        "../../trace_files/bit_traces/iiwa_7_0001.pkl",
+        "--collision-data-file",
+        "../../trace_files/scene_benchmarks/bit_collision_data/iiwa_7_0001_obb.pkl",
+        "--robot-name",
+        "iiwa",
+        "--benchmark-id",
+        "1",
+        "--detector-type",
+        "geometric",
+        "--return-cycles",
+        "--output-file",
+        "../../trace_files/scene_benchmarks/bit_collision_data/iiwa_7_0001_sphere_geometric_cycles.pkl"
+      ]
     }
   ]
 }
