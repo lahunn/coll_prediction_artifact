@@ -12,10 +12,14 @@
 """
 
 import sys
+import os
 import numpy as np
 import pickle
 import matplotlib.pyplot as plt
 import matplotlib
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
+
 from collision_prediction_strategies import (
     FixedThresholdStrategy,
     generate_hash_key,
@@ -28,20 +32,22 @@ matplotlib.rcParams["axes.unicode_minus"] = False  # 解决负号显示问题
 
 # 解析命令行参数
 if len(sys.argv) < 6:
-    print("用法: python analyze_training_progression.py <数据类型> <密度等级> <量化参数> <碰撞阈值> <自由样本采样率> [benchmark_id] [步长]")
+    print(
+        "用法: python analyze_training_progression.py <数据类型> <密度等级> <量化参数> <碰撞阈值> <自由样本采样率> [benchmark_id] [步长]"
+    )
     print("\n数据类型:")
     print("  trajectory - 机器人轨迹数据")
     print("  sphere - 球体数据")
     print("\n示例:")
-    print("  python analyze_training_progression.py trajectory mid 8 0.1 0.3")
-    print("  python analyze_training_progression.py trajectory mid 8 0.1 0.3 0")
-    print("  python analyze_training_progression.py trajectory mid 8 0.1 0.3 0 500")
-    print("  python analyze_training_progression.py sphere mid 8,6 0.1 0.3")
-    print("  python analyze_training_progression.py sphere mid 8,6 0.1 0.3 0 2000")
+    print("  python analyze_training_progression.py trajectory dens6 8 0.1 0.3")
+    print("  python analyze_training_progression.py trajectory dens6 8 0.1 0.3 0")
+    print("  python analyze_training_progression.py trajectory dens6 8 0.1 0.3 0 500")
+    print("  python analyze_training_progression.py sphere dens6 8,6 0.1 0.3")
+    print("  python analyze_training_progression.py sphere dens6 8,6 0.1 0.3 0 2000")
     sys.exit(1)
 
 data_type = sys.argv[1]  # 数据类型: "trajectory" 或 "sphere"
-density_level = sys.argv[2]  # 密度等级: "low", "mid", "high"
+density_level = sys.argv[2]  # 密度等级: "dens3", "dens6", "dens9"
 quantize_param = sys.argv[3]  # 量化参数 (trajectory: "8", sphere: "8,6")
 collision_threshold = float(sys.argv[4])  # 碰撞阈值
 free_sample_rate = float(sys.argv[5])  # 自由样本采样率
@@ -72,6 +78,11 @@ print(f"  Benchmark ID: {benchmark_id}")
 print(f"  数据步长: {step_size}")
 
 # 根据数据类型解析量化参数
+quantize_bits = None
+coord_bits = None
+radius_bits = None
+num_links = None
+
 if data_type == "trajectory":
     quantize_bits = int(quantize_param)
     num_links = 11
@@ -85,12 +96,19 @@ else:
     sys.exit(1)
 
 # 选择数据路径
-if density_level == "low":
-    data_prefix = "../trace_generation/scene_benchmarks/dens6_rs/obstacles_"
-elif density_level == "mid":
-    data_prefix = "../trace_generation/scene_benchmarks/dens9_rs/obstacles_"
+if density_level == "dens3":
+    data_prefix = "../../trace_files/scene_benchmarks/dens3_rs/obstacles_"
+elif density_level == "dens6":
+    data_prefix = "../../trace_files/scene_benchmarks/dens6_rs/obstacles_"
+elif density_level == "dens9":
+    data_prefix = "../../trace_files/scene_benchmarks/dens9_rs/obstacles_"
+elif density_level == "dens12":
+    data_prefix = "../../trace_files/scene_benchmarks/dens12_rs/obstacles_"
 else:
-    data_prefix = "../trace_generation/scene_benchmarks/dens12_rs/obstacles_"
+    print(
+        f"错误: 不支持的密度等级 '{density_level}'，支持: dens3, dens6, dens9, dens12"
+    )
+    sys.exit(1)
 
 # 数据后缀
 if data_type == "trajectory":
@@ -108,6 +126,9 @@ def create_bins_for_range(min_val, max_val, num_bins):
 # ========== 数据预处理 ==========
 if data_type == "trajectory":
     # 轨迹数据的量化设置
+    if quantize_bits is None:
+        print("错误: quantize_bits 未定义")
+        sys.exit(1)
     binnumber = 2**quantize_bits
     intervalsize = 2.24 / binnumber
     bins = np.zeros(binnumber)
@@ -116,8 +137,16 @@ if data_type == "trajectory":
         bins[i] = start
         start += intervalsize
 
+    # 为sphere分支初始化变量（虽然不会使用）
+    x_bins = y_bins = z_bins = r_bins = None
+    consider_radius = False
+
 else:  # sphere
     # 球体数据：仅加载指定的benchmark来确定数据范围
+    if coord_bits is None or radius_bits is None:
+        print("错误: coord_bits 或 radius_bits 未定义")
+        sys.exit(1)
+
     print(f"\n正在加载benchmark {benchmark_id}的球体数据...")
     f = open(f"{data_prefix}{benchmark_id}{data_suffix}", "rb")
     all_positions, all_radii_temp, _ = pickle.load(f)
@@ -138,6 +167,7 @@ else:  # sphere
     r_bins = create_bins_for_range(r_min, r_max, binnumber_radius)
 
     consider_radius = False  # 默认仅使用位置
+    bins = None  # 为trajectory分支初始化（虽然不会使用）
     print(
         f"数据范围: X[{x_min:.3f},{x_max:.3f}] Y[{y_min:.3f},{y_max:.3f}] Z[{z_min:.3f},{z_max:.3f}] R[{r_min:.3f},{r_max:.3f}]"
     )
@@ -151,6 +181,10 @@ if data_type == "trajectory":
     xtest, dirr, label = pickle.load(f)
     f.close()
 
+    if bins is None:
+        print("错误: bins 未初始化")
+        sys.exit(1)
+
     # 量化
     all_codes = np.digitize(xtest, bins, right=True)
     all_labels = label
@@ -159,6 +193,10 @@ if data_type == "trajectory":
 else:  # sphere
     qarr_sphere, rarr_sphere, yarr_sphere = pickle.load(f)
     f.close()
+
+    if x_bins is None or y_bins is None or z_bins is None or r_bins is None:
+        print("错误: sphere bins 未初始化")
+        sys.exit(1)
 
     # 量化位置
     all_codes = np.zeros_like(qarr_sphere, dtype=int)
@@ -202,6 +240,10 @@ for interval_idx in range(num_intervals):
 
     # 使用前0~end_idx的数据进行训练和评估
     if data_type == "trajectory":
+        if num_links is None:
+            print("错误: num_links 未初始化")
+            sys.exit(1)
+
         # 轨迹数据：按group_size处理
         for i in range(0, end_idx, num_links):
             predicted = 1  # 默认预测为非碰撞
@@ -233,6 +275,10 @@ for interval_idx in range(num_intervals):
                 fp += 1
 
     else:  # sphere
+        if all_radii_quant is None:
+            print("错误: all_radii_quant 未初始化")
+            sys.exit(1)
+
         # 球体数据：逐样本处理
         for i in range(end_idx):
             keyy = generate_sphere_hash_key(
@@ -259,22 +305,28 @@ for interval_idx in range(num_intervals):
     # 计算指标
     precision = (tp * 100.0 / (tp + fp)) if (tp + fp) > 0 else 0.0
     recall = (tp * 100.0 / total_collisions) if total_collisions > 0 else 0.0
-    f1 = ((2 * precision * recall / (precision + recall)) if (precision + recall) > 0 else 0.0)
+    f1 = (
+        (2 * precision * recall / (precision + recall))
+        if (precision + recall) > 0
+        else 0.0
+    )
     cht_size = len(strategy.colldict)
 
-    results.append({
-        "interval": interval_idx + 1,
-        "start": start_idx,
-        "end": end_idx,
-        "samples": end_idx,
-        "precision": precision,
-        "recall": recall,
-        "f1": f1,
-        "tp": tp,
-        "fp": fp,
-        "total_collisions": total_collisions,
-        "cht_size": cht_size,
-    })
+    results.append(
+        {
+            "interval": interval_idx + 1,
+            "start": start_idx,
+            "end": end_idx,
+            "samples": end_idx,
+            "precision": precision,
+            "recall": recall,
+            "f1": f1,
+            "tp": tp,
+            "fp": fp,
+            "total_collisions": total_collisions,
+            "cht_size": cht_size,
+        }
+    )
 
     if interval_idx % 5 == 0 or interval_idx == num_intervals - 1:
         print(
@@ -286,7 +338,9 @@ for interval_idx in range(num_intervals):
 print("\n" + "=" * 80)
 print("详细结果")
 print("=" * 80)
-print(f"{'区间':<6} {'样本范围':<20} {'累积样本':<10} {'精确率%':<10} {'召回率%':<10} {'F1':<8} {'CHT大小':<10}")
+print(
+    f"{'区间':<6} {'样本范围':<20} {'累积样本':<10} {'精确率%':<10} {'召回率%':<10} {'F1':<8} {'CHT大小':<10}"
+)
 print("-" * 80)
 
 for r in results:
