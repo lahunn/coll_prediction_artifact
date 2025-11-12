@@ -45,7 +45,7 @@ num_oocds = int(sys.argv[8])
 # 获取机器人参数
 robot_params = get_robot_params(robot_name)
 sphere_num = robot_params["sphere_num"]
-sphere_cost = 30  # 假设每个球体的碰撞检测周期数为15
+sphere_cost = 15  # 假设每个球体的碰撞检测消耗的周期数为30
 
 num_spheres = sphere_num
 qnoncoll_len = num_spheres * qnoncoll_multiplier
@@ -184,6 +184,8 @@ def analyze_simulation_bottlenecks(
         )
         local_stats["active_oocds_sum"] += active_oocds
 
+        # 引入标志位，确保每个周期最多只有一个出队操作
+        dequeued_this_cycle = False
         idle_oocds = 0
         for oocd_id in range(len(oocds)):
             oocd = oocds[oocd_id]
@@ -198,8 +200,8 @@ def analyze_simulation_bottlenecks(
                     colldict, oocd.hash_key, oocd.result, sample_rate
                 )
 
-            # 如果一个检测器现在空闲 (到达完成周期)
-            if oocd.free_cycle <= cycle:
+            # 如果一个检测器现在空闲 (到达完成周期) 并且本周期还未分配过任务
+            if oocd.free_cycle <= cycle and not dequeued_this_cycle:
                 # 优先从"预测碰撞"队列 (qcoll) 中取任务
                 if len(qcoll) > 0 and first_two_checked < cycle:
                     first_two_running += 1
@@ -213,6 +215,7 @@ def analyze_simulation_bottlenecks(
                         free_cycle=cycle + qcoll[0][2],
                     )
                     qcoll.popleft()
+                    dequeued_this_cycle = True  # 标记本周期已出队
                 # 如果qcoll为空，则从"预测不碰撞"队列 (qnoncoll) 中取任务
                 elif (
                     len(qnoncoll) == qnoncoll_len
@@ -227,6 +230,7 @@ def analyze_simulation_bottlenecks(
                     )
                     qnoncoll.popleft()
                     local_stats["qnoncoll_consumed_count"] += 1
+                    dequeued_this_cycle = True  # 标记本周期已出队
                 else:
                     # 如果两个队列都没有任务，则OOCD变为空闲状态
                     oocds[oocd_id] = su.OOCDState(
@@ -268,6 +272,12 @@ def analyze_simulation_bottlenecks(
                     else:
                         # 两个队列都为空而空闲
                         local_stats["oocd_idle_no_tasks"] += 1
+            elif oocd.free_cycle <= cycle:
+                # OOCD空闲，但本周期已出队，因此该OOCD也计为空闲
+                idle_oocds += 1
+                # 此处的空闲原因可以归类为“等待队列访问权”
+                # 为简化，我们暂时将其计入“无任务”类别
+                local_stats["oocd_idle_no_tasks"] += 1
 
         local_stats["oocd_idle_cycles"] += idle_oocds
 

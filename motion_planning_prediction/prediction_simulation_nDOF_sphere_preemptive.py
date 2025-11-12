@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-球体碰撞检测预测仿真程序（nDOF机器人）
+球体碰撞检测预测仿真程序（nDOF机器人）- 预先调度版本
 
-使用球体近似进行碰撞检测的预测策略评估
+使用球体近似进行碰撞检测的预测策略评估，采用预先调度策略（COLL任务可以抢占NONCOLL任务）
 数据格式: sphere_link_data[edge][pose][sphere] = [x, y, z, radius]
          sphere_link_coll_data[edge][pose][sphere] = 1 or 0
 """
@@ -30,14 +30,15 @@ fall_prediction = 0
 fall_oracle = 0
 total_sphere_checks = 0
 fall_cycle = 0
+fall_preemption = 0
 
 # --- Simulation Parameters from Command Line ---
 if len(sys.argv) < 7:
     print(
-        "Usage: python prediction_simulation_nDOF_sphere.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <num_benchmarks> [robot_name]"
+        "Usage: python prediction_simulation_nDOF_sphere_preemptive.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <num_benchmarks> [robot_name]"
     )
     print(
-        "Example: python prediction_simulation_nDOF_sphere.py 0.5 0.1 8 ../trace_files/scene_benchmarks/bit_collision_data franka_14 100 franka"
+        "Example: python prediction_simulation_nDOF_sphere_preemptive.py 0.5 0.1 8 ../trace_files/scene_benchmarks/bit_collision_data franka_14 100 franka"
     )
     sys.exit(1)
 
@@ -57,7 +58,7 @@ sphere_cost = robot_params["sphere_cost"]
 num_spheres = sphere_num
 qnoncoll_len = num_spheres * qnoncoll_multiplier
 
-print("=== 球体碰撞检测预测仿真 ===")
+print("=== 球体碰撞检测预测仿真（预先调度版本）===")
 print(f"阈值: {threshold}")
 print(f"采样率: {sample_rate}")
 print(f"队列长度倍数: {qnoncoll_multiplier}")
@@ -74,6 +75,7 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
     all_prediction = 0
     all_oracle = 0
     all_cycle = 0
+    all_preemption = 0
     colldict = {}
 
     # 加载球体数据（支持新的3元组格式）
@@ -119,8 +121,8 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
         # 将edge数据重排为适合CSP策略的顺序
         linklist, linklist_coll = su.csp_rearrange(edge, edge_coll, groupsize=4)
 
-        # --- Run Centralized Simulation ---
-        edge_query_count, colldict, _, cycle = su.simulate_parallel_collision_detection(
+        # --- Run Preemptive Simulation ---
+        edge_query_count, colldict, _, cycle, preemption_count = su.simulate_parallel_collision_detection_preemptive(
             linklist,
             linklist_coll,
             colldict,
@@ -129,15 +131,17 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
             bins,
             qnoncoll_len=qnoncoll_len,
             cycle_check=sphere_cost,
-            num_oocds=22,
+            num_oocds=7,
         )
 
         all_prediction += edge_query_count
         all_cycle += cycle
+        all_preemption += preemption_count
 
     fall_oracle += all_oracle
     fall_prediction += all_prediction
     fall_cycle += all_cycle
+    fall_preemption += all_preemption
 
     # 每处理10个benchmark打印一次
     if (benchid + 1) % 10 == 0:
@@ -151,11 +155,12 @@ print(f"  实际查询总数 (球体数): {total_sphere_checks}")
 print(f"  预测查询总数: {fall_prediction:.2f}")
 print(f"  Oracle查询总数: {fall_oracle}")
 print(f"  预测周期总数 (成本): {fall_cycle}")
+print(f"  抢占事件总数: {fall_preemption}")
 print(f"  查询减少率: {(1 - fall_prediction / total_sphere_checks) * 100:.2f}%")
 print("=" * 50)
 
 # 输出到CSV
-csv_file = "result_files/sphere_results.csv"
+csv_file = "result_files/sphere_results_preemptive.csv"
 reduction_rate = (
     (1 - fall_prediction / total_sphere_checks) * 100 if total_sphere_checks > 0 else 0
 )
@@ -174,6 +179,7 @@ with open(csv_file, "a", newline="") as csvfile:
             fall_prediction,
             fall_oracle,
             fall_cycle,
+            fall_preemption,
             reduction_rate,
         ]
     )

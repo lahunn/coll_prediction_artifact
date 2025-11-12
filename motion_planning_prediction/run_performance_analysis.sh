@@ -10,12 +10,12 @@ echo
 # 参数设置
 THRESHOLD=0.5
 SAMPLE_RATE=0.1
-QNONCOLL_MULTIPLIER=1
+QNONCOLL_MULTIPLIER=6
 DATA_FOLDER="/home/lanh/project/robot_sim/coll_prediction_artifact/trace_files/scene_benchmarks/bit_collision_data"
 BASENAME="iiwa_7"
 NUM_BENCHMARKS=10  # 减少基准测试数量以加快分析
 ROBOT_NAME="iiwa"
-NUM_OOCDS=7
+NUM_OOCDS=22
 
 echo "分析参数:"
 echo "  阈值: $THRESHOLD"

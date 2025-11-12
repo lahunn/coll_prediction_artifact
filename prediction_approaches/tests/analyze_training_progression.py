@@ -25,6 +25,7 @@ from collision_prediction_strategies import (
     generate_hash_key,
     generate_sphere_hash_key,
 )
+from utils.utils import calculate_expected_checks
 
 # 配置matplotlib以支持中文显示
 matplotlib.rcParams["font.sans-serif"] = ["DejaVu Sans", "Arial", "Liberation Sans"]
@@ -39,11 +40,11 @@ if len(sys.argv) < 6:
     print("  trajectory - 机器人轨迹数据")
     print("  sphere - 球体数据")
     print("\n示例:")
-    print("  python analyze_training_progression.py trajectory dens6 8 0.1 0.3")
-    print("  python analyze_training_progression.py trajectory dens6 8 0.1 0.3 0")
-    print("  python analyze_training_progression.py trajectory dens6 8 0.1 0.3 0 500")
-    print("  python analyze_training_progression.py sphere dens6 8,6 0.1 0.3")
-    print("  python analyze_training_progression.py sphere dens6 8,6 0.1 0.3 0 2000")
+    print("  python analyze_training_progression.py trajectory dens6 4 0.1 0.3")
+    print("  python analyze_training_progression.py trajectory dens6 4 0.1 0.3 0")
+    print("  python analyze_training_progression.py trajectory dens6 4 0.1 0.3 0 500")
+    print("  python analyze_training_progression.py sphere dens6 4,1 0.1 0.3")
+    print("  python analyze_training_progression.py sphere dens6 4,1 0.1 1 0 2000")
     sys.exit(1)
 
 data_type = sys.argv[1]  # 数据类型: "trajectory" 或 "sphere"
@@ -211,9 +212,29 @@ else:  # sphere
 total_samples = len(all_codes)
 print(f"总样本数: {total_samples}")
 
-# 计算需要评估的区间数
-num_intervals = (total_samples + step_size - 1) // step_size
-print(f"将划分为 {num_intervals} 个区间 (每个区间 {step_size} 个样本)")
+# 划分训练集和测试集（固定测试集）
+test_split_ratio = 0.2  # 20%作为测试集
+test_split_idx = int(total_samples * (1 - test_split_ratio))
+
+# 训练数据
+train_codes = all_codes[:test_split_idx]
+train_labels = all_labels[:test_split_idx]
+train_radii_quant = (
+    all_radii_quant[:test_split_idx] if all_radii_quant is not None else None
+)
+
+# 测试数据
+test_codes = all_codes[test_split_idx:]
+test_labels = all_labels[test_split_idx:]
+test_radii_quant = (
+    all_radii_quant[test_split_idx:] if all_radii_quant is not None else None
+)
+
+print(f"训练样本数: {len(train_codes)}, 测试样本数: {len(test_codes)}")
+
+# 计算需要评估的区间数（基于训练数据）
+num_intervals = (len(train_codes) + step_size - 1) // step_size
+print(f"将划分为 {num_intervals} 个区间 (每个区间 {step_size} 个训练样本)")
 
 # ========== 增量训练和评估 ==========
 print("\n" + "=" * 80)
@@ -224,7 +245,7 @@ results = []
 
 for interval_idx in range(num_intervals):
     start_idx = interval_idx * step_size
-    end_idx = min((interval_idx + 1) * step_size, total_samples)
+    end_idx = min((interval_idx + 1) * step_size, len(train_codes))
 
     # 创建新策略（从头开始累积训练）
     strategy = FixedThresholdStrategy(
@@ -233,35 +254,54 @@ for interval_idx in range(num_intervals):
         max_count=255,
     )
 
-    # 统计变量
-    tp = 0  # True Positives
-    fp = 0  # False Positives
-    total_collisions = 0
-
-    # 使用前0~end_idx的数据进行训练和评估
+    # 训练阶段：使用训练数据进行训练
     if data_type == "trajectory":
         if num_links is None:
             print("错误: num_links 未初始化")
             sys.exit(1)
 
-        # 轨迹数据：按group_size处理
         for i in range(0, end_idx, num_links):
+            for j in range(i, min(i + num_links, end_idx)):
+                keyy = generate_hash_key(train_codes[j], len(train_codes[j]))
+                strategy.update_history(keyy, train_labels[j])
+
+    else:  # sphere
+        if train_radii_quant is None:
+            print("错误: train_radii_quant 未初始化")
+            sys.exit(1)
+
+        for i in range(end_idx):
+            keyy = generate_sphere_hash_key(
+                train_codes[i],
+                train_radii_quant[i] if consider_radius else None,
+                consider_radius=consider_radius,
+            )
+            strategy.update_history(keyy, train_labels[i])
+
+    # 评估阶段：在测试集上进行预测和统计
+    tp = 0  # True Positives
+    fp = 0  # False Positives
+    total_collisions = 0
+
+    if data_type == "trajectory":
+        if num_links is None:
+            print("错误: num_links 未初始化")
+            sys.exit(1)
+
+        for i in range(0, len(test_codes), num_links):
             predicted = 1  # 默认预测为非碰撞
             true_ans = 1  # 默认真实为非碰撞
 
             # 检查一组样本
-            for j in range(i, min(i + num_links, end_idx)):
-                keyy = generate_hash_key(all_codes[j], len(all_codes[j]))
+            for j in range(i, min(i + num_links, len(test_codes))):
+                keyy = generate_hash_key(test_codes[j], len(test_codes[j]))
 
-                # 预测
+                # 预测（不更新CHT）
                 if strategy.predict_collision(keyy):
                     predicted = 0
 
-                # 更新历史
-                strategy.update_history(keyy, all_labels[j])
-
                 # 检查真实标签
-                if all_labels[j] < 0.5:
+                if test_labels[j] < 0.5:
                     true_ans = 0
                     if predicted == 0:
                         break
@@ -275,26 +315,22 @@ for interval_idx in range(num_intervals):
                 fp += 1
 
     else:  # sphere
-        if all_radii_quant is None:
-            print("错误: all_radii_quant 未初始化")
+        if test_radii_quant is None:
+            print("错误: test_radii_quant 未初始化")
             sys.exit(1)
 
-        # 球体数据：逐样本处理
-        for i in range(end_idx):
+        for i in range(len(test_codes)):
             keyy = generate_sphere_hash_key(
-                all_codes[i],
-                all_radii_quant[i] if consider_radius else None,
+                test_codes[i],
+                test_radii_quant[i] if consider_radius else None,
                 consider_radius=consider_radius,
             )
 
-            # 预测
+            # 预测（不更新CHT）
             predicted = 1 if not strategy.predict_collision(keyy) else 0
 
-            # 更新历史
-            strategy.update_history(keyy, all_labels[i])
-
             # 统计
-            true_ans = 0 if all_labels[i] < 0.5 else 1
+            true_ans = 0 if test_labels[i] < 0.5 else 1
             if true_ans == 0:  # 真实为碰撞
                 total_collisions += 1
                 if predicted == 0:  # 预测也为碰撞
@@ -305,11 +341,22 @@ for interval_idx in range(num_intervals):
     # 计算指标
     precision = (tp * 100.0 / (tp + fp)) if (tp + fp) > 0 else 0.0
     recall = (tp * 100.0 / total_collisions) if total_collisions > 0 else 0.0
-    f1 = (
-        (2 * precision * recall / (precision + recall))
-        if (precision + recall) > 0
-        else 0.0
+
+    # 计算真实碰撞率（基于测试集）
+    true_collision_rate = (
+        total_collisions / len(test_codes) if len(test_codes) > 0 else 0.0
     )
+
+    # 使用calculate_expected_checks作为评分依据（期望检测次数越小越好，转为评分时取负值）
+    expected_checks = calculate_expected_checks(
+        R=true_collision_rate,
+        C=recall / 100.0,  # 转换为小数
+        A=precision / 100.0,  # 转换为小数
+        N=end_idx,
+    )
+    # 将期望检测次数转换为评分（越小越好，所以取负值使其越大越好）
+    f1 = -expected_checks
+
     cht_size = len(strategy.colldict)
 
     results.append(
@@ -330,8 +377,8 @@ for interval_idx in range(num_intervals):
 
     if interval_idx % 5 == 0 or interval_idx == num_intervals - 1:
         print(
-            f"区间 {interval_idx + 1}/{num_intervals}: 样本[0-{end_idx}] "
-            f"精确率={precision:.2f}% 召回率={recall:.2f}% F1={f1:.2f} CHT大小={cht_size}"
+            f"区间 {interval_idx + 1}/{num_intervals}: 训练样本[0-{end_idx}] "
+            f"精确率={precision:.2f}% 召回率={recall:.2f}% 评分={f1:.2f} CHT大小={cht_size}"
         )
 
 # ========== 输出结果 ==========
@@ -339,7 +386,7 @@ print("\n" + "=" * 80)
 print("详细结果")
 print("=" * 80)
 print(
-    f"{'区间':<6} {'样本范围':<20} {'累积样本':<10} {'精确率%':<10} {'召回率%':<10} {'F1':<8} {'CHT大小':<10}"
+    f"{'区间':<6} {'样本范围':<20} {'累积样本':<10} {'精确率%':<10} {'召回率%':<10} {'评分':<8} {'CHT大小':<10}"
 )
 print("-" * 80)
 
@@ -390,8 +437,8 @@ axes[0, 1].set_ylim([0, 100])
 # Subplot 3: F1 Score
 axes[1, 0].plot(samples, f1_scores, "g-^", linewidth=2, markersize=4)
 axes[1, 0].set_xlabel("Cumulative Samples", fontsize=11)
-axes[1, 0].set_ylabel("F1 Score", fontsize=11)
-axes[1, 0].set_title("F1 Score vs Data Size", fontsize=12)
+axes[1, 0].set_ylabel("Score (Expected Checks)", fontsize=11)
+axes[1, 0].set_title("Score vs Data Size", fontsize=12)
 axes[1, 0].grid(True, alpha=0.3)
 
 # Subplot 4: CHT Size
@@ -426,18 +473,18 @@ final_f1 = results[-1]["f1"]
 f1_change = final_f1 - initial_f1
 
 print("\n精确率:")
-print(f"  初始 (前{step_size}样本): {initial_precision:.2f}%")
-print(f"  最终 (全部{total_samples}样本): {final_precision:.2f}%")
+print(f"  初始 (前{step_size}训练样本): {initial_precision:.2f}%")
+print(f"  最终 (全部{len(train_codes)}训练样本): {final_precision:.2f}%")
 print(f"  变化: {precision_change:+.2f}%")
 
 print("\n召回率:")
-print(f"  初始 (前{step_size}样本): {initial_recall:.2f}%")
-print(f"  最终 (全部{total_samples}样本): {final_recall:.2f}%")
+print(f"  初始 (前{step_size}训练样本): {initial_recall:.2f}%")
+print(f"  最终 (全部{len(train_codes)}训练样本): {final_recall:.2f}%")
 print(f"  变化: {recall_change:+.2f}%")
 
-print("\nF1分数:")
-print(f"  初始 (前{step_size}样本): {initial_f1:.2f}")
-print(f"  最终 (全部{total_samples}样本): {final_f1:.2f}")
+print("\n评分 (基于期望检测次数):")
+print(f"  初始 (前{step_size}训练样本): {initial_f1:.2f}")
+print(f"  最终 (全部{len(train_codes)}训练样本): {final_f1:.2f}")
 print(f"  变化: {f1_change:+.2f}")
 
 print("\nCHT大小:")
