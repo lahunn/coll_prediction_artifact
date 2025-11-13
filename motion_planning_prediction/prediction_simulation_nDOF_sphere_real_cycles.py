@@ -5,7 +5,15 @@
 与 prediction_simulation_nDOF_sphere.py 的区别：
 - 使用真实的周期数据而不是固定的 cycle_check 值
 - 每个OOCD根据实际的周期数来计算完成时间
-- 需要周期数据文件 (*_geometric_cycles.pkl)
+- 需要周期数据文件格式: {basename}_{benchid:04d}_sphere.pkl
+
+数据格式说明:
+- sphere_link_data[edge][pose][sphere] = [x, y, z, radius]
+- sphere_link_coll_data[edge][pose][sphere] = 1 or 0
+- sphere_link_coll_cycles[edge][pose][sphere] = 周期数
+
+文件命名约定: {basename}_{benchid:04d}_{collision_model_type}.pkl
+其中 collision_model_type 为 'link' 或 'sphere'
 """
 
 import sys
@@ -82,7 +90,7 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
 
     # 加载球体数据（必须包含周期数据）
     sphere_link_data, sphere_link_coll_data, sphere_link_coll_cycles = (
-        su.load_sphere_data_with_cycles(basename, benchid, data_folder)
+        su.load_data_with_cycles(basename, benchid, data_folder, collision_model_type="sphere")
     )
 
     if sphere_link_data is None or sphere_link_coll_data is None:

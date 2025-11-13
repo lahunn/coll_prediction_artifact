@@ -14,6 +14,9 @@ from typing import Tuple, List, Dict, Any, Optional
 from trace_generation.core.collision.link_collision_detector import (
     LinkCollisionDetector,
 )
+from trace_generation.core.collision.sphere_detector import (
+    SphereEnvGeometric,
+)
 from trace_generation.core.collision.data_manager import CollisionDataManager
 from trace_generation.utils.planning_utils import distance
 
@@ -37,6 +40,7 @@ class CollisionEnv:
         robot_env,
         collision_model_type: str = "link",
         config_output_file: Optional[str] = None,
+        return_cycles: bool = False,
     ):
         """
         初始化碰撞检测环境
@@ -45,31 +49,22 @@ class CollisionEnv:
             robot_env: RobotEnv 实例
             collision_model_type: 碰撞模型类型
                 - "link": 使用 LinkCollisionDetector
-                - "sphere": 使用 SphereCollisionDetector（需要导入）
+                - "sphere": 使用 SphereEnvGeometric
             config_output_file: 配置输出文件路径（可选）
+            return_cycles: 是否返回硬件周期成本（仅Sphere模型支持）
         """
         self.robot_env = robot_env
         self.collision_model_type = collision_model_type
-        self.obstacle_body_ids = []
         self.config_output_file = config_output_file
         self.config_list = []
 
         # 根据模型类型选择合适的检测器
         if collision_model_type == "link":
-            self.detector = LinkCollisionDetector(robot_env)
+            self.detector = LinkCollisionDetector(
+                robot_env, return_cycles=return_cycles
+            )
         elif collision_model_type == "sphere":
-            # 动态导入 SphereEnvGeometric（作为 sphere 检测器使用）
-            try:
-                from trace_generation.core.collision.sphere_detector import (
-                    SphereEnvGeometric,
-                )
-
-                self.detector = SphereEnvGeometric(robot_env)
-            except (ImportError, AttributeError):
-                raise ValueError(
-                    "SphereEnvGeometric not available. "
-                    "Please ensure sphere_detector.py is properly configured."
-                )
+            self.detector = SphereEnvGeometric(robot_env, return_cycles=return_cycles)
         else:
             raise ValueError(
                 f"Unknown collision model type: {collision_model_type}. "
@@ -77,11 +72,20 @@ class CollisionEnv:
             )
 
         # 初始化统一的数据管理器
-        self.data_manager = CollisionDataManager(model_type=collision_model_type)
+        self.data_manager = CollisionDataManager(
+            model_type=collision_model_type, return_cycles=return_cycles
+        )
 
-    def load_obstacle_body_ids(self, obstacle_body_ids: List[int]):
-        """加载障碍物体 ID 列表"""
-        self.obstacle_body_ids = obstacle_body_ids
+    def load_obstacles(self, obstacles):
+        """
+        加载障碍物（统一接口，委托给底层 detector）
+
+        Args:
+            obstacles:
+                - Link模型：障碍物ID列表
+                - Sphere模型：障碍物dict列表 [(halfExtents, basePosition), ...]
+        """
+        self.detector.load_obstacles(obstacles)
 
     def close(self):
         """关闭碰撞检测环境"""

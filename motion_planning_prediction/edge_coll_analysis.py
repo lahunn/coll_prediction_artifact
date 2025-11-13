@@ -38,7 +38,7 @@ benchrange = range(1, num_benchmarks + 1)
 for benchid in tqdm(benchrange, desc="处理基准测试"):
     # 加载球体数据
     sphere_link_data, sphere_link_coll_data = (
-        su.load_sphere_data(basename, benchid, data_folder)
+        su.load_data(basename, benchid, data_folder, collision_model_type="sphere")
     )
 
     if sphere_link_data is None or sphere_link_coll_data is None:

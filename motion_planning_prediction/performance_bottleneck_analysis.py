@@ -344,7 +344,7 @@ def analyze_simulation_bottlenecks(
 for benchid in tqdm(benchrange, desc="性能分析"):
     # 加载球体数据（支持cycles格式）
     sphere_link_data, sphere_link_coll_data, sphere_link_coll_cycles = (
-        su.load_sphere_data_with_cycles(basename, benchid, data_folder)
+        su.load_data_with_cycles(basename, benchid, data_folder, collision_model_type="sphere")
     )
 
     if (

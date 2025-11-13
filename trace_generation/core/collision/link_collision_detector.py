@@ -27,14 +27,16 @@ class LinkCollisionDetector:
     }
     """
 
-    def __init__(self, robot_env):
+    def __init__(self, robot_env, return_cycles: bool = False):
         """
         初始化 Link 级碰撞检测器
 
         Args:
             robot_env: RobotEnv 实例，提供 PyBullet 接口和机器人信息
+            return_cycles: 是否返回硬件周期成本（Link模型不支持，此参数仅保持接口一致性）
         """
         self.robot_env = robot_env
+        self.return_cycles = return_cycles  # 保持接口一致性，但Link模型不使用此参数
         self.collision_time = 0.0
         self.collision_check_count = 0
 
@@ -88,8 +90,8 @@ class LinkCollisionDetector:
         # 返回标准化的碰撞数据
         is_free = not is_collision
         collision_data = {
-            "link_coords": link_coords,
-            "link_colls": link_colls,
+            "unit_coords": link_coords,
+            "unit_colls": link_colls,
             "timestamp": time.time(),
         }
 
@@ -135,6 +137,12 @@ class LinkCollisionDetector:
                 link_colls.append(1)  # 自由标签为 1
 
         return any_coll, link_colls
+
+    def load_obstacles(self, obstacles):
+        """
+        加载障碍物（空方法）
+        """
+        pass
 
     def reset(self):
         """重置统计信息"""

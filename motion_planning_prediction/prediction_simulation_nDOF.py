@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 """
-OBB碰撞检测预测仿真程序（nDOF机器人）
+Link级碰撞检测预测仿真程序（nDOF机器人）
 
-使用OBB (Oriented Bounding Box) 进行碰撞检测的预测策略评估
-数据格式: obb_link_data[edge][pose][link] = [x, y, z, qx, qy, qz, qw]
-         obb_link_coll_data[edge][pose][link] = 1 or 0
+使用Link级碰撞检测进行碰撞检测的预测策略评估
+
+数据格式:
+- link_data[edge][pose][link] = [x, y, z, qx, qy, qz, qw]
+- link_coll_data[edge][pose][link] = 1 or 0
+
+文件命名约定: {basename}_{benchid:04d}_{collision_model_type}.pkl
+其中 collision_model_type 为 'link' 或 'sphere'
 
 脚本接受六个命令行参数：
 1. threshold: 预测阈值 (float)
@@ -87,9 +92,9 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
     all_cycle = 0
     colldict = {}
 
-    # 加载OBB数据
-    edge_link_data, edge_link_coll_data = su.load_obb_data(
-        basename, benchid, data_folder
+    # 加载碰撞数据
+    edge_link_data, edge_link_coll_data = su.load_data(  # type: ignore
+        basename, benchid, data_folder, collision_model_type="link"
     )
 
     if edge_link_data is None or edge_link_coll_data is None:

@@ -160,10 +160,12 @@ def generate_problem_dataset(
     safe_zone_radius=0.5,
     visualize=False,
     enable_self_collision=False,
+    collision_model_type: str = "sphere",
 ):
     """生成完整的问题数据集"""
     # 不再传递config_output_file,使用内存记录
     print(f"机器人: {robot_name}, 问题数: {num_problems}, 障碍物: {num_obstacles}")
+    print(f"碰撞检测模型: {collision_model_type}")
     print(f"自碰撞检测: {'启用' if enable_self_collision else '禁用'}")
 
     # 先创建模块化环境 (使用 robot_name 而不是 robot_file)
@@ -171,6 +173,7 @@ def generate_problem_dataset(
         robot_name,
         map_file=None,
         GUI=visualize,
+        collision_model_type=collision_model_type,
         enable_self_collision=enable_self_collision,
     )
     config_dim = modular_env.config_dim
@@ -219,8 +222,10 @@ def generate_problem_dataset(
             pair_filename = f"{base_filename}_{success_count:04d}.pkl"
             pair_filepath = os.path.join(obstacle_config_dir, pair_filename)
 
-            obb_filename = f"{base_filename}_{success_count:04d}_obb.pkl"
-            obb_filepath = os.path.join(collision_data_dir, obb_filename)
+            coll_filename = (
+                f"{base_filename}_{success_count:04d}_{collision_model_type}.pkl"
+            )
+            coll_filepath = os.path.join(collision_data_dir, coll_filename)
 
             # 保存障碍物-配置对
             obstacle_config_pair = {
@@ -232,7 +237,7 @@ def generate_problem_dataset(
                 pickle.dump(obstacle_config_pair, f)
 
             # 保存碰撞检测数据
-            modular_env.collision_env.data_manager.save_collision_data(obb_filepath)
+            modular_env.collision_env.data_manager.save_collision_data(coll_filepath)
 
     modular_env.obstacle_manager.cleanup_obstacles()
     modular_env.close()  # 现在这个方法是空的，但为了接口一致性保留
@@ -283,6 +288,13 @@ def main():
         action="store_true",
         help="Enable self-collision detection",
     )
+    parser.add_argument(
+        "--collision-model-type",
+        type=str,
+        default="link",
+        choices=["link", "sphere"],
+        help="Collision detection model type: 'link' (PyBullet) or 'sphere' (geometric)",
+    )
 
     args = parser.parse_args()
 
@@ -298,6 +310,7 @@ def main():
         safe_zone_radius=args.safe_zone_radius,
         visualize=args.visualize,
         enable_self_collision=args.enable_self_collision,
+        collision_model_type=args.collision_model_type,
     )
 
     return 0

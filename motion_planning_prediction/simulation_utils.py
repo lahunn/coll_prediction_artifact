@@ -107,7 +107,7 @@ def csp_rearrange_with_cycles(edge, edgeyarr, edge_cycles, groupsize=8):
     return group, grouparr, group_cycles
 
 
-def load_data(planner_type, benchid, dimension):
+def load_motion_trace_data(planner_type, benchid, dimension):
     """
     Loads motion trace data from a pickle file based on planner, benchmark ID, and dimension.
     """
@@ -143,74 +143,71 @@ def load_data(planner_type, benchid, dimension):
         return None, None
 
 
-def load_sphere_data(basename, benchid, data_folder):
+def load_data(basename, benchid, data_folder, collision_model_type="link"):
     """
-    Loads sphere collision data from a pickle file.
-    Format: (sphere_link_data, sphere_link_coll_data)
-
+    Loads collision data from a pickle file.
+    
+    Args:
+        basename: Base name of the dataset (e.g., "iiwa_7")
+        benchid: Benchmark number
+        data_folder: Path to the data folder
+        collision_model_type: Type of collision model ("link" or "sphere", default="link")
+    
     Returns:
-        sphere_link_data, sphere_link_coll_data
+        (collision_data, collision_flags) tuple or (None, None)
+    
+    File naming convention:
+        {basename}_{benchid:04d}_{collision_model_type}.pkl
     """
-    filename = f"{data_folder}/{basename}_{benchid:04d}_sphere.pkl"
+    filename = f"{data_folder}/{basename}_{benchid:04d}_{collision_model_type}.pkl"
+    
     try:
         with open(filename, "rb") as f:
             data = pickle.load(f)
-            if isinstance(data, tuple) and len(data) == 2:
+            if isinstance(data, tuple) and len(data) >= 2:
                 return data[0], data[1]
     except FileNotFoundError:
         pass
-
-    print(f"Warning: Sphere data file not found at {filename}", file=sys.stderr)
+    
+    print(f"Warning: Collision data file not found at {filename}", file=sys.stderr)
     return None, None
 
 
-def load_sphere_data_with_cycles(basename, benchid, data_folder):
+def load_data_with_cycles(basename, benchid, data_folder, collision_model_type="link"):
     """
-    Loads sphere collision data with cycles from a pickle file.
-    Format: (sphere_link_data, sphere_link_coll_data, sphere_link_coll_cycles)
-
+    Loads collision data with cycles from a pickle file.
+    
+    Args:
+        basename: Base name of the dataset (e.g., "iiwa_7")
+        benchid: Benchmark number
+        data_folder: Path to the data folder
+        collision_model_type: Type of collision model ("link" or "sphere", default="link")
+    
     Returns:
-        sphere_link_data, sphere_link_coll_data, sphere_link_coll_cycles
+        (collision_data, collision_flags, cycles) tuple or (None, None, None)
+    
+    File naming convention:
+        - Sphere model: {basename}_{benchid:04d}_sphere_geometric_cycles.pkl
+        - Link model: {basename}_{benchid:04d}_{collision_model_type}_cycles.pkl
     """
-    filename = f"{data_folder}/{basename}_{benchid:04d}_sphere_geometric_cycles.pkl"
+    if collision_model_type == "sphere":
+        filename = f"{data_folder}/{basename}_{benchid:04d}_sphere_geometric_cycles.pkl"
+    else:
+        filename = f"{data_folder}/{basename}_{benchid:04d}_{collision_model_type}_cycles.pkl"
+    
     try:
         with open(filename, "rb") as f:
             data = pickle.load(f)
             if isinstance(data, tuple) and len(data) == 3:
-                sphere_link_data, sphere_link_coll_data, sphere_link_coll_cycles = data
-                if isinstance(sphere_link_coll_cycles, list):
-                    return (
-                        sphere_link_data,
-                        sphere_link_coll_data,
-                        sphere_link_coll_cycles,
-                    )
+                return data[0], data[1], data[2]
     except FileNotFoundError:
         pass
-
+    
     print(
-        f"Warning: Sphere data with cycles file not found at {filename}",
+        f"Warning: Collision data with cycles file not found at {filename}",
         file=sys.stderr,
     )
     return None, None, None
-
-
-def load_obb_data(basename, benchid, data_folder):
-    """
-    Loads OBB collision data from a pickle file.
-    Format: (obb_link_data, obb_link_coll_data)
-    """
-    filename = f"{data_folder}/{basename}_{benchid:04d}_obb.pkl"
-    try:
-        with open(filename, "rb") as f:
-            data = pickle.load(f)
-            # 新格式: (obb_link_data, obb_link_coll_data)
-            if isinstance(data, tuple) and len(data) == 2:
-                return data
-            else:
-                return None, None
-    except FileNotFoundError:
-        print(f"Warning: OBB data file not found at {filename}", file=sys.stderr)
-        return None, None
 
 
 def update_collision_dict(colldict, hash_key, is_free, sample_rate):

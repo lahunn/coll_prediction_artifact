@@ -8,14 +8,25 @@ class ModularEnv:
     """
     模块化环境类，组合各个组件提供统一的接口
 
+    支持多种碰撞检测模型（Link、Sphere等），并提供统一的接口。
+    可以通过参数选择碰撞检测类型。
+
     主要组件:
     - problem_manager: 问题管理器
     - obstacle_manager: 障碍物管理器
     - robot_env: 机器人环境
-    - collision_env: 碰撞检测环境
+    - collision_env: 碰撞检测环境（支持Link和Sphere模型）
     """
 
-    def __init__(self, robot_name, map_file=None, GUI=False, enable_self_collision=False):
+    def __init__(
+        self,
+        robot_name,
+        map_file=None,
+        GUI=False,
+        enable_self_collision=False,
+        collision_model_type: str = "link",
+        return_cycles: bool = False,
+    ):
         """
         初始化模块化环境
 
@@ -23,26 +34,33 @@ class ModularEnv:
             robot_name: 机器人名称（例如 'franka', 'ur5e'）
             map_file: 问题数据集文件路径
             GUI: 是否启用GUI模式
-            enable_self_collision: 是否启用自碰撞检测（可选，默认为False）
+            enable_self_collision: 是否启用自碰撞检测（默认为False）
+            collision_model_type: 碰撞模型类型（"link" 或 "sphere"，默认 "link"）
+            return_cycles: 是否返回硬件周期成本（仅Sphere模型支持，默认False）
         """
         # 初始化各个组件
         self.problem_manager = ProblemManager(map_file)
-        self.robot_env = RobotEnv(robot_name, OBB_GUI=GUI, enable_self_collision=enable_self_collision)
-        self.collision_env = CollisionEnv(self.robot_env)
+        self.robot_env = RobotEnv(
+            robot_name, OBB_GUI=GUI, enable_self_collision=enable_self_collision
+        )
+        self.collision_env = CollisionEnv(
+            self.robot_env,
+            collision_model_type=collision_model_type,
+            return_cycles=return_cycles,
+        )
         self.obstacle_manager = ObstacleManager(
             physics_client=self.robot_env.physics_client
         )
 
-        # 设置碰撞环境中的障碍物
-        self.collision_env.load_obstacle_body_ids(
-            self.obstacle_manager.obstacle_body_ids
-        )
+        # 加载障碍物
+        self.collision_env.load_obstacles(self.obstacle_manager.obstacles)
 
         # 为兼容性添加属性
         self.init_state = tuple(self.robot_env.init_state)
         self.goal_state = tuple(self.robot_env.goal_state)
         self.config_dim = self.robot_env.config_dim
         self.bound = self.robot_env.bound
+        self.collision_model_type = collision_model_type
 
     def init_new_problem(self, index):
         """
@@ -212,10 +230,12 @@ class ModularEnv:
         self.robot_env.close()
 
     def collision_check_count(self):
-        return self.collision_env.data_manager.collision_check_count
+        """获取碰撞检查次数"""
+        return self.collision_env.detector.collision_check_count
 
     def collision_time(self):
-        return self.collision_env.data_manager.collision_time
+        """获取碰撞检查总耗时"""
+        return self.collision_env.detector.collision_time
 
     def _state_fp_probe(self, state):
         """
@@ -225,17 +245,17 @@ class ModularEnv:
             state: 配置状态
 
         Returns:
-            tuple: (result, info, coll) - 是否自由、链接坐标信息、碰撞信息
+            tuple: (result, info, coll) - 是否自由、单元坐标信息、碰撞信息
         """
         is_free, collision_data = self.collision_env._point_in_free_space(state)
-        
-        # 从 collision_data dict 中提取信息
-        link_coords = collision_data.get('link_coords', [])
-        link_colls = collision_data.get('link_colls', [])
-        
+
+        # 从 collision_data dict 中提取信息 - 现在使用标准化的 unit_* 密钥
+        unit_coords = collision_data.get("unit_coords", [])
+        unit_colls = collision_data.get("unit_colls", [])
+
         # 返回格式：(result, info, coll)
-        # info: link_coords, coll: link_colls
-        return is_free, link_coords, link_colls
+        # info: unit_coords, coll: unit_colls
+        return is_free, unit_coords, unit_colls
 
     def _edge_fp_probe(self, state1, state2):
         """
@@ -246,24 +266,23 @@ class ModularEnv:
             state2: 终点配置
 
         Returns:
-            tuple: (result, info, coll) - 是否自由、链接坐标信息、碰撞信息
+            tuple: (result, info, coll) - 是否自由、单元坐标信息、碰撞信息
         """
 
         # 直接调用collision_env的_edge_fp获取详细信息
         edge_free = self.collision_env._edge_fp(state1, state2)
-        
-        # 返回简化的格式（与旧API兼容）
-        # 注意：现在我们从data_manager的向后兼容属性获取数据
-        if (
-            self.collision_env.data_manager.obb_link_data
-            and edge_free is not None
-        ):
-            edge_link_coords = self.collision_env.data_manager.obb_link_data[-1]
-            edge_link_colls = self.collision_env.data_manager.obb_link_coll_data[-1]
+
+        # 从数据模型中直接获取最后一条边的数据
+        unit_data = self.collision_env.data_manager.collision_data.unit_data
+        unit_coll_data = self.collision_env.data_manager.collision_data.unit_coll_data
+
+        if unit_data and unit_coll_data and edge_free is not None:
+            edge_link_coords = unit_data[-1]
+            edge_link_colls = unit_coll_data[-1]
         else:
             edge_link_coords = []
             edge_link_colls = []
-        
+
         return edge_free, edge_link_coords, edge_link_colls
 
     def generate_random_obstacles(
@@ -295,14 +314,9 @@ class ModularEnv:
             safe_zone_center=safe_zone_center,
             safe_zone_radius=safe_zone_radius,
         )
-
         # 加载障碍物到环境中
         self.obstacle_manager.load_obstacles(obstacles)
-
-        # 更新碰撞环境中的障碍物
-        self.collision_env.load_obstacle_body_ids(
-            self.obstacle_manager.obstacle_body_ids
-        )
+        self.collision_env.load_obstacles(self.obstacle_manager.obstacles)
 
         return obstacles
 

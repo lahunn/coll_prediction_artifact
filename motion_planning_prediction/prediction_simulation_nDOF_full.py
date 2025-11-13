@@ -34,7 +34,7 @@ for benchid in tqdm(benchrange):
     all_oracle = 0
     colldict = {}
 
-    edge_link_data, edge_link_coll_data = su.load_data(planner_type, benchid, "nDOF")
+    edge_link_data, edge_link_coll_data = su.load_motion_trace_data(planner_type, benchid, "nDOF")
 
     if edge_link_data is None:
         continue

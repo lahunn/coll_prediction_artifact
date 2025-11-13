@@ -63,7 +63,6 @@ class SphereEnvGeometric:
         # 存储球体信息（位置、半径、link_id）
         self.sphere_link_ids: List[int] = []
         self.adjacent_sphere_pairs: set = set()  # 需要忽略碰撞的球体对
-
         # 数据收集
         self.link_data = []
         self.link_coll_data = []
@@ -71,6 +70,10 @@ class SphereEnvGeometric:
 
         # 是否返回周期数
         self.return_cycles = return_cycles
+
+        # 碰撞检测统计
+        self.collision_check_count = 0
+        self.collision_time = 0.0
 
         # ====================================================================
         # 尝试加载 C++ 加速模块
@@ -420,34 +423,42 @@ class SphereEnvGeometric:
             state: 关节配置状态
 
         Returns:
-            (is_free, collision_dict): 
+            (is_free, collision_dict):
                 - is_free (bool): True表示无碰撞，False表示有碰撞
                 - collision_dict (dict): 包含碰撞信息的字典
                   {
-                      'sphere_coords': [...],  # 球体坐标列表
-                      'sphere_colls': [...],   # 球体碰撞信息列表
-                      'timestamp': ...         # 检测时间戳（可选）
+                      'unit_coords': [...],    # 球体坐标列表
+                      'unit_colls': [...],     # 球体碰撞信息列表
+                      'timestamp': ...         # 检测时间戳
                   }
         """
         import time
-        timestamp = time.time()
-        
+
+        start_time = time.time()
+        self.collision_check_count += 1
+
+        timestamp = start_time
+
         # 调用现有的碰撞检测方法
         result = self.get_sphere_collision_data(state)
-        
+
         # 处理返回值（考虑return_cycles标志）
         # pyright: ignore[reportGeneralTypeIssues]
         coords = result[1]
         colls = result[2]
         collision = result[0]
-        
+
         # 构建返回字典（与LinkCollisionDetector格式一致）
         collision_dict = {
-            'sphere_coords': coords,
-            'sphere_colls': colls,
-            'timestamp': timestamp
+            "unit_coords": coords,
+            "unit_colls": colls,
+            "timestamp": timestamp,
         }
-        
+
+        # 记录统计时间
+        elapsed_time = time.time() - start_time
+        self.collision_time += elapsed_time
+
         # 返回无碰撞状态和字典（collision为True表示碰撞，需要取反）
         return (not collision, collision_dict)
 

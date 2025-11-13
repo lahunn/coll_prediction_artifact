@@ -4,8 +4,13 @@
 
 使用球体近似进行碰撞检测的预测策略评估
 只对无碰撞边数据进行仿真模拟
-数据格式: sphere_link_data[edge][pose][sphere] = [x, y, z, radius]
-         sphere_link_coll_data[edge][pose][sphere] = 1 or 0
+
+数据格式:
+- sphere_link_data[edge][pose][sphere] = [x, y, z, radius]
+- sphere_link_coll_data[edge][pose][sphere] = 1 or 0
+
+文件命名约定: {basename}_{benchid:04d}_{collision_model_type}.pkl
+其中 collision_model_type 为 'link' 或 'sphere'
 """
 
 import sys
@@ -94,7 +99,7 @@ for num_oocds in num_oocds_list:
 
         # 加载球体数据（支持新的3元组格式）
         sphere_link_data, sphere_link_coll_data = (
-            su.load_sphere_data(basename, benchid, data_folder)
+            su.load_data(basename, benchid, data_folder, collision_model_type="sphere")
         )
 
         if sphere_link_data is None or sphere_link_coll_data is None:

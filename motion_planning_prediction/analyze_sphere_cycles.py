@@ -51,7 +51,9 @@ has_cycle_data = False
 for benchid in tqdm(benchrange, desc="分析周期数据"):
     # 加载球体数据
     sphere_link_data, sphere_link_coll_data, sphere_link_coll_cycles = (
-        su.load_sphere_data_with_cycles(basename, benchid, data_folder)
+        su.load_data_with_cycles(
+            basename, benchid, data_folder, collision_model_type="sphere"
+        )
     )
 
     if sphere_link_data is None or sphere_link_coll_data is None:
