@@ -38,7 +38,7 @@ if len(sys.argv) < 7:
         "Usage: python prediction_simulation_nDOF_sphere_preemptive.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <num_benchmarks> [robot_name]"
     )
     print(
-        "Example: python prediction_simulation_nDOF_sphere_preemptive.py 0.5 0.1 8 ../trace_files/scene_benchmarks/bit_collision_data franka_14 100 franka"
+        "Example: python prediction_simulation_nDOF_sphere_preemptive.py 0.5 0.1 8 ../trace_files/scene_benchmarks/bit_collision_data iiwa_7 10 iiwa"
     )
     sys.exit(1)
 
@@ -122,16 +122,18 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
         linklist, linklist_coll = su.csp_rearrange(edge, edge_coll, groupsize=4)
 
         # --- Run Preemptive Simulation ---
-        edge_query_count, colldict, _, cycle, preemption_count = su.simulate_parallel_collision_detection_preemptive(
-            linklist,
-            linklist_coll,
-            colldict,
-            threshold,
-            sample_rate,
-            bins,
-            qnoncoll_len=qnoncoll_len,
-            cycle_check=sphere_cost,
-            num_oocds=7,
+        edge_query_count, colldict, _, cycle, preemption_count = (
+            su.simulate_parallel_collision_detection_preemptive(
+                linklist,
+                linklist_coll,
+                colldict,
+                threshold,
+                sample_rate,
+                bins,
+                qnoncoll_len=qnoncoll_len,
+                cycle_check=sphere_cost,
+                num_oocds=22,
+            )
         )
 
         all_prediction += edge_query_count

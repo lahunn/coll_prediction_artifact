@@ -9,7 +9,7 @@ Test prediction accuracy changes with training data size under different paramet
 THRESHOLDS=(0.1)
 SAMPLE_RATES=(1)
 QNONCOLL_MULTIPLIERS=(4)
-DATA_FOLDER="../trace_files/scene_benchmarks/bit_collision_data"
+DATA_FOLDER="../../trace_files/scene_benchmarks/bit_collision_data"
 BASENAME="iiwa_7"
 NUM_BENCHMARKS=1
 ROBOT_NAME="iiwa"
@@ -30,6 +30,8 @@ rm -f result_files/sphere_accuracy_curve.csv
 # Counter
 total_configs=$(( ${#THRESHOLDS[@]} * ${#SAMPLE_RATES[@]} * ${#QNONCOLL_MULTIPLIERS[@]} ))
 current_config=0
+
+cd ..
 
 # Run all configuration combinations
 for threshold in "${THRESHOLDS[@]}"; do

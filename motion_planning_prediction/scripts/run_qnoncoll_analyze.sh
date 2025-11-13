@@ -10,7 +10,7 @@ echo
 # 参数设置
 THRESHOLD=0.5
 SAMPLE_RATE=0.1
-DATA_FOLDER="../trace_files/scene_benchmarks/bit_collision_data"
+DATA_FOLDER="../../trace_files/scene_benchmarks/bit_collision_data"
 BASENAME="iiwa_7"
 NUM_BENCHMARKS=10  # 使用较少的基准测试以加快分析
 ROBOT_NAME="iiwa"
@@ -39,6 +39,8 @@ echo "qnoncoll_multiplier,total_sphere_checks,prediction_queries,oracle_queries,
 
 echo "开始参数分析..."
 echo "进度:"
+
+cd ..
 
 # 对每个qnoncoll_multiplier值运行仿真
 for multiplier in "${QNONCOLL_VALUES[@]}"; do

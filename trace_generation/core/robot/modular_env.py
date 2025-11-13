@@ -1,7 +1,7 @@
 from trace_generation.utils.problem import ProblemManager
 from trace_generation.core.scene.obstacle_manager import ObstacleManager
 from trace_generation.core.robot.environment import RobotEnv
-from trace_generation.core.robot.collision_check import CollisionEnv
+from trace_generation.core.collision.collision_env import CollisionEnv
 
 
 class ModularEnv:
@@ -104,7 +104,7 @@ class ModularEnv:
         Returns:
             bool: 是否自由
         """
-        edge_free, _, _ = self.collision_env._edge_fp(state1, state2)
+        edge_free = self.collision_env._edge_fp(state1, state2)
         return edge_free
 
     def in_goal_region(self, state):
@@ -227,9 +227,12 @@ class ModularEnv:
         Returns:
             tuple: (result, info, coll) - 是否自由、链接坐标信息、碰撞信息
         """
-        is_free, link_coords, link_colls = self.collision_env._point_in_free_space(
-            state
-        )
+        is_free, collision_data = self.collision_env._point_in_free_space(state)
+        
+        # 从 collision_data dict 中提取信息
+        link_coords = collision_data.get('link_coords', [])
+        link_colls = collision_data.get('link_colls', [])
+        
         # 返回格式：(result, info, coll)
         # info: link_coords, coll: link_colls
         return is_free, link_coords, link_colls
@@ -247,9 +250,20 @@ class ModularEnv:
         """
 
         # 直接调用collision_env的_edge_fp获取详细信息
-        edge_free, edge_link_coords, edge_link_colls = self.collision_env._edge_fp(
-            state1, state2
-        )
+        edge_free = self.collision_env._edge_fp(state1, state2)
+        
+        # 返回简化的格式（与旧API兼容）
+        # 注意：现在我们从data_manager的向后兼容属性获取数据
+        if (
+            self.collision_env.data_manager.obb_link_data
+            and edge_free is not None
+        ):
+            edge_link_coords = self.collision_env.data_manager.obb_link_data[-1]
+            edge_link_colls = self.collision_env.data_manager.obb_link_coll_data[-1]
+        else:
+            edge_link_coords = []
+            edge_link_colls = []
+        
         return edge_free, edge_link_coords, edge_link_colls
 
     def generate_random_obstacles(

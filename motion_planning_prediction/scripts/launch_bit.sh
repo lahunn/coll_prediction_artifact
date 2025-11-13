@@ -7,7 +7,7 @@
 # ========================================
 
 # === 清理旧的结果文件 ===
-rm -rf result_files/*.csv
+rm -rf ../result_files/*.csv
 
 # ========================================
 # 第一部分: 2D场景预测方法评估
@@ -19,11 +19,11 @@ rm -rf result_files/*.csv
 # - 算法类型: MPNET/BIT/GNN
 
 # 运行MPNet算法的2D预测评估
-python prediction_simulation_2D.py 1 1 64 MPNET | tee logfile result_files/mpnet_2d_pred.csv 
+python ../prediction_simulation_2D.py 1 1 64 MPNET | tee logfile ../result_files/mpnet_2d_pred.csv 
 # 运行BIT*算法的2D预测评估
-python prediction_simulation_2D.py 1 1 64 BIT | tee logfile result_files/bit_2d_pred.csv 
+python ../prediction_simulation_2D.py 1 1 64 BIT | tee logfile ../result_files/bit_2d_pred.csv 
 # 运行GNN算法的2D预测评估
-python prediction_simulation_2D.py 1 1 64 GNN | tee logfile result_files/gnn_2d_pred.csv 
+python ../prediction_simulation_2D.py 1 1 64 GNN | tee logfile ../result_files/gnn_2d_pred.csv 
 
 # ========================================
 # 第二部分: 2D场景CSP基线方法评估
@@ -32,11 +32,11 @@ python prediction_simulation_2D.py 1 1 64 GNN | tee logfile result_files/gnn_2d_
 # CSP(Collision Space Partitioning): 使用静态启发式顺序,不使用预测
 
 # 运行MPNet算法的2D CSP基线评估
-python CSP_simulation_2D.py MPNET | tee logfile result_files/mpnet_2d_csp.csv 
+python ../CSP_simulation_2D.py MPNET | tee logfile ../result_files/mpnet_2d_csp.csv 
 # 运行BIT*算法的2D CSP基线评估
-python CSP_simulation_2D.py BIT | tee logfile result_files/bit_2d_csp.csv 
+python ../CSP_simulation_2D.py BIT | tee logfile ../result_files/bit_2d_csp.csv 
 # 运行GNN算法的2D CSP基线评估
-python CSP_simulation_2D.py GNN | tee logfile result_files/gnn_2d_csp.csv 
+python ../CSP_simulation_2D.py GNN | tee logfile ../result_files/gnn_2d_csp.csv 
 
 # ========================================
 # 第三部分: nDOF场景(7自由度)预测方法评估
@@ -48,11 +48,11 @@ python CSP_simulation_2D.py GNN | tee logfile result_files/gnn_2d_csp.csv
 # - 算法类型: MPNET/BIT/GNN
 
 # 运行MPNet算法的nDOF预测评估
-python prediction_simulation_nDOF.py 1 0.125 8 MPNET | tee logfile result_files/mpnet_nDOF_pred.csv 
+python ../prediction_simulation_nDOF.py 1 0.125 8 MPNET | tee logfile ../result_files/mpnet_nDOF_pred.csv 
 # 运行BIT*算法的nDOF预测评估
-python prediction_simulation_nDOF.py 1 0.125 8 BIT | tee logfile result_files/bit_nDOF_pred.csv 
+python ../prediction_simulation_nDOF.py 1 0.125 8 BIT | tee logfile ../result_files/bit_nDOF_pred.csv 
 # 运行GNN算法的nDOF预测评估
-python prediction_simulation_nDOF.py 1 0.125 8 GNN | tee logfile result_files/gnn_nDOF_pred.csv 
+python ../prediction_simulation_nDOF.py 1 0.125 8 GNN | tee logfile ../result_files/gnn_nDOF_pred.csv 
 
 # ========================================
 # 第四部分: nDOF场景CSP基线方法评估
@@ -60,11 +60,11 @@ python prediction_simulation_nDOF.py 1 0.125 8 GNN | tee logfile result_files/gn
 # 参数说明: <算法类型>
 
 # 运行MPNet算法的nDOF CSP基线评估
-python CSP_simulation_nDOF.py MPNET | tee logfile result_files/mpnet_nDOF_csp.csv 
+python ../CSP_simulation_nDOF.py MPNET | tee logfile ../result_files/mpnet_nDOF_csp.csv 
 # 运行BIT*算法的nDOF CSP基线评估
-python CSP_simulation_nDOF.py BIT | tee logfile result_files/bit_nDOF_csp.csv 
+python ../CSP_simulation_nDOF.py BIT | tee logfile ../result_files/bit_nDOF_csp.csv 
 # 运行GNN算法的nDOF CSP基线评估
-python CSP_simulation_nDOF.py GNN | tee logfile result_files/gnn_nDOF_csp.csv 
+python ../CSP_simulation_nDOF.py GNN | tee logfile ../result_files/gnn_nDOF_csp.csv 
 
 # ========================================
 # 第五部分: 结果文件合并处理
@@ -73,7 +73,7 @@ python CSP_simulation_nDOF.py GNN | tee logfile result_files/gnn_nDOF_csp.csv
 # 合并格式: <CSP查询数> <Oracle查询数> <Prediction查询数> <Oracle查询数>
 
 # 切换到结果文件目录
-cd result_files
+cd ../result_files
 
 # === 合并2D场景的结果文件 ===
 # 使用paste命令将CSP和预测结果按空格分隔合并到一个文件中

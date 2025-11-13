@@ -11,7 +11,7 @@ echo
 THRESHOLD=0.5
 SAMPLE_RATE=0.1
 QNONCOLL_MULTIPLIER=6
-DATA_FOLDER="/home/lanh/project/robot_sim/coll_prediction_artifact/trace_files/scene_benchmarks/bit_collision_data"
+DATA_FOLDER="../../trace_files/scene_benchmarks/bit_collision_data"
 BASENAME="iiwa_7"
 NUM_BENCHMARKS=10  # 减少基准测试数量以加快分析
 ROBOT_NAME="iiwa"
@@ -32,6 +32,7 @@ mkdir -p result_files
 
 # 运行性能瓶颈分析
 echo "开始性能瓶颈分析..."
+cd ..
 python3 performance_bottleneck_analysis.py \
     $THRESHOLD \
     $SAMPLE_RATE \
