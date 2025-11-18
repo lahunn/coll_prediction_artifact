@@ -131,16 +131,20 @@ class UnifiedCollisionDataModel:
         return self._calculate_collision_ratios()
 
     def save_collision_data(self, output_file: str):
-        """保存碰撞数据到文件"""
-        data = {
-            "unit_data": self.unit_data,
-            "unit_coll_data": self.unit_coll_data,
-        }
+        """
+        保存碰撞数据到文件 (Tuple 格式)
+        
+        格式: (unit_data, unit_coll_data) 或 (unit_data, unit_coll_data, unit_cycles)
+        """
         if self.return_cycles:
-            data["unit_cycles"] = self.unit_cycles
+            # 包含周期数据: (data, coll, cycles)
+            data_tuple = (self.unit_data, self.unit_coll_data, self.unit_cycles)
+        else:
+            # 不包含周期数据: (data, coll)
+            data_tuple = (self.unit_data, self.unit_coll_data)
 
         with open(output_file, "wb") as f:
-            pickle.dump(data, f)
+            pickle.dump(data_tuple, f)
 
     def get_stats(self) -> Dict[str, Any]:
         """获取统计信息"""
