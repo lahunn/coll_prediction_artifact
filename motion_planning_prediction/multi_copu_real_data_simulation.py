@@ -17,225 +17,406 @@
 
 import sys
 import os
-import time
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from multi_copu_simulation import MultiCOPU_Scheduler, analyze_multi_copu_performance
+from multi_copu_simulation import MultiCOPU_Scheduler
 import simulation_utils as su
 
+# ============================================================================
+# 全局参数配置
+# ============================================================================
+QUANT_MIN = -1.5  # 量化最小值
+QUANT_MAX = 1.5  # 量化最大值
+DEFAULT_CHECK_CYCLE = 45
 
-def load_and_partition_data(
-    basename, benchid, data_folder, num_copus, use_real_cycles=False
+
+def simulate_single_edge(
+    edge_coords,
+    edge_colls,
+    edge_cycles,
+    num_copus,
+    num_oocds,
+    bins,
+    threshold,
+    sample_rate,
+    max_cycles,
 ):
     """
-    加载实际数据文件并按pose维度分派给各COPU
+    执行单条edge的仿真
+
+    Args:
+        edge_coords: 该edge的pose坐标数据 List[List[coords]]
+        edge_colls: 该edge的碰撞标志 List[List[flags]]
+        edge_cycles: 该edge的周期数据 List[List[cycles]] (可为None)
+        num_copus: COPU数量
+        num_oocds: OOCD数量（CDU数量）
+        bins: 量化bin
+        threshold: 碰撞预测阈值
+        sample_rate: 采样率
+        max_cycles: 最大仿真周期
+
+    Returns:
+        dict: 该edge的仿真结果
+    """
+    # 创建调度器
+    scheduler = MultiCOPU_Scheduler(num_copus=num_copus, num_oocds=num_oocds, cht_size=4096)
+
+    # 按pose级别分配到各COPU
+    num_poses = len(edge_coords)
+    poses_per_copu = num_poses // num_copus
+    remainder = num_poses % num_copus
+
+    # 为每个COPU加载数据
+    for copu_id in range(num_copus):
+        if copu_id < remainder:
+            start_pose = copu_id * (poses_per_copu + 1)
+            end_pose = start_pose + poses_per_copu + 1
+        else:
+            start_pose = (
+                remainder * (poses_per_copu + 1)
+                + (copu_id - remainder) * poses_per_copu
+            )
+            end_pose = start_pose + poses_per_copu
+
+        # 该COPU分配的pose坐标、碰撞标志和周期
+        copu_coords = []
+        copu_colls = []
+        copu_cycles = []
+
+        for pose_idx in range(start_pose, end_pose):
+            pose_coords = edge_coords[pose_idx]  # List[coords]
+            pose_colls = edge_colls[pose_idx]  # List[flags]
+
+            # 展平：将pose中的所有link坐标和碰撞标志加入
+            copu_coords.extend(pose_coords)
+            copu_colls.extend(pose_colls)
+
+            # 使用真实周期或默认值
+            if edge_cycles is not None:
+                pose_cycles = edge_cycles[pose_idx]
+                copu_cycles.extend(pose_cycles)
+            else:
+                copu_cycles.extend([40 for _ in range(len(pose_coords))])
+
+        # 加载数据到对应COPU
+        scheduler.copus[copu_id].load_data(copu_coords, copu_colls, copu_cycles)
+
+    # 执行仿真
+    result = scheduler.simulate(
+        bins, threshold=threshold, sample_rate=sample_rate, max_cycles=max_cycles
+    )
+
+    return result
+
+
+def aggregate_edge_results(result):
+    """
+    聚合单条edge的仿真结果
+
+    Args:
+        result: 单条edge的仿真结果
+
+    Returns:
+        dict: 聚合后的结果
+    """
+    total_queries = sum(c["total_queries"] for c in result["copus"])
+    copu_utilizations = [c["oocd_utilization"] for c in result["copus"]]
+    cht_conflicts = result["cht_stats"].get("total_conflicts", 0)
+
+    return {
+        "cycles": result["total_cycles"],
+        "queries": total_queries,
+        "copu_utilizations": copu_utilizations,
+        "cht_conflicts": cht_conflicts,
+    }
+
+
+def run_multi_copu_simulation(
+    all_data,
+    all_coll,
+    all_cycles,
+    num_copus,
+    num_oocds=7,
+    quant_bits=3,
+    threshold=1.0,
+    sample_rate=1.0,
+    max_cycles=100000,
+):
+    """
+    执行多COPU协同仿真（以edge为单位）
+
+    Args:
+        all_data: 所有edge的pose数据 List[List[List[coords]]]
+        all_coll: 所有edge的碰撞标志 List[List[List[flags]]]
+        all_cycles: 所有edge的周期数据 List[List[List[cycles]]] (可为None)
+        num_copus: COPU数量
+        num_oocds: OOCD数量（CDU数量），默认7
+        quant_bits: 量化位数，分桶数 = 2^quant_bits（默认3，即8个桶）
+        threshold: 碰撞预测阈值
+        sample_rate: 采样率
+        max_cycles: 最大仿真周期
+
+    Returns:
+        dict: 聚合的仿真结果
+    """
+    # 根据量化位数计算分桶数
+    num_bins = 2**quant_bits
+
+    # 生成均匀分布的bin（使用全局参数QUANT_MIN和QUANT_MAX）
+    bins = np.linspace(QUANT_MIN, QUANT_MAX, num_bins + 1)
+
+    # 统计聚合变量
+    total_cycles = 0
+    total_queries = 0
+    total_cht_conflicts = 0
+    all_edge_results = []
+
+    print(f"\n开始按edge仿真 ({len(all_data)} edges, {num_copus} COPU)...")
+
+    # 按edge进行仿真
+    for edge_idx, (edge_coords, edge_colls) in enumerate(zip(all_data, all_coll)):
+        # 获取该edge的周期数据（如果有）
+        edge_cycles = all_cycles[edge_idx] if all_cycles is not None else None
+
+        # 执行单条edge的仿真
+        result = simulate_single_edge(
+            edge_coords,
+            edge_colls,
+            edge_cycles,
+            num_copus,
+            num_oocds,
+            bins,
+            threshold,
+            sample_rate,
+            max_cycles,
+        )
+
+        # 聚合该edge的结果
+        edge_agg = aggregate_edge_results(result)
+
+        # 累计到总体指标
+        total_cycles += edge_agg["cycles"]
+        total_queries += edge_agg["queries"]
+        total_cht_conflicts += edge_agg["cht_conflicts"]
+
+        # 保存到结果列表
+        edge_agg["edge_idx"] = edge_idx
+        all_edge_results.append(edge_agg)
+
+    # 计算平均COPU占用率（跨所有edge）
+    all_copu_utils = []
+    for edge_result in all_edge_results:
+        all_copu_utils.extend(edge_result["copu_utilizations"])
+
+    avg_copu_utilization = (
+        sum(all_copu_utils) / len(all_copu_utils) if all_copu_utils else 0.0
+    )
+
+    # 构建聚合结果
+    aggregated_result = {
+        "total_cycles": total_cycles,
+        "total_queries": total_queries,
+        "num_edges": len(all_data),
+        "edge_results": all_edge_results,
+        "avg_copu_utilization": avg_copu_utilization,
+        "total_cht_conflicts": total_cht_conflicts,
+    }
+
+    return aggregated_result
+
+
+def simulate_single_benchmark(
+    basename,
+    benchid,
+    data_folder,
+    num_copus,
+    num_oocds=7,
+    quant_bits=3,
+    threshold=1.0,
+    sample_rate=1.0,
+    max_cycles=100000,
+    use_real_cycles=False,
+):
+    """
+    执行单个benchmark的完整仿真流程（加载数据 → 执行仿真 → 返回结果）
 
     Args:
         basename: 数据集基名（如 "iiwa_7"）
         benchid: benchmark编号
         data_folder: 数据文件夹路径
         num_copus: COPU数量
-        use_real_cycles: 是否使用数据文件中的真实周期数
+        num_oocds: OOCD数量（CDU数量），默认7
+        quant_bits: 量化位数
+        threshold: 碰撞预测阈值
+        sample_rate: 采样率
+        max_cycles: 最大仿真周期
+        use_real_cycles: 是否使用真实周期数据
 
     Returns:
-        (data_list, coll_list, cycles_list) 或 (None, None, None)
-        其中每个list的长度为num_copus，对应各COPU分配的数据
+        dict: 该benchmark的仿真结果，若失败返回None
     """
-    # 使用 simulation_utils 加载数据
+    # 加载数据
+    all_cycles = None
     if use_real_cycles:
         all_data, all_coll, all_cycles = su.load_data_with_cycles(
             basename, benchid, data_folder, collision_model_type="link"
         )
-        if all_data is None:
-            print(f"✗ 无法加载数据: {basename}_{benchid:04d}")
-            return None, None, None
     else:
         all_data, all_coll = su.load_data(
             basename, benchid, data_folder, collision_model_type="link"
         )
-        if all_data is None:
-            print(f"✗ 无法加载数据: {basename}_{benchid:04d}")
-            return None, None, None
-        all_cycles = None
 
-    print("✓ 成功加载数据")
-    print(f"  Edge数量: {len(all_data)}")
-    print(f"  首个Edge的Pose数: {len(all_data[0]) if all_data else 0}")
-    if all_data and all_data[0]:
-        print(f"  首个Pose的Link数: {len(all_data[0][0]) if all_data[0][0] else 0}")
+    if all_data is None:
+        return None
 
-    # 按pose维度分派任务
-    all_poses = []
-    all_pose_colls = []
-    all_pose_cycles = [] if use_real_cycles else None
+    # 执行仿真
+    result = run_multi_copu_simulation(
+        all_data,
+        all_coll,
+        all_cycles,
+        num_copus,
+        num_oocds=num_oocds,
+        quant_bits=quant_bits,
+        threshold=threshold,
+        sample_rate=sample_rate,
+        max_cycles=max_cycles,
+    )
 
-    for edge_idx, edge in enumerate(all_data):
-        for pose_idx, pose in enumerate(edge):
-            all_poses.append(pose)
-            all_pose_colls.append(all_coll[edge_idx][pose_idx])  # pyright: ignore[reportOptionalSubscript]
-            if use_real_cycles:
-                all_pose_cycles.append(all_cycles[edge_idx][pose_idx])  # type: ignore
-
-    total_poses = len(all_poses)
-    print(f"  总Pose数: {total_poses}")
-
-    # 分派策略：均匀分配
-    poses_per_copu = total_poses // num_copus
-    remainder = total_poses % num_copus
-
-    data_list = []
-    coll_list = []
-    cycles_list = []
-
-    for copu_id in range(num_copus):
-        if copu_id < remainder:
-            start_idx = copu_id * (poses_per_copu + 1)
-            end_idx = start_idx + poses_per_copu + 1
-        else:
-            start_idx = (
-                remainder * (poses_per_copu + 1)
-                + (copu_id - remainder) * poses_per_copu
-            )
-            end_idx = start_idx + poses_per_copu
-
-        copu_poses = all_poses[start_idx:end_idx]
-        copu_pose_colls = all_pose_colls[start_idx:end_idx]
-
-        copu_linklist = []
-        copu_linklist_coll = []
-        copu_cycles = []
-
-        for pose_idx, (pose, pose_coll) in enumerate(zip(copu_poses, copu_pose_colls)):
-            copu_linklist.extend(pose)
-            copu_linklist_coll.extend(pose_coll)
-
-            if use_real_cycles and all_pose_cycles is not None:
-                pose_global_idx = start_idx + pose_idx
-                copu_cycles.extend(all_pose_cycles[pose_global_idx])
-            else:
-                copu_cycles.extend([40 for _ in range(len(pose))])
-
-        data_list.append(copu_linklist)
-        coll_list.append(copu_linklist_coll)
-        cycles_list.append(copu_cycles)
-
-        print(
-            f"  COPU[{copu_id}]: {end_idx - start_idx} poses, {len(copu_linklist)} links"
-        )
-
-    return data_list, coll_list, cycles_list
+    return result
 
 
-def run_multi_copu_simulation(
-    data_list,
-    coll_list,
-    cycles_list,
+def run_benchmark_range_simulation(
+    basename,
+    benchid_start,
+    benchid_end,
+    data_folder,
     num_copus,
-    bins=None,
+    num_oocds=7,
+    quant_bits=3,
     threshold=1.0,
     sample_rate=1.0,
     max_cycles=100000,
+    use_real_cycles=False,
 ):
     """
-    执行多COPU协同仿真
+    对指定范围内的benchid进行批量仿真
 
     Args:
-        data_list: 各COPU的数据列表
-        coll_list: 各COPU的碰撞标志列表
-        cycles_list: 各COPU的周期列表
+        basename: 数据集基名（如 "iiwa_7"）
+        benchid_start: 起始benchmark编号（包含）
+        benchid_end: 结束benchmark编号（包含）
+        data_folder: 数据文件夹路径
         num_copus: COPU数量
-        bins: 量化bin（默认为均匀分布）
+        num_oocds: OOCD数量（CDU数量），默认7
+        quant_bits: 量化位数
         threshold: 碰撞预测阈值
         sample_rate: 采样率
         max_cycles: 最大仿真周期
+        use_real_cycles: 是否使用真实周期数据
 
     Returns:
-        results dict containing global metrics and per-COPU stats
+        dict: 聚合的批量仿真结果
     """
-    if bins is None:
-        bins = np.linspace(0, 100, 10)
+    total_cycles_all = 0
+    total_queries_all = 0
+    total_cht_conflicts_all = 0
+    all_copu_utils_all = []
+    num_benchmarks_processed = 0
 
-    # 创建调度器
-    scheduler = MultiCOPU_Scheduler(num_copus=num_copus, num_oocds=7, cht_size=4096)
-
-    # 加载数据
-    scheduler.load_data_for_all_copus(data_list, coll_list, cycles_list)
-
-    print(f"\n开始仿真 ({num_copus} COPU)...")
-    start_time = time.time()
-
-    # 执行仿真
-    results = scheduler.simulate(
-        bins, threshold=threshold, sample_rate=sample_rate, max_cycles=max_cycles
+    print(
+        f"\n开始批量仿真 (benchmark {benchid_start}-{benchid_end}, {num_copus} COPU)..."
     )
 
-    elapsed_time = time.time() - start_time
+    for benchid in range(benchid_start, benchid_end + 1):
+        print(f"  处理 benchmark {benchid}...", end=" ")
 
-    return results, elapsed_time
+        # 执行该benchmark的仿真
+        result = simulate_single_benchmark(
+            basename,
+            benchid,
+            data_folder,
+            num_copus,
+            num_oocds=num_oocds,
+            quant_bits=quant_bits,
+            threshold=threshold,
+            sample_rate=sample_rate,
+            max_cycles=max_cycles,
+            use_real_cycles=use_real_cycles,
+        )
+
+        if result is None:
+            print("✗ 加载失败")
+            continue
+
+        print(f"✓ ({result['num_edges']} edges)")
+
+        # 累计到全局指标
+        total_cycles_all += result["total_cycles"]
+        total_queries_all += result["total_queries"]
+        total_cht_conflicts_all += result.get("total_cht_conflicts", 0)
+
+        # 累计COPU占用率样本
+        for edge_result in result["edge_results"]:
+            all_copu_utils_all.extend(edge_result["copu_utilizations"])
+
+        num_benchmarks_processed += 1
+
+    # 计算全局平均COPU占用率
+    avg_copu_utilization_all = (
+        sum(all_copu_utils_all) / len(all_copu_utils_all) if all_copu_utils_all else 0.0
+    )
+
+    # 构建批量仿真结果
+    batch_result = {
+        "basename": basename,
+        "benchid_start": benchid_start,
+        "benchid_end": benchid_end,
+        "num_benchmarks": num_benchmarks_processed,
+        "total_cycles": total_cycles_all,
+        "total_queries": total_queries_all,
+        "avg_copu_utilization": avg_copu_utilization_all,
+        "total_cht_conflicts": total_cht_conflicts_all,
+    }
+
+    return batch_result
 
 
-def print_simulation_results(results, elapsed_time, num_copus):
+def print_results(results, is_range=False):
     """
-    打印仿真结果
+    统一的结果输出函数
 
     Args:
         results: 仿真结果字典
-        elapsed_time: 执行时间
-        num_copus: COPU数量
+        is_range: 是否为范围模式
     """
-    # 分析性能指标
-    perf = analyze_multi_copu_performance(results)
-
+    title = "批量仿真结果汇总" if is_range else "仿真结果汇总"
     print("\n" + "=" * 80)
-    print("仿真结果汇总")
+    print(title)
     print("=" * 80)
 
-    print("\n【整体指标】")
+    print("\n【指标汇总】")
+    if is_range:
+        print(f"  数据集: {results.get('basename', 'N/A')}")
+        print(
+            f"  Benchmark范围: {results.get('benchid_start')} - {results.get('benchid_end')}"
+        )
+        print(f"  处理Benchmark数: {results.get('num_benchmarks', 0)}")
+    else:
+        print(f"  总Edge数: {results.get('num_edges', 'N/A')}")
+
     print(f"  总周期: {results['total_cycles']}")
-    print(f"  总查询数: {perf['total_queries']:.0f}")
-    print(f"  系统吞吐量: {perf['system_throughput']:.4f} queries/cycle")
-    print(f"  碰撞发现: {'是' if results['collision_found'] else '否'}")
-    print(f"  周期限制达到: {'是' if results['cycle_limit_reached'] else '否'}")
+    print(f"  总查询数: {results['total_queries']:.0f}")
 
-    print("\n【利用率分析】")
-    print(
-        f"  平均COPU利用率: {perf['avg_copu_utilization']:.4f} ({perf['avg_copu_utilization'] * 100:.2f}%)"
-    )
-
-    copu_stats = results["copus"]
-    for copu_stat in copu_stats:
+    if results["total_cycles"] > 0:
         print(
-            f"    COPU[{copu_stat['copu_id']}]: {copu_stat['oocd_utilization']:.4f} "
-            f"({copu_stat['oocd_utilization'] * 100:.2f}%), 查询={copu_stat['total_queries']}"
+            f"  系统吞吐量: {results['total_queries'] / results['total_cycles']:.4f} queries/cycle"
         )
 
-    print("\n【负载均衡】")
-    print(f"  负载均衡系数: {perf['load_balance_variance']:.4f}")
-    per_copu_queries = perf["per_copu_queries"]
-    print(f"  各COPU查询数: {[int(q) for q in per_copu_queries]}")
-    if per_copu_queries:
-        print(
-            f"  最小/最大查询数: {min(per_copu_queries):.0f} / {max(per_copu_queries):.0f}"
-        )
-
-    print("\n【CHT性能】")
-    cht_stats = results["cht_stats"]
-    print(f"  总读操作: {cht_stats['total_reads']}")
-    print(f"  总写操作: {cht_stats['total_writes']}")
-    print(f"  总冲突数: {cht_stats['total_conflicts']}")
-    print(
-        f"  CHT冲突率: {cht_stats['conflict_rate']:.4f} ({cht_stats['conflict_rate'] * 100:.2f}%)"
-    )
-    print(f"  CHT条目使用数: {cht_stats['entries_used']}")
-
-    print("\n【执行时间】")
-    print(f"  仿真耗时: {elapsed_time:.3f}s")
-
+    print(f"  平均COPU占用率: {results.get('avg_copu_utilization', 0.0):.2%}")
+    print(f"  CHT冲突数: {results.get('total_cht_conflicts', 0)}")
     print("\n" + "=" * 80)
-
-    return perf
 
 
 def main():
@@ -243,76 +424,103 @@ def main():
     # 命令行参数
     if len(sys.argv) < 6:
         print(
-            "用法: python multi_copu_real_data_simulation.py <basename> <benchid> <data_folder> <num_copus> <threshold> [sample_rate] [max_cycles] [--real-cycles]"
+            "用法 (单个): python multi_copu_real_data_simulation.py <basename> <benchid> <data_folder> <num_copus> <threshold> [num_oocds] [sample_rate] [max_cycles] [--real-cycles]"
         )
         print(
-            "示例: python multi_copu_real_data_simulation.py iiwa_7 1 ../trace_files/scene_benchmarks/bit_collision_data 8 1.0 1.0 100000"
+            "用法 (范围): python multi_copu_real_data_simulation.py <basename> <benchid_start>-<benchid_end> <data_folder> <num_copus> <threshold> [num_oocds] [sample_rate] [max_cycles] [--real-cycles]"
+        )
+        print(
+            "示例 (单个): python multi_copu_real_data_simulation.py iiwa_7 46 ../trace_files/scene_benchmarks/bit_collision_data 4 1.0 7 0.1 10000"
+        )
+        print(
+            "示例 (范围): python multi_copu_real_data_simulation.py iiwa_7 1-10 ../trace_files/scene_benchmarks/bit_collision_data 4 1.0 7 0.1 10000"
         )
         sys.exit(1)
 
+    is_range_mode = "-" in sys.argv[2]
+    num_oocds = 7
+    sample_rate = 1.0
+    max_cycles = 100000
+    use_real_cycles = "--real-cycles" in sys.argv
+
+    # 解析可选数值参数 (顺序: num_oocds, sample_rate, max_cycles)
+    optional_values = []
+    for arg in sys.argv[6:]:
+        if arg == "--real-cycles":
+            continue
+        if arg.replace(".", "", 1).isdigit():
+            optional_values.append(float(arg) if "." in arg else int(arg))
+
+    if len(optional_values) >= 1:
+        num_oocds = int(optional_values[0])
+    if len(optional_values) >= 2:
+        sample_rate = float(optional_values[1])
+    if len(optional_values) >= 3:
+        max_cycles = int(optional_values[2])
+
     basename = sys.argv[1]
-    benchid = int(sys.argv[2])
+    benchid_arg = sys.argv[2]
     data_folder = sys.argv[3]
     num_copus = int(sys.argv[4])
     threshold = float(sys.argv[5])
-
-    # 可选参数
-    sample_rate = 1.0
-    max_cycles = 100000
-    use_real_cycles = False
-
-    for arg in sys.argv[6:]:
-        if arg == "--real-cycles":
-            use_real_cycles = True
-        elif arg.replace(".", "", 1).isdigit():
-            # 检查是否为第6或第7个位置的参数
-            if len(sys.argv) > 6 and sys.argv[6].replace(".", "", 1).isdigit():
-                sample_rate = float(sys.argv[6])
-            if len(sys.argv) > 7 and sys.argv[7].replace(".", "", 1).isdigit():
-                max_cycles = int(sys.argv[7])
 
     print("=" * 80)
     print("多COPU实际数据仿真")
     print("=" * 80)
 
     print("\n【输入参数】")
-    print(f"  数据集: {basename}_{benchid:04d}")
+    print(f"  数据集: {basename}")
+    if is_range_mode:
+        benchid_start, benchid_end = map(int, benchid_arg.split("-"))
+        print(f"  Benchmark范围: {benchid_start} - {benchid_end}")
+    else:
+        benchid = int(benchid_arg)
+        print(f"  Benchmark: {benchid}")
     print(f"  数据文件夹: {data_folder}")
     print(f"  COPU数量: {num_copus}")
     print(f"  碰撞阈值: {threshold}")
+    print(f"  CDU数量(OOCD): {num_oocds}")
     print(f"  采样率: {sample_rate}")
     print(f"  最大周期: {max_cycles}")
     print(f"  使用真实周期: {use_real_cycles}")
 
-    # 步骤1: 加载并分派数据
-    print("\n【步骤1】加载和分派数据")
-    data_list, coll_list, cycles_list = load_and_partition_data(
-        basename, benchid, data_folder, num_copus, use_real_cycles=use_real_cycles
-    )
+    print("\n【步骤1】执行仿真")
+    if is_range_mode:
+        benchid_start, benchid_end = map(int, benchid_arg.split("-"))
+        results = run_benchmark_range_simulation(
+            basename,
+            benchid_start,
+            benchid_end,
+            data_folder,
+            num_copus,
+            num_oocds=num_oocds,
+            quant_bits=3,
+            threshold=threshold,
+            sample_rate=sample_rate,
+            max_cycles=max_cycles,
+            use_real_cycles=use_real_cycles,
+        )
+    else:
+        benchid = int(benchid_arg)
+        results = simulate_single_benchmark(
+            basename,
+            benchid,
+            data_folder,
+            num_copus,
+            num_oocds=num_oocds,
+            quant_bits=3,
+            threshold=threshold,
+            sample_rate=sample_rate,
+            max_cycles=max_cycles,
+            use_real_cycles=use_real_cycles,
+        )
 
-    if data_list is None:
-        print("✗ 数据加载失败，程序退出")
-        sys.exit(1)
+        if results is None:
+            print(f"✗ 无法加载数据: {basename}_{benchid:04d}")
+            sys.exit(1)
 
-    # 步骤2: 执行仿真
-    print("\n【步骤2】执行仿真")
-    results, elapsed_time = run_multi_copu_simulation(
-        data_list,
-        coll_list,
-        cycles_list,
-        num_copus,
-        bins=np.linspace(0, 100, 10),
-        threshold=threshold,
-        sample_rate=sample_rate,
-        max_cycles=max_cycles,
-    )
-
-    # 步骤3: 输出结果
-    print("\n【步骤3】输出结果")
-    perf = print_simulation_results(results, elapsed_time, num_copus)
-
-    # 返回性能指标用于脚本链接
-    return perf
+    print("\n【步骤2】输出结果")
+    print_results(results, is_range=is_range_mode)
 
 
 if __name__ == "__main__":

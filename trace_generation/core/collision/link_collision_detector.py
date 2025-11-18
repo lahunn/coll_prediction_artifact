@@ -40,7 +40,7 @@ class LinkCollisionDetector:
         self.collision_time = 0.0
         self.collision_check_count = 0
 
-    def check_pose(self, state) -> Tuple[bool, Dict[str, Any]]:
+    def check_pose(self, state) -> Tuple[bool, List, List]:
         """
         检查单个配置点的碰撞状态
 
@@ -48,14 +48,10 @@ class LinkCollisionDetector:
             state: numpy array，机器人配置 (DOF,)
 
         Returns:
-            tuple: (is_free, collision_data)
+            tuple: (is_free, unit_coords, unit_colls)
             - is_free (bool): 配置是否无碰撞
-            - collision_data (dict): 包含碰撞相关数据的字典
-              {
-                  'link_coords': List[Pose],    # 各 Link 的位姿
-                  'link_colls': List[int],      # 各 Link 的碰撞标签
-                  'timestamp': float            # 检测时间戳
-              }
+            - unit_coords (List[Pose]): 各 Link 的位姿
+            - unit_colls (List[int]): 各 Link 的碰撞标签 (0=碰撞, 1=自由)
         """
         start_time = time.time()
         self.collision_check_count += 1
@@ -63,11 +59,7 @@ class LinkCollisionDetector:
         # 验证配置合法性
         if not self.robot_env._valid_state(state):
             self.collision_time += time.time() - start_time
-            return False, {
-                "link_coords": [],
-                "link_colls": [],
-                "timestamp": time.time(),
-            }
+            return False, [], []
 
         # 设置机器人配置
         self.robot_env.set_config(state)
@@ -87,15 +79,9 @@ class LinkCollisionDetector:
         elapsed_time = time.time() - start_time
         self.collision_time += elapsed_time
 
-        # 返回标准化的碰撞数据
+        # 返回三个独立的值
         is_free = not is_collision
-        collision_data = {
-            "unit_coords": link_coords,
-            "unit_colls": link_colls,
-            "timestamp": time.time(),
-        }
-
-        return is_free, collision_data
+        return is_free, link_coords, link_colls
 
     def _get_link_collisions(self) -> Tuple[bool, List[int]]:
         """

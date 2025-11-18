@@ -415,7 +415,7 @@ class SphereEnvGeometric:
             "robot_name": self.robot_name,
         }
 
-    def check_pose(self, state: Tuple) -> Tuple[bool, dict]:
+    def check_pose(self, state: Tuple) -> Tuple[bool, List, List]:
         """
         检查姿态是否无碰撞（与LinkCollisionDetector接口一致）
 
@@ -423,21 +423,15 @@ class SphereEnvGeometric:
             state: 关节配置状态
 
         Returns:
-            (is_free, collision_dict):
+            (is_free, unit_coords, unit_colls):
                 - is_free (bool): True表示无碰撞，False表示有碰撞
-                - collision_dict (dict): 包含碰撞信息的字典
-                  {
-                      'unit_coords': [...],    # 球体坐标列表
-                      'unit_colls': [...],     # 球体碰撞信息列表
-                      'timestamp': ...         # 检测时间戳
-                  }
+                - unit_coords (List): 球体坐标列表
+                - unit_colls (List): 球体碰撞信息列表
         """
         import time
 
         start_time = time.time()
         self.collision_check_count += 1
-
-        timestamp = start_time
 
         # 调用现有的碰撞检测方法
         result = self.get_sphere_collision_data(state)
@@ -448,19 +442,13 @@ class SphereEnvGeometric:
         colls = result[2]
         collision = result[0]
 
-        # 构建返回字典（与LinkCollisionDetector格式一致）
-        collision_dict = {
-            "unit_coords": coords,
-            "unit_colls": colls,
-            "timestamp": timestamp,
-        }
-
         # 记录统计时间
         elapsed_time = time.time() - start_time
         self.collision_time += elapsed_time
 
-        # 返回无碰撞状态和字典（collision为True表示碰撞，需要取反）
-        return (not collision, collision_dict)
+        # 返回无碰撞状态和三个独立的值（collision为True表示碰撞，需要取反）
+        is_free = not collision
+        return is_free, coords, colls
 
 
 # 为了保持向后兼容，提供别名

@@ -91,7 +91,7 @@ class CollisionEnv:
         """关闭碰撞检测环境"""
         pass
 
-    def _point_in_free_space(self, state) -> Tuple[bool, Dict[str, Any]]:
+    def _point_in_free_space(self, state) -> Tuple[bool, List, List]:
         """
         检查单个 pose 并收集碰撞数据
 
@@ -99,15 +99,12 @@ class CollisionEnv:
             state: 机器人配置
 
         Returns:
-            tuple: (is_free, collision_data)
+            tuple: (is_free, unit_coords, unit_colls)
         """
         # 调用 detector 进行碰撞检测
-        is_free, collision_data = self.detector.check_pose(state)
+        is_free, unit_coords, unit_colls = self.detector.check_pose(state)
 
-        # 存储碰撞数据到数据管理器
-        self.data_manager._store_collision_data(collision_data, is_edge=False)
-
-        return is_free, collision_data
+        return is_free, unit_coords, unit_colls
 
     def _state_fp(self, state) -> bool:
         """
@@ -119,8 +116,8 @@ class CollisionEnv:
         Returns:
             bool: 该状态是否无碰撞
         """
-        is_free, collision_data = self._point_in_free_space(state)
-
+        is_free, unit_coords, unit_colls = self._point_in_free_space(state)
+        self.data_manager._store_collision_data(unit_coords, unit_colls, is_edge=False)
         edge_configs = [state.copy()]
         self.config_list.append(np.array(edge_configs))
 
@@ -185,12 +182,22 @@ class CollisionEnv:
         # 离散化边
         edge_configs = self._discretize_edge(state, new_state, RRT_EPS)
 
-        # 对边上的每个 pose 进行检测
+        # 对边上的每个 pose 进行检测，聚合整条边的数据
         edge_free = True
+        edge_unit_coords = []
+        edge_unit_colls = []
+
         for config in edge_configs:
-            is_free, collision_data = self._point_in_free_space(config)
+            is_free, unit_coords, unit_colls = self._point_in_free_space(config)
+            edge_unit_coords.append(unit_coords)
+            edge_unit_colls.append(unit_colls)
             if not is_free:
                 edge_free = False
+
+        # 一次性存储整条边的数据
+        self.data_manager._store_collision_data(
+            edge_unit_coords, edge_unit_colls, is_edge=True
+        )
 
         self.config_list.append(np.array(edge_configs))
         return edge_free

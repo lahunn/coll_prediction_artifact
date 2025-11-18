@@ -29,3 +29,4 @@ fcl_examples/*
 collision/*
 trace_generation/core/collision/cpp_collision/build/*
 coll_prediction_artifact.egg-info/*
+motion_planning_prediction/tests/result_files/*.png

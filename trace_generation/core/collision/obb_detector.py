@@ -109,7 +109,7 @@ class OBBCollisionEnv:
         elif os.path.exists(robot_file_root):
             robot_file = robot_file_root
         else:
-            print(f"警告: URDF文件未找到")
+            print("警告: URDF文件未找到")
             print(f"  尝试路径1: {robot_file_trace}")
             print(f"  尝试路径2: {robot_file_root}")
             return None

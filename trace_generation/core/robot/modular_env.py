@@ -247,11 +247,9 @@ class ModularEnv:
         Returns:
             tuple: (result, info, coll) - 是否自由、单元坐标信息、碰撞信息
         """
-        is_free, collision_data = self.collision_env._point_in_free_space(state)
-
-        # 从 collision_data dict 中提取信息 - 现在使用标准化的 unit_* 密钥
-        unit_coords = collision_data.get("unit_coords", [])
-        unit_colls = collision_data.get("unit_colls", [])
+        is_free, unit_coords, unit_colls = self.collision_env._point_in_free_space(
+            state
+        )
 
         # 返回格式：(result, info, coll)
         # info: unit_coords, coll: unit_colls

@@ -35,7 +35,8 @@ class UnifiedCollisionDataModel:
 
     def store_collision_data(
         self,
-        data: Dict,
+        unit_coords,
+        unit_colls,
         is_edge: bool = True,
         cycles: Optional[int] = None,
     ):
@@ -43,19 +44,13 @@ class UnifiedCollisionDataModel:
         存储碰撞数据
 
         Args:
-            data: 数据字典
-              {
-                  'unit_coords': List[Coords],
-                  'unit_colls': List[int],
-              }
+            unit_coords: 单元坐标数据 List[Coords]
+            unit_colls: 单元碰撞标签 List[int]
             is_edge: 是否为边数据
             cycles: 周期数据（可选）
         """
-        if not data or not data.get("unit_coords"):
+        if not unit_coords:
             return
-
-        unit_coords = data.get("unit_coords", [])
-        unit_colls = data.get("unit_colls", [])
 
         if is_edge:
             # 边数据：直接添加
@@ -209,15 +204,16 @@ class CollisionDataManager:
         else:
             raise ValueError(f"Unknown collision model type: {model_type}")
 
-    def _store_collision_data(self, data: Dict, is_edge: bool = True):
+    def _store_collision_data(self, unit_coords, unit_colls, is_edge: bool = True):
         """
         代理到具体模型的数据存储方法
 
         Args:
-            data: 碰撞数据
+            unit_coords: 单元坐标数据
+            unit_colls: 单元碰撞标签
             is_edge: 是否为边数据
         """
-        self.collision_data.store_collision_data(data, is_edge=is_edge)
+        self.collision_data.store_collision_data(unit_coords, unit_colls, is_edge=is_edge)
 
     def reset(self):
         """重置所有数据和统计"""
