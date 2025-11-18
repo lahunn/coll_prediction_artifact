@@ -42,7 +42,7 @@ if len(sys.argv) < 7:
         "Usage: python prediction_simulation_nDOF_sphere.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <num_benchmarks> [robot_name]"
     )
     print(
-        "Example: python prediction_simulation_nDOF_sphere.py 0.5 0.1 8 ../trace_files/scene_benchmarks/bit_collision_data franka_14 100 franka"
+        "Example: python prediction_simulation_nDOF_sphere.py 0.5 0.1 8 ../trace_files/scene_benchmarks/bit_collision_data iiwa_7 50 iiwa"
     )
     sys.exit(1)
 
@@ -134,7 +134,7 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
             bins,
             qnoncoll_len=qnoncoll_len,
             cycle_check=sphere_cost,
-            num_oocds=22,
+            num_oocds=7,
         )
 
         all_prediction += edge_query_count

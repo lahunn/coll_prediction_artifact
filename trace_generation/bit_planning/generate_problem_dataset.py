@@ -213,7 +213,7 @@ def generate_problem_dataset(
 
         if (
             problem is not None
-            and modular_env.collision_env.data_manager.edge_fp_call_count > 10
+            and modular_env.collision_env.data_manager.edge_fp_call_count > 100
         ):
             problems.append(problem)
             success_count += 1

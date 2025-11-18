@@ -7,13 +7,8 @@ from typing import List, Tuple
 import tqdm
 
 # 使用相对导入，允许从项目根目录运行
-try:
-    from data.workspace_bounds.workspace_analyzer import WorkspaceAnalyzer
-    from core.robot.environment import robot_urdf_mapping
-except ImportError:
-    # 向后兼容旧路径
-    from workspace_bound.workspace_analyzer import WorkspaceAnalyzer
-    from robot_as.robot_method import robot_urdf_mapping
+from data.workspace_bounds.workspace_analyzer import WorkspaceAnalyzer
+from core.robot.environment import robot_urdf_mapping
 
 # 配置参数
 random.seed(1)

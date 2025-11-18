@@ -8,8 +8,11 @@
 """
 
 import sys
+import os
 from collections import Counter
 from tqdm import tqdm
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
 import simulation_utils as su
 
 # --- Command Line Parameters ---
@@ -43,6 +46,11 @@ free_edge_count = 0
 # 单个球体周期数分布
 collision_sphere_cycles_distribution = Counter()
 free_sphere_cycles_distribution = Counter()
+
+# Edge中的pose数分布
+edge_pose_count_distribution = Counter()
+collision_edge_pose_distribution = Counter()
+free_edge_pose_distribution = Counter()
 
 # --- Main Analysis Loop ---
 benchrange = range(1, num_benchmarks + 1)
@@ -80,6 +88,14 @@ for benchid in tqdm(benchrange, desc="分析周期数据"):
         edge_has_collision = any(
             sphere_coll == 0 for pose_coll in edge_coll for sphere_coll in pose_coll
         )
+
+        # 统计该edge的pose数
+        pose_count = len(edge_coll)
+        edge_pose_count_distribution[pose_count] += 1
+        if edge_has_collision:
+            collision_edge_pose_distribution[pose_count] += 1
+        else:
+            free_edge_pose_distribution[pose_count] += 1
 
         # 遍历该edge的所有pose，统计每个球体的周期数
         for pose_idx, pose_cycles in enumerate(edge_cycles_data):
@@ -221,6 +237,53 @@ if free_sphere_cycles_distribution:
     max_free = max(free_sphere_cycles_distribution.keys())
     print(f"无碰撞球体周期数范围: [{min_free}, {max_free}]")
     print(f"无碰撞球体周期数种类: {len(free_sphere_cycles_distribution)}")
+
+print("\n" + "=" * 60)
+print("Edge中Pose数分布 (Pose Count Distribution in Edge):")
+print("=" * 60)
+
+print(f"\n整体Pose数分布 (共 {collision_edge_count + free_edge_count} 条边):")
+print("-" * 60)
+print(f"{'Pose数':<10} {'频数':<15} {'百分比':<15} {'累积百分比':<15}")
+print("-" * 60)
+
+cumulative = 0
+total_edges = collision_edge_count + free_edge_count
+for pose_count, frequency in edge_pose_count_distribution.most_common(50):
+    percentage = frequency / total_edges * 100
+    cumulative += percentage
+    print(
+        f"{pose_count:<10} {frequency:<15} {percentage:>6.2f}%{'':<8} {cumulative:>6.2f}%"
+    )
+
+if len(edge_pose_count_distribution) > 50:
+    print(
+        f"... (显示前50个，共 {len(edge_pose_count_distribution)} 种不同Pose数)"
+    )
+
+print(f"\n碰撞边中的Pose数分布 (共 {collision_edge_count} 条碰撞边):")
+print("-" * 60)
+print(f"{'Pose数':<10} {'频数':<15} {'百分比':<15}")
+print("-" * 60)
+
+for pose_count, frequency in collision_edge_pose_distribution.most_common(30):
+    percentage = frequency / collision_edge_count * 100 if collision_edge_count > 0 else 0
+    print(f"{pose_count:<10} {frequency:<15} {percentage:>6.2f}%")
+
+if len(collision_edge_pose_distribution) > 30:
+    print(f"... (显示前30个，共 {len(collision_edge_pose_distribution)} 种)")
+
+print(f"\n无碰撞边中的Pose数分布 (共 {free_edge_count} 条无碰撞边):")
+print("-" * 60)
+print(f"{'Pose数':<10} {'频数':<15} {'百分比':<15}")
+print("-" * 60)
+
+for pose_count, frequency in free_edge_pose_distribution.most_common(30):
+    percentage = frequency / free_edge_count * 100 if free_edge_count > 0 else 0
+    print(f"{pose_count:<10} {frequency:<15} {percentage:>6.2f}%")
+
+if len(free_edge_pose_distribution) > 30:
+    print(f"... (显示前30个，共 {len(free_edge_pose_distribution)} 种)")
 
 print("=" * 60)
 print("分析完成！")

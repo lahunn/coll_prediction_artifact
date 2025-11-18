@@ -137,7 +137,7 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
                 bins,
                 qnoncoll_len=qnoncoll_len,
                 cycle_check=sphere_cost,
-                num_oocds=22,
+                num_oocds=7,
             )
         )
 

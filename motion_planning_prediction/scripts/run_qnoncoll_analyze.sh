@@ -40,14 +40,12 @@ echo "qnoncoll_multiplier,total_sphere_checks,prediction_queries,oracle_queries,
 echo "开始参数分析..."
 echo "进度:"
 
-cd ..
-
 # 对每个qnoncoll_multiplier值运行仿真
 for multiplier in "${QNONCOLL_VALUES[@]}"; do
     echo "  测试 qnoncoll_multiplier = $multiplier..."
 
     # 运行仿真并捕获输出
-    output=$(python3 prediction_simulation_nDOF_sphere.py \
+    output=$(python3 ../prediction_simulation_nDOF_sphere.py \
         $THRESHOLD \
         $SAMPLE_RATE \
         $multiplier \

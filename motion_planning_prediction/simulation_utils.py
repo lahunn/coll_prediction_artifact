@@ -146,21 +146,21 @@ def load_motion_trace_data(planner_type, benchid, dimension):
 def load_data(basename, benchid, data_folder, collision_model_type="link"):
     """
     Loads collision data from a pickle file.
-    
+
     Args:
         basename: Base name of the dataset (e.g., "iiwa_7")
         benchid: Benchmark number
         data_folder: Path to the data folder
         collision_model_type: Type of collision model ("link" or "sphere", default="link")
-    
+
     Returns:
         (collision_data, collision_flags) tuple or (None, None)
-    
+
     File naming convention:
         {basename}_{benchid:04d}_{collision_model_type}.pkl
     """
     filename = f"{data_folder}/{basename}_{benchid:04d}_{collision_model_type}.pkl"
-    
+
     try:
         with open(filename, "rb") as f:
             data = pickle.load(f)
@@ -168,7 +168,7 @@ def load_data(basename, benchid, data_folder, collision_model_type="link"):
                 return data[0], data[1]
     except FileNotFoundError:
         pass
-    
+
     print(f"Warning: Collision data file not found at {filename}", file=sys.stderr)
     return None, None
 
@@ -176,16 +176,16 @@ def load_data(basename, benchid, data_folder, collision_model_type="link"):
 def load_data_with_cycles(basename, benchid, data_folder, collision_model_type="link"):
     """
     Loads collision data with cycles from a pickle file.
-    
+
     Args:
         basename: Base name of the dataset (e.g., "iiwa_7")
         benchid: Benchmark number
         data_folder: Path to the data folder
         collision_model_type: Type of collision model ("link" or "sphere", default="link")
-    
+
     Returns:
         (collision_data, collision_flags, cycles) tuple or (None, None, None)
-    
+
     File naming convention:
         - Sphere model: {basename}_{benchid:04d}_sphere_geometric_cycles.pkl
         - Link model: {basename}_{benchid:04d}_{collision_model_type}_cycles.pkl
@@ -193,8 +193,10 @@ def load_data_with_cycles(basename, benchid, data_folder, collision_model_type="
     if collision_model_type == "sphere":
         filename = f"{data_folder}/{basename}_{benchid:04d}_sphere_geometric_cycles.pkl"
     else:
-        filename = f"{data_folder}/{basename}_{benchid:04d}_{collision_model_type}_cycles.pkl"
-    
+        filename = (
+            f"{data_folder}/{basename}_{benchid:04d}_{collision_model_type}_cycles.pkl"
+        )
+
     try:
         with open(filename, "rb") as f:
             data = pickle.load(f)
@@ -202,7 +204,7 @@ def load_data_with_cycles(basename, benchid, data_folder, collision_model_type="
                 return data[0], data[1], data[2]
     except FileNotFoundError:
         pass
-    
+
     print(
         f"Warning: Collision data with cycles file not found at {filename}",
         file=sys.stderr,

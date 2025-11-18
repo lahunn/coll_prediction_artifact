@@ -16,7 +16,7 @@ SAMPLE_RATE=0.1
 QN_MULTIPLIER=6
 
 # 包含碰撞数据的文件夹路径
-DATA_FOLDER="../../trace_files/scene_benchmarks/bit_collision_data"
+DATA_FOLDER="../trace_files/scene_benchmarks/bit_collision_data"
 
 # 基准测试文件的基础名称 (例如 franka_14, iiwa_7)
 BASENAME="iiwa_7"
