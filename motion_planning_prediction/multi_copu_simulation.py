@@ -22,7 +22,7 @@ NUM_OOCDS = 7
 MAX_COLLISION_COUNT = 15
 DEFAULT_QNONCOLL_LEN = 56
 DEFAULT_QCOLL_LEN = 8
-DEFAULT_CYCLE_CHECK = 40
+DEFAULT_CYCLE_CHECK = 15
 CHT_DEFAULT_SIZE = 4096
 ONE_CYCLE_DELAY = 1
 
@@ -89,8 +89,9 @@ class DualPortSRAM_CHT:
     - 每个条目：[COLL_count, NONCOLL_count] (各4-bit饱和)
     """
 
-    def __init__(self, size=CHT_DEFAULT_SIZE):
+    def __init__(self, size=CHT_DEFAULT_SIZE, enable_conflict_check=True):
         self.size = size
+        self.enable_conflict_check = enable_conflict_check
         self.memory = {}  # {hash_key: [COLL, NONCOLL]}
 
         # 周期级别的访问调度（统一的待决请求列表）
@@ -118,9 +119,12 @@ class DualPortSRAM_CHT:
             completion_cycle = cycle + ONE_CYCLE_DELAY
         else:
             # 端口满了，需要排队
-            wait_cycles = num_pending // 2
-            completion_cycle = cycle + wait_cycles + ONE_CYCLE_DELAY
-            self.conflicts += 1
+            if self.enable_conflict_check:
+                wait_cycles = num_pending // 2
+                completion_cycle = cycle + wait_cycles + ONE_CYCLE_DELAY
+                self.conflicts += 1
+            else:
+                completion_cycle = cycle + ONE_CYCLE_DELAY
 
         # 不存储copu_id，由CHT_AccessScheduler按hash_key去重
         self.pending_accesses.append(
@@ -148,12 +152,15 @@ class DualPortSRAM_CHT:
 
         if num_pending < 2:
             # 有可用端口，本周期可完成
-            completion_cycle = cycle + 1
+            completion_cycle = cycle + ONE_CYCLE_DELAY
         else:
             # 端口满了，需要排队
-            wait_cycles = num_pending // 2
-            completion_cycle = cycle + wait_cycles + 1
-            self.conflicts += 1
+            if self.enable_conflict_check:
+                wait_cycles = num_pending // 2
+                completion_cycle = cycle + wait_cycles + ONE_CYCLE_DELAY
+                self.conflicts += 1
+            else:
+                completion_cycle = cycle + ONE_CYCLE_DELAY
 
         # 不存储copu_id，由CHT_AccessScheduler按hash_key去重和合并
         self.pending_accesses.append(
@@ -496,9 +503,13 @@ class CHT_AccessScheduler:
     - 简化COPU端的请求追踪逻辑
     """
 
-    def __init__(self, num_copus, cht_size=CHT_DEFAULT_SIZE):
+    def __init__(
+        self, num_copus, cht_size=CHT_DEFAULT_SIZE, enable_conflict_check=True
+    ):
         self.num_copus = num_copus
-        self.cht = DualPortSRAM_CHT(size=cht_size)
+        self.cht = DualPortSRAM_CHT(
+            size=cht_size, enable_conflict_check=enable_conflict_check
+        )
         self.current_cycle = 0
 
     def get_read_result(self, hash_key):
@@ -567,11 +578,19 @@ class MultiCOPU_Scheduler:
     - 收集全局结果
     """
 
-    def __init__(self, num_copus, num_oocds=NUM_OOCDS, cht_size=CHT_DEFAULT_SIZE):
+    def __init__(
+        self,
+        num_copus,
+        num_oocds=NUM_OOCDS,
+        cht_size=CHT_DEFAULT_SIZE,
+        enable_conflict_check=True,
+    ):
         self.num_copus = num_copus
 
         # 创建共享的CHT调度器
-        self.cht_scheduler = CHT_AccessScheduler(num_copus, cht_size)
+        self.cht_scheduler = CHT_AccessScheduler(
+            num_copus, cht_size, enable_conflict_check=enable_conflict_check
+        )
 
         # 创建COPU模块
         self.copus = [
@@ -643,59 +662,131 @@ class MultiCOPU_Scheduler:
 
 
 # ======================== Utility Functions ========================
-def load_data_for_multi_copu(
-    basename, benchid, data_folder, num_copus, copu_id, collision_model_type="link"
-):
+def _generate_recursive_reorder(num_poses, step_size):
     """
-    为多COPU场景加载配置数据的子集。
+    生成递归式重排顺序（保持固定步长，只对组序列进行递归二分重排）。
 
-    Args:
-        basename: Base name of the dataset (e.g., "iiwa_7")
-        benchid: Benchmark number
-        data_folder: Path to the data folder
-        num_copus: Number of COPU modules
-        copu_id: This COPU's ID (0 to num_copus-1)
-        collision_model_type: Type of collision model ("link" or "sphere")
+    step_size =8 , 重排序后= [0,8,16,24,4,12,20,28,2,10,18,26,6,14,22,30,1,9,17,25,...]
 
     Returns:
-        (collision_data_subset, collision_flags_subset, cycles_subset) or (None, None, None)
+        重排后的pose索引列表
     """
-    # Import here to avoid circular dependency
-    from simulation_utils import load_data_with_cycles
+    # 步骤1：对组号进行递归二分重排
+    group_count = min(step_size, (num_poses + step_size - 1) // step_size)
+    group_order = _recursive_binary_reorder(group_count)
 
-    # 加载全量数据
-    all_data, all_flags, all_cycles = load_data_with_cycles(
-        basename, benchid, data_folder, collision_model_type
-    )
+    # 步骤2：按重排后的组号顺序生成pose列表
+    reorder = []
+    for group_id in group_order:
+        pose_idx = group_id
+        while pose_idx < num_poses:
+            reorder.append(pose_idx)
+            pose_idx += step_size
 
-    if all_data is None:
-        return None, None, None
+    return reorder
 
-    # 根据COPU ID划分任务
-    num_configs = len(all_data)
-    configs_per_copu = num_configs // num_copus
-    remainder = num_configs % num_copus
 
-    # 分配策略：前remainder个COPU各多分1个配置
-    if copu_id < remainder:
-        start_idx = copu_id * (configs_per_copu + 1)
-        end_idx = start_idx + configs_per_copu + 1
+def _recursive_binary_reorder(n):
+    """
+    将 [0,1,2,...,n-1] 按递归二分方式重排（使用位反转）。
+
+    算法：对每个索引进行位反转，生成递归二分的访问顺序
+
+    例如 n=4 (2位):
+    - 0 (00) -> 00 = 0
+    - 1 (01) -> 10 = 2
+    - 2 (10) -> 01 = 1
+    - 3 (11) -> 11 = 3
+    结果：[0,2,1,3]
+
+    Args:
+        n: 数字个数
+
+    Returns:
+        重排后的索引列表
+    """
+    if n == 1:
+        return [0]
+    if n == 2:
+        return [0, 1]
+
+    # 计算需要的位数
+    num_bits = 0
+    temp = n - 1
+    while temp > 0:
+        num_bits += 1
+        temp >>= 1
+
+    reorder = []
+    for i in range(n):
+        # 对i进行位反转
+        reversed_i = 0
+        for bit in range(num_bits):
+            reversed_i = (reversed_i << 1) | ((i >> bit) & 1)
+        reorder.append(reversed_i)
+
+    return reorder
+
+
+def _allocate_edge_data_to_copus(
+    edge_coords,
+    edge_flags,
+    edge_cycles,
+    num_copus,
+    use_recursive_reorder=True,
+    step_size=8,
+):
+    """
+    将单条edge的pose数据按轮转方式分配给所有COPU。
+
+    算法：
+    1. 可选：对poses按递归二分方式重排，降低空间相邻性
+    2. 按轮转方式将poses分配给各COPU
+
+    Args:
+        edge_coords: 该edge的pose坐标数据 List[List[coords]]
+        edge_flags: 该edge的碰撞标志 List[List[flags]]
+        edge_cycles: 该edge的周期数据 List[List[cycles]] 或 None
+        num_copus: COPU总数
+        use_recursive_reorder: 是否使用递归二分重排 (默认False，使用顺序)
+        step_size: 递归重排的步长 (默认8，仅当use_recursive_reorder=True时有效)
+
+    Returns:
+        (copus_coords, copus_flags, copus_cycles):
+            copus_coords[i], copus_flags[i], copus_cycles[i] 为第i个COPU的展平后数据
+            List[List[coords]], List[List[flags]], List[List[cycles]]
+    """
+    num_poses = len(edge_coords)
+
+    # 步骤1：确定pose顺序（可选递归重排）
+    if use_recursive_reorder:
+        reorder = _generate_recursive_reorder(num_poses, step_size)
     else:
-        start_idx = (
-            remainder * (configs_per_copu + 1)
-            + (copu_id - remainder) * configs_per_copu
-        )
-        end_idx = start_idx + configs_per_copu
+        reorder = list(range(num_poses))
 
-    # 返回分配给该COPU的数据
-    if all_data is None or all_flags is None or all_cycles is None:
-        return None, None, None
+    # 步骤2：初始化所有COPU的数据列表
+    copus_coords = [[] for _ in range(num_copus)]
+    copus_flags = [[] for _ in range(num_copus)]
+    copus_cycles = [[] for _ in range(num_copus)]
 
-    subset_data = all_data[start_idx:end_idx]
-    subset_flags = all_flags[start_idx:end_idx]
-    subset_cycles = all_cycles[start_idx:end_idx]
+    # 步骤3：按轮转方式将poses分配给各COPU
+    for reordered_idx, original_pose_idx in enumerate(reorder):
+        copu_id = reordered_idx % num_copus
+        pose_coords = edge_coords[original_pose_idx]  # List[link_coord]
+        pose_flags = edge_flags[original_pose_idx]  # List[link_flag]
 
-    return subset_data, subset_flags, subset_cycles
+        # 展平link数据
+        copus_coords[copu_id].extend(pose_coords)
+        copus_flags[copu_id].extend(pose_flags)
+
+        # 处理周期数据
+        if edge_cycles is not None:
+            pose_cycles = edge_cycles[original_pose_idx]
+            copus_cycles[copu_id].extend(pose_cycles)
+        else:
+            copus_cycles[copu_id].extend([40 for _ in range(len(pose_coords))])
+
+    return copus_coords, copus_flags, copus_cycles
 
 
 def analyze_multi_copu_performance(results):

@@ -11,18 +11,29 @@ cd "$SCRIPT_DIR"
 
 # 配置参数
 BASENAME="iiwa_7"
-BENCHID="1-10"
+BENCHID="1-5"
 DATA_FOLDER="$SCRIPT_DIR/../../trace_files/scene_benchmarks/bit_collision_data"
 THRESHOLD="1.0"
 SAMPLE_RATE="0.1"
 MAX_CYCLES="10000"
 OUTPUT_DIR="result_files"
 
+# 检查是否使用 --no-cht-conflict 选项
+ENABLE_CHT_CONFLICT=true
+CONFLICT_SUFFIX=""
+for arg in "$@"; do
+    if [ "$arg" = "--no-cht-conflict" ]; then
+        ENABLE_CHT_CONFLICT=false
+        CONFLICT_SUFFIX="_no_cht_conflict"
+        break
+    fi
+done
+
 # 创建输出目录
 mkdir -p "$OUTPUT_DIR"
 
-# CSV输出文件
-CSV_FILE="$OUTPUT_DIR/multi_copu_cdu_analysis.csv"
+# CSV输出文件（根据冲突检测选项调整名称）
+CSV_FILE="$OUTPUT_DIR/multi_copu_cdu_analysis${CONFLICT_SUFFIX}.csv"
 
 # 初始化CSV文件（写入表头）
 echo "COPU_Num,CDU_Num,Total_Edges,Total_Cycles,Total_Queries,System_Throughput,Avg_COPU_Utilization,CHT_Conflicts" > "$CSV_FILE"
@@ -35,6 +46,7 @@ echo "Benchmark: $BENCHID"
 echo "数据文件夹: $DATA_FOLDER"
 echo "采样率: $SAMPLE_RATE"
 echo "最大周期: $MAX_CYCLES"
+echo "CHT冲突检测: $ENABLE_CHT_CONFLICT"
 echo "结果输出: $CSV_FILE"
 echo "工作目录: $(pwd)"
 echo "=========================================="
@@ -54,7 +66,8 @@ for num_copus in "${COPU_NUMS[@]}"; do
         # 运行仿真并捕获输出，传递CDU参数
         if output=$(python ../multi_copu_real_data_simulation.py \
             "$BASENAME" "$BENCHID" "$DATA_FOLDER" "$num_copus" \
-            "$THRESHOLD" "$num_cdus" "$SAMPLE_RATE" "$MAX_CYCLES" 2>&1); then
+            "$THRESHOLD" "$num_cdus" "$SAMPLE_RATE" "$MAX_CYCLES" \
+            $([ "$ENABLE_CHT_CONFLICT" = false ] && echo "--no-cht-conflict") 2>&1); then
             
             # 从输出中提取关键指标
             total_edges=$(echo "$output" | grep "总Edge数:" | awk '{print $NF}')

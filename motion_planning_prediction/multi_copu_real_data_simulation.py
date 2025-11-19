@@ -21,7 +21,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from multi_copu_simulation import MultiCOPU_Scheduler
+from multi_copu_simulation import MultiCOPU_Scheduler, _allocate_edge_data_to_copus
 import simulation_utils as su
 
 # ============================================================================
@@ -42,6 +42,7 @@ def simulate_single_edge(
     threshold,
     sample_rate,
     max_cycles,
+    enable_conflict_check=True,
 ):
     """
     执行单条edge的仿真
@@ -56,52 +57,29 @@ def simulate_single_edge(
         threshold: 碰撞预测阈值
         sample_rate: 采样率
         max_cycles: 最大仿真周期
+        enable_conflict_check: 是否启用CHT冲突检测 (默认True)
 
     Returns:
         dict: 该edge的仿真结果
     """
     # 创建调度器
-    scheduler = MultiCOPU_Scheduler(num_copus=num_copus, num_oocds=num_oocds, cht_size=4096)
+    scheduler = MultiCOPU_Scheduler(
+        num_copus=num_copus, num_oocds=num_oocds, cht_size=4096, enable_conflict_check=enable_conflict_check
+    )
 
-    # 按pose级别分配到各COPU
-    num_poses = len(edge_coords)
-    poses_per_copu = num_poses // num_copus
-    remainder = num_poses % num_copus
+    # 使用通用数据分配函数一次性为所有COPU分配数据
+    copus_coords, copus_colls, copus_cycles = _allocate_edge_data_to_copus(
+        edge_coords,
+        edge_colls,
+        edge_cycles,
+        num_copus,
+    )
 
-    # 为每个COPU加载数据
+    # 为每个COPU加载其分配的数据
     for copu_id in range(num_copus):
-        if copu_id < remainder:
-            start_pose = copu_id * (poses_per_copu + 1)
-            end_pose = start_pose + poses_per_copu + 1
-        else:
-            start_pose = (
-                remainder * (poses_per_copu + 1)
-                + (copu_id - remainder) * poses_per_copu
-            )
-            end_pose = start_pose + poses_per_copu
-
-        # 该COPU分配的pose坐标、碰撞标志和周期
-        copu_coords = []
-        copu_colls = []
-        copu_cycles = []
-
-        for pose_idx in range(start_pose, end_pose):
-            pose_coords = edge_coords[pose_idx]  # List[coords]
-            pose_colls = edge_colls[pose_idx]  # List[flags]
-
-            # 展平：将pose中的所有link坐标和碰撞标志加入
-            copu_coords.extend(pose_coords)
-            copu_colls.extend(pose_colls)
-
-            # 使用真实周期或默认值
-            if edge_cycles is not None:
-                pose_cycles = edge_cycles[pose_idx]
-                copu_cycles.extend(pose_cycles)
-            else:
-                copu_cycles.extend([40 for _ in range(len(pose_coords))])
-
-        # 加载数据到对应COPU
-        scheduler.copus[copu_id].load_data(copu_coords, copu_colls, copu_cycles)
+        scheduler.copus[copu_id].load_data(
+            copus_coords[copu_id], copus_colls[copu_id], copus_cycles[copu_id]
+        )
 
     # 执行仿真
     result = scheduler.simulate(
@@ -143,6 +121,7 @@ def run_multi_copu_simulation(
     threshold=1.0,
     sample_rate=1.0,
     max_cycles=100000,
+    enable_conflict_check=True,
 ):
     """
     执行多COPU协同仿真（以edge为单位）
@@ -191,6 +170,7 @@ def run_multi_copu_simulation(
             threshold,
             sample_rate,
             max_cycles,
+            enable_conflict_check=enable_conflict_check,
         )
 
         # 聚合该edge的结果
@@ -238,6 +218,7 @@ def simulate_single_benchmark(
     sample_rate=1.0,
     max_cycles=100000,
     use_real_cycles=False,
+    enable_conflict_check=True,
 ):
     """
     执行单个benchmark的完整仿真流程（加载数据 → 执行仿真 → 返回结果）
@@ -282,6 +263,7 @@ def simulate_single_benchmark(
         threshold=threshold,
         sample_rate=sample_rate,
         max_cycles=max_cycles,
+        enable_conflict_check=enable_conflict_check,
     )
 
     return result
@@ -299,6 +281,7 @@ def run_benchmark_range_simulation(
     sample_rate=1.0,
     max_cycles=100000,
     use_real_cycles=False,
+    enable_conflict_check=True,
 ):
     """
     对指定范围内的benchid进行批量仿真
@@ -344,6 +327,7 @@ def run_benchmark_range_simulation(
             sample_rate=sample_rate,
             max_cycles=max_cycles,
             use_real_cycles=use_real_cycles,
+            enable_conflict_check=enable_conflict_check,
         )
 
         if result is None:
@@ -424,16 +408,16 @@ def main():
     # 命令行参数
     if len(sys.argv) < 6:
         print(
-            "用法 (单个): python multi_copu_real_data_simulation.py <basename> <benchid> <data_folder> <num_copus> <threshold> [num_oocds] [sample_rate] [max_cycles] [--real-cycles]"
+            "用法 (单个): python multi_copu_real_data_simulation.py <basename> <benchid> <data_folder> <num_copus> <threshold> [num_oocds] [sample_rate] [max_cycles] [--real-cycles] [--no-cht-conflict]"
         )
         print(
-            "用法 (范围): python multi_copu_real_data_simulation.py <basename> <benchid_start>-<benchid_end> <data_folder> <num_copus> <threshold> [num_oocds] [sample_rate] [max_cycles] [--real-cycles]"
+            "用法 (范围): python multi_copu_real_data_simulation.py <basename> <benchid_start>-<benchid_end> <data_folder> <num_copus> <threshold> [num_oocds] [sample_rate] [max_cycles] [--real-cycles] [--no-cht-conflict]"
         )
         print(
             "示例 (单个): python multi_copu_real_data_simulation.py iiwa_7 46 ../trace_files/scene_benchmarks/bit_collision_data 4 1.0 7 0.1 10000"
         )
         print(
-            "示例 (范围): python multi_copu_real_data_simulation.py iiwa_7 1-10 ../trace_files/scene_benchmarks/bit_collision_data 4 1.0 7 0.1 10000"
+            "示例 (范围): python multi_copu_real_data_simulation.py iiwa_7 1-10 ../trace_files/scene_benchmarks/bit_collision_data 4 1.0 7 0.1 10000 --no-cht-conflict"
         )
         sys.exit(1)
 
@@ -442,6 +426,7 @@ def main():
     sample_rate = 1.0
     max_cycles = 100000
     use_real_cycles = "--real-cycles" in sys.argv
+    enable_conflict_check = "--no-cht-conflict" not in sys.argv
 
     # 解析可选数值参数 (顺序: num_oocds, sample_rate, max_cycles)
     optional_values = []
@@ -483,6 +468,7 @@ def main():
     print(f"  采样率: {sample_rate}")
     print(f"  最大周期: {max_cycles}")
     print(f"  使用真实周期: {use_real_cycles}")
+    print(f"  CHT冲突检测: {enable_conflict_check}")
 
     print("\n【步骤1】执行仿真")
     if is_range_mode:
@@ -499,6 +485,7 @@ def main():
             sample_rate=sample_rate,
             max_cycles=max_cycles,
             use_real_cycles=use_real_cycles,
+            enable_conflict_check=enable_conflict_check,
         )
     else:
         benchid = int(benchid_arg)
@@ -513,6 +500,7 @@ def main():
             sample_rate=sample_rate,
             max_cycles=max_cycles,
             use_real_cycles=use_real_cycles,
+            enable_conflict_check=enable_conflict_check,
         )
 
         if results is None:
