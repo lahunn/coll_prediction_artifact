@@ -17,11 +17,10 @@
 
 import sys
 import os
-import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from multi_copu_simulation import MultiCOPU_Scheduler, _allocate_edge_data_to_copus
+from multi_copu_simulation import MultiCOPU_Scheduler
 import simulation_utils as su
 
 # ============================================================================
@@ -43,6 +42,8 @@ def simulate_single_edge(
     sample_rate,
     max_cycles,
     enable_conflict_check=True,
+    cht_type="dual_port",
+    **cht_kwargs,
 ):
     """
     执行单条edge的仿真
@@ -58,17 +59,24 @@ def simulate_single_edge(
         sample_rate: 采样率
         max_cycles: 最大仿真周期
         enable_conflict_check: 是否启用CHT冲突检测 (默认True)
+        cht_type: CHT类型 ('dual_port' 或 'multi_bank', 默认'dual_port')
+        **cht_kwargs: CHT类的额外参数
 
     Returns:
         dict: 该edge的仿真结果
     """
     # 创建调度器
     scheduler = MultiCOPU_Scheduler(
-        num_copus=num_copus, num_oocds=num_oocds, cht_size=4096, enable_conflict_check=enable_conflict_check
+        num_copus=num_copus,
+        num_oocds=num_oocds,
+        cht_size=4096,
+        enable_conflict_check=enable_conflict_check,
+        cht_type=cht_type,
+        **cht_kwargs,
     )
 
     # 使用通用数据分配函数一次性为所有COPU分配数据
-    copus_coords, copus_colls, copus_cycles = _allocate_edge_data_to_copus(
+    copus_coords, copus_colls, copus_cycles = su.allocate_edge_data_to_copus(
         edge_coords,
         edge_colls,
         edge_cycles,
@@ -122,6 +130,8 @@ def run_multi_copu_simulation(
     sample_rate=1.0,
     max_cycles=100000,
     enable_conflict_check=True,
+    cht_type="dual_port",
+    **cht_kwargs,
 ):
     """
     执行多COPU协同仿真（以edge为单位）
@@ -136,15 +146,14 @@ def run_multi_copu_simulation(
         threshold: 碰撞预测阈值
         sample_rate: 采样率
         max_cycles: 最大仿真周期
+        cht_class: CHT类
+        **cht_kwargs: CHT类的额外参数
 
     Returns:
         dict: 聚合的仿真结果
     """
-    # 根据量化位数计算分桶数
-    num_bins = 2**quant_bits
-
-    # 生成均匀分布的bin（使用全局参数QUANT_MIN和QUANT_MAX）
-    bins = np.linspace(QUANT_MIN, QUANT_MAX, num_bins + 1)
+    # 使用工具函数计算bins
+    bins = su.calculate_bins(QUANT_MIN, QUANT_MAX, quant_bits)
 
     # 统计聚合变量
     total_cycles = 0
@@ -171,6 +180,8 @@ def run_multi_copu_simulation(
             sample_rate,
             max_cycles,
             enable_conflict_check=enable_conflict_check,
+            cht_type=cht_type,
+            **cht_kwargs,
         )
 
         # 聚合该edge的结果
@@ -219,6 +230,8 @@ def simulate_single_benchmark(
     max_cycles=100000,
     use_real_cycles=False,
     enable_conflict_check=True,
+    cht_type="dual_port",
+    **cht_kwargs,
 ):
     """
     执行单个benchmark的完整仿真流程（加载数据 → 执行仿真 → 返回结果）
@@ -234,6 +247,8 @@ def simulate_single_benchmark(
         sample_rate: 采样率
         max_cycles: 最大仿真周期
         use_real_cycles: 是否使用真实周期数据
+        cht_class: CHT类
+        **cht_kwargs: CHT类的额外参数
 
     Returns:
         dict: 该benchmark的仿真结果，若失败返回None
@@ -264,6 +279,8 @@ def simulate_single_benchmark(
         sample_rate=sample_rate,
         max_cycles=max_cycles,
         enable_conflict_check=enable_conflict_check,
+        cht_type=cht_type,
+        **cht_kwargs,
     )
 
     return result
@@ -282,6 +299,8 @@ def run_benchmark_range_simulation(
     max_cycles=100000,
     use_real_cycles=False,
     enable_conflict_check=True,
+    cht_type="dual_port",
+    **cht_kwargs,
 ):
     """
     对指定范围内的benchid进行批量仿真
@@ -298,6 +317,8 @@ def run_benchmark_range_simulation(
         sample_rate: 采样率
         max_cycles: 最大仿真周期
         use_real_cycles: 是否使用真实周期数据
+        cht_class: CHT类
+        **cht_kwargs: CHT类的额外参数
 
     Returns:
         dict: 聚合的批量仿真结果
@@ -328,6 +349,8 @@ def run_benchmark_range_simulation(
             max_cycles=max_cycles,
             use_real_cycles=use_real_cycles,
             enable_conflict_check=enable_conflict_check,
+            cht_type=cht_type,
+            **cht_kwargs,
         )
 
         if result is None:
@@ -428,10 +451,28 @@ def main():
     use_real_cycles = "--real-cycles" in sys.argv
     enable_conflict_check = "--no-cht-conflict" not in sys.argv
 
+    # 解析CHT类型参数
+    cht_type="dual_port"
+    num_banks = 8
+    if "--cht-type" in sys.argv:
+        idx = sys.argv.index("--cht-type")
+        if idx + 1 < len(sys.argv):
+            cht_type = sys.argv[idx + 1]
+
+    if "--num-banks" in sys.argv:
+        idx = sys.argv.index("--num-banks")
+        if idx + 1 < len(sys.argv):
+            num_banks = int(sys.argv[idx + 1])
+    # 为 multi_bank 类型准备 CHT 参数
+    if cht_type == "multi_bank":
+        cht_kwargs = {"num_banks": num_banks}
+    else:
+        cht_kwargs = {}
+
     # 解析可选数值参数 (顺序: num_oocds, sample_rate, max_cycles)
     optional_values = []
     for arg in sys.argv[6:]:
-        if arg == "--real-cycles":
+        if arg.startswith("--"):
             continue
         if arg.replace(".", "", 1).isdigit():
             optional_values.append(float(arg) if "." in arg else int(arg))
@@ -469,6 +510,9 @@ def main():
     print(f"  最大周期: {max_cycles}")
     print(f"  使用真实周期: {use_real_cycles}")
     print(f"  CHT冲突检测: {enable_conflict_check}")
+    print(f"  CHT类型: {cht_type}")
+    if cht_type == "multi_bank":
+        print(f"  Bank数量: {num_banks}")
 
     print("\n【步骤1】执行仿真")
     if is_range_mode:
@@ -486,6 +530,8 @@ def main():
             max_cycles=max_cycles,
             use_real_cycles=use_real_cycles,
             enable_conflict_check=enable_conflict_check,
+            cht_type=cht_type,
+            **cht_kwargs,
         )
     else:
         benchid = int(benchid_arg)
@@ -501,6 +547,8 @@ def main():
             max_cycles=max_cycles,
             use_real_cycles=use_real_cycles,
             enable_conflict_check=enable_conflict_check,
+            cht_type=cht_type,
+            **cht_kwargs,
         )
 
         if results is None:

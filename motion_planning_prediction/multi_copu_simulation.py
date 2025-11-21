@@ -13,9 +13,8 @@
 - 数据来源：直接从pickle文件加载预生成的配置数据（无OBB生成）
 """
 
-import numpy as np
-import random
 from collections import deque, namedtuple
+import simulation_utils as su
 
 # ======================== Constants ========================
 NUM_OOCDS = 7
@@ -28,53 +27,6 @@ ONE_CYCLE_DELAY = 1
 
 # Named tuple for OOCD state
 OOCDState = namedtuple("OOCDState", ["hash_key", "result", "busy", "free_cycle"])
-
-
-# ======================== Helper Functions ========================
-def reutrn_keyy(code):
-    """Creates a hash key from a quantized code."""
-    bitsize = len(code)
-    keyy = ""
-    for j in range(0, bitsize):
-        if code[j] < 10:
-            keyy = keyy + "0"
-        keyy = keyy + str(code[j])
-    return keyy
-
-
-def update_collision_dict(colldict, hash_key, is_free, sample_rate):
-    """Updates the collision history dictionary."""
-    if hash_key in colldict:
-        if (
-            is_free == 1
-            and random.random() <= sample_rate
-            and colldict[hash_key][is_free] < MAX_COLLISION_COUNT
-        ):
-            colldict[hash_key][is_free] += 1
-        elif is_free == 0 and colldict[hash_key][is_free] < MAX_COLLISION_COUNT:
-            colldict[hash_key][is_free] += 1
-    else:
-        colldict[hash_key] = [0, 0]
-        if (
-            is_free == 1
-            and random.random() <= sample_rate
-            and colldict[hash_key][is_free] < MAX_COLLISION_COUNT
-        ):
-            colldict[hash_key][is_free] += 1
-        elif is_free == 0 and colldict[hash_key][is_free] < MAX_COLLISION_COUNT:
-            colldict[hash_key][is_free] += 1
-    return colldict
-
-
-def predict_collision(colldict, hash_key, threshold):
-    """Predicts collision based on the history dictionary."""
-    if hash_key in colldict:
-        if colldict[hash_key][0] > colldict[hash_key][1] * threshold:
-            return True
-        else:
-            return False
-    else:
-        return False
 
 
 # ======================== DualPortSRAM_CHT ========================
@@ -104,27 +56,25 @@ class DualPortSRAM_CHT:
         self.write_count = 0
         self.conflicts = 0  # 超过2个并发操作的次数
 
+    def _calculate_completion_cycle(self, cycle):
+        """计算操作完成周期，处理端口冲突"""
+        num_pending = len(self.pending_accesses)
+        if num_pending < 2:
+            return cycle + ONE_CYCLE_DELAY
+
+        if self.enable_conflict_check:
+            wait_cycles = num_pending // 2
+            self.conflicts += 1
+            return cycle + wait_cycles + ONE_CYCLE_DELAY
+        else:
+            return cycle + ONE_CYCLE_DELAY
+
     def read_request(self, copu_id, hash_key, cycle):
         """
         提交读请求。
-
-        Returns:
-            (result, completion_cycle): 数据和完成周期
+        Returns: (result, completion_cycle)
         """
-        # 检查总并发操作约束（不区分读写）
-        num_pending = len(self.pending_accesses)
-
-        if num_pending < 2:
-            # 有可用端口，本周期可完成
-            completion_cycle = cycle + ONE_CYCLE_DELAY
-        else:
-            # 端口满了，需要排队
-            if self.enable_conflict_check:
-                wait_cycles = num_pending // 2
-                completion_cycle = cycle + wait_cycles + ONE_CYCLE_DELAY
-                self.conflicts += 1
-            else:
-                completion_cycle = cycle + ONE_CYCLE_DELAY
+        completion_cycle = self._calculate_completion_cycle(cycle)
 
         # 不存储copu_id，由CHT_AccessScheduler按hash_key去重
         self.pending_accesses.append(
@@ -136,33 +86,15 @@ class DualPortSRAM_CHT:
             }
         )
         self.read_count += 1
-
-        # 返回当前数据（在完成周期时可用）
-        data = self.memory.get(hash_key, [0, 0])
-        return data, completion_cycle
+        return self.memory.get(hash_key, [0, 0]), completion_cycle
 
     def write_request(self, copu_id, hash_key, delta_coll, delta_noncoll, cycle):
         """
         提交写请求。
-
-        约束：同一周期最多2个总操作（读或写）
+        Returns: completion_cycle
         """
-        # 根据pending_accesses长度计算完成周期
-        num_pending = len(self.pending_accesses)
+        completion_cycle = self._calculate_completion_cycle(cycle)
 
-        if num_pending < 2:
-            # 有可用端口，本周期可完成
-            completion_cycle = cycle + ONE_CYCLE_DELAY
-        else:
-            # 端口满了，需要排队
-            if self.enable_conflict_check:
-                wait_cycles = num_pending // 2
-                completion_cycle = cycle + wait_cycles + ONE_CYCLE_DELAY
-                self.conflicts += 1
-            else:
-                completion_cycle = cycle + ONE_CYCLE_DELAY
-
-        # 不存储copu_id，由CHT_AccessScheduler按hash_key去重和合并
         self.pending_accesses.append(
             {
                 "completion_cycle": completion_cycle,
@@ -173,7 +105,6 @@ class DualPortSRAM_CHT:
             }
         )
         self.write_count += 1
-
         return completion_cycle
 
     def advance_cycle(self):
@@ -222,20 +153,211 @@ class DualPortSRAM_CHT:
         }
 
 
+# ======================== MultiBankSRAM_CHT ========================
+class MultiBankSRAM_CHT:
+    """
+    多Bank单端口SRAM形式的碰撞历史表 (CHT)
+
+    硬件约束：
+    - 划分为多个Bank (默认8个)
+    - 每个Bank为单端口SRAM (每周期最多1个访问)
+    - 不同Bank可并行访问
+    - Bank选择策略可配置 (默认使用XYZ坐标的低位)
+    """
+
+    def __init__(
+        self,
+        size=CHT_DEFAULT_SIZE,
+        num_banks=8,
+        bank_config=None,
+        enable_conflict_check=True,
+    ):
+        self.size = size
+        self.num_banks = num_banks
+        self.enable_conflict_check = enable_conflict_check
+        # 默认配置: 使用第0, 1, 2维度的第0位作为Bank选择位
+        # 格式: [(dim_index, bit_index), ...]
+        self.bank_config = bank_config if bank_config else [(0, 0), (0, 1), (1, 0)]
+
+        self.memory = {}  # {hash_key: [COLL, NONCOLL]}
+        self.current_cycle = 0
+        self.pending_accesses = []  # [{completion_cycle, op_type, hash_key, bank_id, ...}]
+
+        # 维护每个Bank的当前待处理请求数，用于快速计算延迟
+        self.bank_pending_counts = [0] * num_banks
+
+        # 统计信息
+        self.read_count = 0
+        self.write_count = 0
+        self.bank_conflicts = 0  # 因Bank忙碌而产生的等待次数
+        self.bank_access_counts = [0] * num_banks
+
+    def _get_bank_id(self, hash_key):
+        """
+        根据hash_key的二进制位计算Bank ID
+        hash_key是二进制字符串 (e.g., "001101010010")
+        bank_config定义了使用哪些bit位来计算Bank ID
+        """
+        # 从hash_key长度推断quant_bits: hash_key长度 = num_dims * quant_bits = 3 * quant_bits
+        hash_key_len = len(hash_key)
+        quant_bits = hash_key_len // 3 if hash_key_len > 0 else 0
+
+        bank_id = 0
+        for i, (dim, bit) in enumerate(self.bank_config):
+            # 计算该维度对应的bit位在二进制字符串中的位置
+            # 例如: quant_bits=4时，维度0占bit 0-3，维度1占bit 4-7，维度2占bit 8-11
+            bit_pos = dim * quant_bits + bit
+            if bit_pos < len(hash_key):
+                # 从hash_key中直接提取该bit位的值
+                bit_val = int(hash_key[bit_pos])
+                bank_id |= bit_val << i
+
+        return bank_id % self.num_banks
+
+    def _calculate_completion_cycle(self, cycle, bank_id):
+        """计算操作完成周期，处理Bank冲突"""
+        # 获取该Bank当前的待处理请求数
+        pending_for_bank = self.bank_pending_counts[bank_id]
+
+        # 单端口SRAM: 每周期处理1个请求
+        # 如果当前有N个请求在排队，新请求需要等待N个周期才能开始处理
+        # 加上1个周期的访问延迟
+
+        if self.enable_conflict_check:
+            wait_cycles = pending_for_bank
+            if wait_cycles > 0:
+                self.bank_conflicts += 1
+            return cycle + wait_cycles + ONE_CYCLE_DELAY
+        else:
+            return cycle + ONE_CYCLE_DELAY
+
+    def read_request(self, copu_id, hash_key, cycle):
+        """
+        提交读请求
+        """
+        bank_id = self._get_bank_id(hash_key)
+        self.bank_access_counts[bank_id] += 1
+
+        completion_cycle = self._calculate_completion_cycle(cycle, bank_id)
+
+        self.pending_accesses.append(
+            {
+                "completion_cycle": completion_cycle,
+                "op_type": "read",
+                "hash_key": hash_key,
+                "bank_id": bank_id,
+                "result": self.memory.get(hash_key, [0, 0]),
+            }
+        )
+        self.bank_pending_counts[bank_id] += 1
+        self.read_count += 1
+
+        return self.memory.get(hash_key, [0, 0]), completion_cycle
+
+    def write_request(self, copu_id, hash_key, delta_coll, delta_noncoll, cycle):
+        """
+        提交写请求
+        """
+        bank_id = self._get_bank_id(hash_key)
+        self.bank_access_counts[bank_id] += 1
+
+        completion_cycle = self._calculate_completion_cycle(cycle, bank_id)
+
+        self.pending_accesses.append(
+            {
+                "completion_cycle": completion_cycle,
+                "op_type": "write",
+                "hash_key": hash_key,
+                "bank_id": bank_id,
+                "delta_coll": delta_coll,
+                "delta_noncoll": delta_noncoll,
+            }
+        )
+        self.bank_pending_counts[bank_id] += 1
+        self.write_count += 1
+
+        return completion_cycle
+
+    def advance_cycle(self):
+        """推进一个周期"""
+        cycle = self.current_cycle
+
+        # 分离已完成和未完成的请求
+        completed = []
+        remaining = []
+
+        for access in self.pending_accesses:
+            if access["completion_cycle"] <= cycle:
+                completed.append(access)
+            else:
+                remaining.append(access)
+
+        # 处理已完成的写操作
+        for access in completed:
+            if access["op_type"] == "write":
+                hash_key = access["hash_key"]
+                delta_c = access["delta_coll"]
+                delta_n = access["delta_noncoll"]
+
+                if hash_key not in self.memory:
+                    self.memory[hash_key] = [0, 0]
+
+                self.memory[hash_key][0] = min(
+                    self.memory[hash_key][0] + delta_c, MAX_COLLISION_COUNT
+                )
+                self.memory[hash_key][1] = min(
+                    self.memory[hash_key][1] + delta_n, MAX_COLLISION_COUNT
+                )
+
+            # 请求完成，减少对应Bank的排队计数
+            # 注意：这里减少计数是为了让后续请求的延迟计算正确
+            # 实际上，当一个请求完成时，它占用的那个时隙就过去了，
+            # 但我们在calculate_completion_cycle中使用的是当前的队列深度。
+            # 这种简单的计数方法在稳态下是近似正确的。
+            bank_id = access["bank_id"]
+            if self.bank_pending_counts[bank_id] > 0:
+                self.bank_pending_counts[bank_id] -= 1
+
+        self.pending_accesses = remaining
+        self.current_cycle += 1
+
+    def reset(self):
+        self.memory = {}
+        self.pending_accesses = []
+        self.bank_pending_counts = [0] * self.num_banks
+
+    def get_stats(self):
+        total_accesses = self.read_count + self.write_count
+        conflict_rate = (
+            self.bank_conflicts / total_accesses if total_accesses > 0 else 0.0
+        )
+
+        # 计算负载均衡度 (方差)
+        if self.num_banks > 0:
+            avg_access = sum(self.bank_access_counts) / self.num_banks
+            variance = (
+                sum((x - avg_access) ** 2 for x in self.bank_access_counts)
+                / self.num_banks
+            )
+            load_balance_std = variance**0.5
+        else:
+            load_balance_std = 0
+
+        return {
+            "total_reads": self.read_count,
+            "total_writes": self.write_count,
+            "total_conflicts": self.bank_conflicts,
+            "conflict_rate": conflict_rate,
+            "entries_used": len(self.memory),
+            "bank_access_counts": self.bank_access_counts,
+            "load_balance_std": load_balance_std,
+        }
+
+
 # ======================== COPUModule ========================
 class COPUModule:
     """
     碰撞预测单元 (COPU) 模块
-
-    包含：
-    - Collision Predictor（查询CHT）
-    - Query Dispatcher + 优先级队列（QCOLL, QNONCOLL）
-    - OOCD (Out-of-Order Collision Detector) 阵列
-    - CHT更新单元
-
-    支持两种模式：
-    1. 单COPU模式（cht_scheduler=None）：使用本地CHT字典
-    2. 多COPU模式（cht_scheduler!=None）：通过调度器访问共享CHT
     """
 
     def __init__(
@@ -252,11 +374,8 @@ class COPUModule:
         self.qcoll_size = qcoll_size
         self.qnoncoll_size = qnoncoll_size
         self.cycle_check = cycle_check
-
-        # CHT访问接口（多COPU环境中的共享资源）
         self.cht_scheduler = cht_scheduler
 
-        # COPU内部状态
         self.oocds = [
             OOCDState(hash_key=0, result=0, busy=0, free_cycle=0)
             for _ in range(num_oocds)
@@ -264,45 +383,32 @@ class COPUModule:
         self.qcoll = deque(maxlen=qcoll_size)
         self.qnoncoll = deque(maxlen=qnoncoll_size)
 
-        # 待处理配置（从load_data加载）
         self.linklist = []
         self.linklist_coll = []
         self.linklist_cycles = []
 
-        # 仿真状态
         self.cycle = 0
         self.coll_found = False
         self.everything_free = False
-
-        # 本地CHT副本（单COPU模式）
         self.local_colldict = {}
 
-        # 统计
         self.query_count = 0
         self.oocd_cycles = 0
         self.first_two_running = 0
         self.first_two_checked = 0
 
-        # 守恒律追踪：初始任务总数（在load_data时设置）
         self.initial_task_count = 0
-        self.conservation_violations = []  # 记录守恒律违反
+        self.conservation_violations = []
 
     def load_data(self, linklist, linklist_coll, linklist_cycles):
         """从外部加载待处理配置数据"""
         self.linklist = list(linklist)
         self.linklist_coll = list(linklist_coll)
         self.linklist_cycles = list(linklist_cycles)
-        # 记录初始任务总数（用于守恒律验证）
         self.initial_task_count = len(linklist)
 
     def check_conservation_law(self):
-        """
-        检查守恒律是否被违反
-        守恒律: query_count + len(linklist) + len(qcoll) + len(qnoncoll) + num_busy_oocds = initial_task_count
-
-        Returns:
-            violation: 违反量（0表示守恒，>0表示系统中增生了任务，<0表示任务丢失）
-        """
+        """检查守恒律是否被违反"""
         num_busy_oocds = sum(1 for oocd in self.oocds if oocd.busy == 1)
         conservation_sum = (
             self.query_count
@@ -332,46 +438,39 @@ class COPUModule:
         if self.cht_scheduler is None:
             self.local_colldict = colldict
 
-    def step(self, bins, threshold, sample_rate):
-        """
-        执行一个仿真周期
-
-        Returns:
-            (continue_simulation, query_count_this_cycle)
-        """
-
-        # --- 步骤1: 处理OOCD完成和CHT更新 ---
-        dequeued_this_cycle = False
-        oocd_cycles_delta = sum(1 for oocd in self.oocds if oocd.busy == 1)
-
+    def _process_oocd_completion(self, sample_rate):
+        """处理OOCD完成和CHT更新"""
+        oocd_cycles_delta = 0
         for oocd_id in range(self.num_oocds):
             oocd = self.oocds[oocd_id]
-            if oocd.busy == 1 and oocd.free_cycle <= self.cycle:
-                self.query_count += 1
-                self.oocds[oocd_id] = OOCDState(
-                    hash_key="",
-                    result=1,
-                    busy=0,
-                    free_cycle=self.cycle,
-                )
-                if oocd.result == 0:  # 碰撞
-                    self.coll_found = True
-
-                # 更新CHT
-                if self.cht_scheduler is not None:
-                    # 多COPU环境：通过调度器更新
-                    delta_coll = 1 if oocd.result == 0 else 0
-                    delta_noncoll = 1 if oocd.result == 1 else 0
-                    self.cht_scheduler.submit_write(
-                        self.copu_id, oocd.hash_key, delta_coll, delta_noncoll
+            if oocd.busy == 1:
+                oocd_cycles_delta += 1
+                if oocd.free_cycle <= self.cycle:
+                    self.query_count += 1
+                    self.oocds[oocd_id] = OOCDState(
+                        hash_key="", result=1, busy=0, free_cycle=self.cycle
                     )
-                else:
-                    # 单COPU环境：直接更新本地字典
-                    self.local_colldict = update_collision_dict(
-                        self.local_colldict, oocd.hash_key, oocd.result, sample_rate
-                    )
+                    if oocd.result == 0:  # 碰撞
+                        self.coll_found = True
 
-            # --- 步骤2: 分派新任务 ---
+                    # 更新CHT
+                    if self.cht_scheduler is not None:
+                        delta_coll = 1 if oocd.result == 0 else 0
+                        delta_noncoll = 1 if oocd.result == 1 else 0
+                        self.cht_scheduler.submit_write(
+                            self.copu_id, oocd.hash_key, delta_coll, delta_noncoll
+                        )
+                    else:
+                        self.local_colldict = su.update_collision_dict(
+                            self.local_colldict, oocd.hash_key, oocd.result, sample_rate
+                        )
+        return oocd_cycles_delta
+
+    def _dispatch_new_tasks(self):
+        """分派新任务给空闲的OOCD"""
+        dequeued_this_cycle = False
+        for oocd_id in range(self.num_oocds):
+            oocd = self.oocds[oocd_id]
             if oocd.free_cycle <= self.cycle and not dequeued_this_cycle:
                 if len(self.qcoll) > 0 and self.first_two_checked < self.cycle:
                     self.first_two_running += 1
@@ -401,52 +500,40 @@ class COPUModule:
                     )
                     self.qnoncoll.popleft()
                     dequeued_this_cycle = True
-
                 else:
-                    self.oocds[oocd_id] = OOCDState(
-                        hash_key=0, result=0, busy=0, free_cycle=0
-                    )
-            self.check_conservation_law()
-        # --- 步骤3: 预测新配置 ---
+                    # 保持空闲状态
+                    if oocd.busy == 0:  # 已经是空闲状态，无需重复赋值
+                        pass
+                    else:
+                        self.oocds[oocd_id] = OOCDState(
+                            hash_key=0, result=0, busy=0, free_cycle=0
+                        )
+
+    def _predict_next_config(self, bins, threshold):
+        """预测下一个配置并入队"""
         if len(self.linklist) > 0:
             link = self.linklist[0]
             linkcoll = self.linklist_coll[0]
 
-            code_quant = np.digitize(link, bins, right=True)
-            keyy = reutrn_keyy(code_quant)
+            keyy = su.compute_hash_keyy(link, bins)
 
             # 查询CHT
-            if self.cht_scheduler is not None:
-                # 多COPU环境：通过调度器读取
-                # 自动去重和重试：多次查询同一keyy会自动去重
-                is_ready, data = self.cht_scheduler.get_read_result(keyy)
+            is_ready = False
+            coll_count, noncoll_count = 0, 0
 
-                # 只有当结果就绪时才进行预测和入队
+            if self.cht_scheduler is not None:
+                is_ready, data = self.cht_scheduler.get_read_result(keyy)
                 if is_ready:
                     coll_count, noncoll_count = data
-                    is_collision_predicted = coll_count > noncoll_count * threshold
-
-                    # 入队
-                    if is_collision_predicted:
-                        if len(self.qcoll) < self.qcoll_size:
-                            self.qcoll.append([keyy, linkcoll])
-                            del self.linklist[0]
-                            del self.linklist_coll[0]
-                    else:
-                        if len(self.qnoncoll) < self.qnoncoll_size:
-                            self.qnoncoll.append([keyy, linkcoll])
-                            del self.linklist[0]
-                            del self.linklist_coll[0]
-                # 如果结果未就绪，本周期跳过该配置
-                # 下周期自动重试（get_read_result会查询同一keyy的待决请求）
             else:
-                # 单COPU环境：直接读取本地字典
+                is_ready = True
                 if keyy in self.local_colldict:
                     coll_count = self.local_colldict[keyy][0]
                     noncoll_count = self.local_colldict[keyy][1]
                 else:
                     coll_count, noncoll_count = 0, 0
 
+            if is_ready:
                 is_collision_predicted = coll_count > noncoll_count * threshold
 
                 # 入队
@@ -460,8 +547,21 @@ class COPUModule:
                         self.qnoncoll.append([keyy, linkcoll])
                         del self.linklist[0]
                         del self.linklist_coll[0]
+
+    def step(self, bins, threshold, sample_rate):
+        """执行一个仿真周期"""
+        # 1. 处理OOCD完成和CHT更新
+        oocd_cycles_delta = self._process_oocd_completion(sample_rate)
+
+        # 2. 分派新任务
+        self._dispatch_new_tasks()
         self.check_conservation_law()
-        # --- 步骤4: 检查终止条件 ---
+
+        # 3. 预测新配置
+        self._predict_next_config(bins, threshold)
+        self.check_conservation_law()
+
+        # 4. 检查终止条件
         if (
             len(self.linklist) == 0
             and not any(oocd.free_cycle > self.cycle for oocd in self.oocds)
@@ -504,11 +604,22 @@ class CHT_AccessScheduler:
     """
 
     def __init__(
-        self, num_copus, cht_size=CHT_DEFAULT_SIZE, enable_conflict_check=True
+        self,
+        num_copus,
+        cht_size=CHT_DEFAULT_SIZE,
+        enable_conflict_check=True,
+        cht_type="dual_port",
+        **cht_kwargs,
     ):
         self.num_copus = num_copus
-        self.cht = DualPortSRAM_CHT(
-            size=cht_size, enable_conflict_check=enable_conflict_check
+        # 根据 cht_type 字符串选择 CHT 类
+        cht_classes = {
+            "dual_port": DualPortSRAM_CHT,
+            "multi_bank": MultiBankSRAM_CHT,
+        }
+        cht_class = cht_classes.get(cht_type, DualPortSRAM_CHT)
+        self.cht = cht_class(
+            size=cht_size, enable_conflict_check=enable_conflict_check, **cht_kwargs
         )
         self.current_cycle = 0
 
@@ -584,12 +695,18 @@ class MultiCOPU_Scheduler:
         num_oocds=NUM_OOCDS,
         cht_size=CHT_DEFAULT_SIZE,
         enable_conflict_check=True,
+        cht_type="dual_port",
+        **cht_kwargs,
     ):
         self.num_copus = num_copus
 
         # 创建共享的CHT调度器
         self.cht_scheduler = CHT_AccessScheduler(
-            num_copus, cht_size, enable_conflict_check=enable_conflict_check
+            num_copus,
+            cht_size,
+            enable_conflict_check=enable_conflict_check,
+            cht_type=cht_type,
+            **cht_kwargs,
         )
 
         # 创建COPU模块
@@ -659,173 +776,3 @@ class MultiCOPU_Scheduler:
         }
 
         return results
-
-
-# ======================== Utility Functions ========================
-def _generate_recursive_reorder(num_poses, step_size):
-    """
-    生成递归式重排顺序（保持固定步长，只对组序列进行递归二分重排）。
-
-    step_size =8 , 重排序后= [0,8,16,24,4,12,20,28,2,10,18,26,6,14,22,30,1,9,17,25,...]
-
-    Returns:
-        重排后的pose索引列表
-    """
-    # 步骤1：对组号进行递归二分重排
-    group_count = min(step_size, (num_poses + step_size - 1) // step_size)
-    group_order = _recursive_binary_reorder(group_count)
-
-    # 步骤2：按重排后的组号顺序生成pose列表
-    reorder = []
-    for group_id in group_order:
-        pose_idx = group_id
-        while pose_idx < num_poses:
-            reorder.append(pose_idx)
-            pose_idx += step_size
-
-    return reorder
-
-
-def _recursive_binary_reorder(n):
-    """
-    将 [0,1,2,...,n-1] 按递归二分方式重排（使用位反转）。
-
-    算法：对每个索引进行位反转，生成递归二分的访问顺序
-
-    例如 n=4 (2位):
-    - 0 (00) -> 00 = 0
-    - 1 (01) -> 10 = 2
-    - 2 (10) -> 01 = 1
-    - 3 (11) -> 11 = 3
-    结果：[0,2,1,3]
-
-    Args:
-        n: 数字个数
-
-    Returns:
-        重排后的索引列表
-    """
-    if n == 1:
-        return [0]
-    if n == 2:
-        return [0, 1]
-
-    # 计算需要的位数
-    num_bits = 0
-    temp = n - 1
-    while temp > 0:
-        num_bits += 1
-        temp >>= 1
-
-    reorder = []
-    for i in range(n):
-        # 对i进行位反转
-        reversed_i = 0
-        for bit in range(num_bits):
-            reversed_i = (reversed_i << 1) | ((i >> bit) & 1)
-        reorder.append(reversed_i)
-
-    return reorder
-
-
-def _allocate_edge_data_to_copus(
-    edge_coords,
-    edge_flags,
-    edge_cycles,
-    num_copus,
-    use_recursive_reorder=True,
-    step_size=8,
-):
-    """
-    将单条edge的pose数据按轮转方式分配给所有COPU。
-
-    算法：
-    1. 可选：对poses按递归二分方式重排，降低空间相邻性
-    2. 按轮转方式将poses分配给各COPU
-
-    Args:
-        edge_coords: 该edge的pose坐标数据 List[List[coords]]
-        edge_flags: 该edge的碰撞标志 List[List[flags]]
-        edge_cycles: 该edge的周期数据 List[List[cycles]] 或 None
-        num_copus: COPU总数
-        use_recursive_reorder: 是否使用递归二分重排 (默认False，使用顺序)
-        step_size: 递归重排的步长 (默认8，仅当use_recursive_reorder=True时有效)
-
-    Returns:
-        (copus_coords, copus_flags, copus_cycles):
-            copus_coords[i], copus_flags[i], copus_cycles[i] 为第i个COPU的展平后数据
-            List[List[coords]], List[List[flags]], List[List[cycles]]
-    """
-    num_poses = len(edge_coords)
-
-    # 步骤1：确定pose顺序（可选递归重排）
-    if use_recursive_reorder:
-        reorder = _generate_recursive_reorder(num_poses, step_size)
-    else:
-        reorder = list(range(num_poses))
-
-    # 步骤2：初始化所有COPU的数据列表
-    copus_coords = [[] for _ in range(num_copus)]
-    copus_flags = [[] for _ in range(num_copus)]
-    copus_cycles = [[] for _ in range(num_copus)]
-
-    # 步骤3：按轮转方式将poses分配给各COPU
-    for reordered_idx, original_pose_idx in enumerate(reorder):
-        copu_id = reordered_idx % num_copus
-        pose_coords = edge_coords[original_pose_idx]  # List[link_coord]
-        pose_flags = edge_flags[original_pose_idx]  # List[link_flag]
-
-        # 展平link数据
-        copus_coords[copu_id].extend(pose_coords)
-        copus_flags[copu_id].extend(pose_flags)
-
-        # 处理周期数据
-        if edge_cycles is not None:
-            pose_cycles = edge_cycles[original_pose_idx]
-            copus_cycles[copu_id].extend(pose_cycles)
-        else:
-            copus_cycles[copu_id].extend([40 for _ in range(len(pose_coords))])
-
-    return copus_coords, copus_flags, copus_cycles
-
-
-def analyze_multi_copu_performance(results):
-    """
-    分析多COPU系统的性能指标
-
-    Key metrics:
-    1. System Throughput: total_queries / total_cycles
-    2. COPU Utilization: query_count / (total_cycles * num_oocds)
-    3. CHT Conflict Rate: conflicts / total_accesses
-    4. Load Balance: std(copu_query_counts) / mean(copu_query_counts)
-    """
-    cht_stats = results["cht_stats"]
-    copu_stats = results["copus"]
-
-    # KPI 1: 系统吞吐量
-    total_queries = sum(c["total_queries"] for c in copu_stats)
-    system_throughput = total_queries / max(1, results["total_cycles"])
-
-    # KPI 2: COPU平均利用率
-    avg_utilization = sum(c["oocd_utilization"] for c in copu_stats) / len(copu_stats)
-
-    # KPI 3: CHT冲突率
-    cht_conflict_rate = cht_stats["conflict_rate"]
-
-    # KPI 4: 负载平衡
-    query_counts = [c["total_queries"] for c in copu_stats]
-    if len(query_counts) > 1:
-        load_balance = np.std(query_counts) / (np.mean(query_counts) + 1e-6)
-    else:
-        load_balance = 0.0
-
-    return {
-        "system_throughput": system_throughput,
-        "avg_copu_utilization": avg_utilization,
-        "cht_conflict_rate": cht_conflict_rate,
-        "load_balance_variance": load_balance,
-        "total_cycles": results["total_cycles"],
-        "total_queries": total_queries,
-        "num_copus": len(copu_stats),
-        "per_copu_queries": query_counts,
-    }

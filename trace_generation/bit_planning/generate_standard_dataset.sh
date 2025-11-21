@@ -59,7 +59,8 @@ python generate_problem_dataset.py \
     --workspace-max "$X_END" \
     --safe-zone-radius 0.15 \
     --voxel-size-min 0.12 \
-    --voxel-size-max 0.20
+    --voxel-size-max 0.20 \
+    --collision-model-type "sphere"
 
 if [ $? -eq 0 ]; then
     echo "✓ $ROBOT_NAME 数据集生成成功"

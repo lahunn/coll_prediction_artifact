@@ -6,16 +6,20 @@ Cycle数与OOCD数量关系分析程序
 """
 
 import sys
+import os
 import numpy as np
 from tqdm import tqdm
-import simulation_utils as su
 import csv
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
+import simulation_utils as su
 
 # 添加 trace_generation 目录到 Python 路径
 from trace_generation.config.ana_parameters import get_robot_params
 
 # --- Simulation Settings ---
-binnumber = 16
+QUANT_BITS = 4
+binnumber = 2**QUANT_BITS
 intervalsize = 2 / binnumber
 bins = np.zeros(binnumber)
 start = -1
@@ -26,10 +30,13 @@ for i in range(binnumber):
 # --- Simulation Parameters from Command Line ---
 if len(sys.argv) < 8:
     print(
-        "Usage: python performance_bottleneck_analysis.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <num_benchmarks> <robot_name> <num_oocds>"
+        "Usage: python performance_bottleneck_analysis.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <num_benchmarks> <robot_name> <num_oocds> [--with-cycles]"
     )
     print(
-        "Example: python performance_bottleneck_analysis.py 0.5 0.1 8 ../trace_files/scene_benchmarks/bit_collision_data franka_14 10 franka 7"
+        "Example: python performance_bottleneck_analysis.py 0.5 0.1 8 ../../trace_files/scene_benchmarks/bit_collision_data iiwa_7 10 iiwa 7"
+    )
+    print(
+        "Example with cycles: python performance_bottleneck_analysis.py 0.5 0.1 8 ../../trace_files/scene_benchmarks/bit_collision_data iiwa_7 10 iiwa 7 --with-cycles"
     )
     sys.exit(1)
 
@@ -42,13 +49,16 @@ num_benchmarks = int(sys.argv[6])
 robot_name = sys.argv[7]
 num_oocds = int(sys.argv[8])
 
+# 检查是否指定加载带cycles的数据
+load_with_cycles = "--with-cycles" in sys.argv
+
 # 获取机器人参数
 robot_params = get_robot_params(robot_name)
 sphere_num = robot_params["sphere_num"]
-sphere_cost = 15  # 假设每个球体的碰撞检测消耗的周期数为30
+sphere_cost = 45  # 假设每个球体的碰撞检测消耗的周期数为30
 
-num_spheres = sphere_num
-qnoncoll_len = num_spheres * qnoncoll_multiplier
+num_spheres = 8
+qnoncoll_len = 56
 
 print("=== Cycle数与OOCD数量关系分析 ===")
 print(f"阈值: {threshold}")
@@ -58,6 +68,7 @@ print(f"非碰撞队列长度: {qnoncoll_len}")
 print(f"OOCD数量: {num_oocds}")
 print(f"数据文件夹: {data_folder}")
 print(f"基准测试数量: {num_benchmarks}")
+print(f"加载带cycles数据: {load_with_cycles}")
 print("=" * 50)
 
 # --- Benchmark Range ---
@@ -83,17 +94,8 @@ performance_stats = {
     "qcoll_max_length": 0,  # qcoll最大长度
     "qnoncoll_max_length": 0,  # qnoncoll最大长度
     "active_oocds_sum": 0,  # 活跃OOCD数量总和
-    # qnoncoll未满原因分析
-    "qnoncoll_unfull_range_0_20pct": 0,
-    "qnoncoll_unfull_range_20_40pct": 0,
-    "qnoncoll_unfull_range_40_60pct": 0,
-    "qnoncoll_unfull_range_60_80pct": 0,
-    "qnoncoll_unfull_range_80_90pct": 0,
-    "qnoncoll_unfull_range_90_99pct": 0,
     "qnoncoll_added_count": 0,
     "qnoncoll_consumed_count": 0,
-    "linklist_empty_qnoncoll_unfull": 0,
-    "qnoncoll_unfull_sum_when_idle": 0,
 }
 
 
@@ -129,17 +131,8 @@ def analyze_simulation_bottlenecks(
         "qcoll_max_length": 0,  # qcoll最大长度
         "qnoncoll_max_length": 0,  # qnoncoll最大长度
         "active_oocds_sum": 0,  # 活跃OOCD数量总和
-        # qnoncoll未满原因分析
-        "qnoncoll_unfull_range_0_20pct": 0,  # qnoncoll在0-20%满时的空闲次数
-        "qnoncoll_unfull_range_20_40pct": 0,  # 20-40%
-        "qnoncoll_unfull_range_40_60pct": 0,  # 40-60%
-        "qnoncoll_unfull_range_60_80pct": 0,  # 60-80%
-        "qnoncoll_unfull_range_80_90pct": 0,  # 80-90%
-        "qnoncoll_unfull_range_90_99pct": 0,  # 90-99% (接近满但未满)
         "qnoncoll_added_count": 0,  # 添加到qnoncoll的任务总数
         "qnoncoll_consumed_count": 0,  # 从qnoncoll消耗的任务总数
-        "linklist_empty_qnoncoll_unfull": 0,  # linklist为空但qnoncoll未满的次数
-        "qnoncoll_unfull_sum_when_idle": 0,  # OOCD因qnoncoll未满空闲时的qnoncoll长度总和
     }
 
     # 初始化硬件碰撞检测器 (OOCD)
@@ -249,34 +242,12 @@ def analyze_simulation_bottlenecks(
                     ):
                         # qcoll为空，qnoncoll未满（且有任务）而空闲
                         local_stats["oocd_idle_qnoncoll_not_full"] += 1
-
-                        # 详细记录qnoncoll未满时的长度区间
-                        current_qnoncoll_len = len(qnoncoll)
-                        local_stats["qnoncoll_unfull_sum_when_idle"] += (
-                            current_qnoncoll_len
-                        )
-                        fill_percentage = current_qnoncoll_len / qnoncoll_len * 100
-
-                        if fill_percentage < 20:
-                            local_stats["qnoncoll_unfull_range_0_20pct"] += 1
-                        elif fill_percentage < 40:
-                            local_stats["qnoncoll_unfull_range_20_40pct"] += 1
-                        elif fill_percentage < 60:
-                            local_stats["qnoncoll_unfull_range_40_60pct"] += 1
-                        elif fill_percentage < 80:
-                            local_stats["qnoncoll_unfull_range_60_80pct"] += 1
-                        elif fill_percentage < 90:
-                            local_stats["qnoncoll_unfull_range_80_90pct"] += 1
-                        else:  # 90-99%
-                            local_stats["qnoncoll_unfull_range_90_99pct"] += 1
                     else:
                         # 两个队列都为空而空闲
                         local_stats["oocd_idle_no_tasks"] += 1
             elif oocd.free_cycle <= cycle:
                 # OOCD空闲，但本周期已出队，因此该OOCD也计为空闲
                 idle_oocds += 1
-                # 此处的空闲原因可以归类为“等待队列访问权”
-                # 为简化，我们暂时将其计入“无任务”类别
                 local_stats["oocd_idle_no_tasks"] += 1
 
         local_stats["oocd_idle_cycles"] += idle_oocds
@@ -292,7 +263,7 @@ def analyze_simulation_bottlenecks(
 
             # 将配置数据"量化"以生成用于查询历史表的键 (key)
             code_quant = np.digitize(link, bins, right=True)
-            keyy = su.reutrn_keyy(code_quant)
+            keyy = su.return_keyy(code_quant, quant_bits=QUANT_BITS)
 
             # 使用历史表进行碰撞预测
             is_collision_predicted = su.predict_collision(colldict, keyy, threshold)
@@ -317,9 +288,6 @@ def analyze_simulation_bottlenecks(
         # --- 步骤3: 检查仿真是否结束 ---
         links_remaining = len(linklist)
 
-        # 检查linklist为空但qnoncoll未满的情况
-        if links_remaining == 0 and len(qnoncoll) < qnoncoll_len and len(qnoncoll) > 0:
-            local_stats["linklist_empty_qnoncoll_unfull"] += 1
         # 如果所有输入配置都已处理，所有检测器都空闲，且所有队列都为空
         if (
             links_remaining == 0
@@ -342,115 +310,182 @@ def analyze_simulation_bottlenecks(
 
 # --- Main Analysis Loop ---
 for benchid in tqdm(benchrange, desc="性能分析"):
-    # 加载球体数据（支持cycles格式）
-    sphere_link_data, sphere_link_coll_data, sphere_link_coll_cycles = (
-        su.load_data_with_cycles(basename, benchid, data_folder, collision_model_type="sphere")
-    )
+    # 根据全局参数决定是否加载带cycles的数据
+    if load_with_cycles:
+        sphere_link_data, sphere_link_coll_data, sphere_link_coll_cycles = (
+            su.load_data_with_cycles(
+                basename, benchid, data_folder, collision_model_type="sphere"
+            )
+        )
+    else:
+        sphere_link_data, sphere_link_coll_data = su.load_data(
+            basename, benchid, data_folder, collision_model_type="link"
+        )
+        sphere_link_coll_cycles = None
 
-    if (
-        sphere_link_data is None
-        or sphere_link_coll_data is None
-        or sphere_link_coll_cycles is None
-    ):
+    if sphere_link_data is None or sphere_link_coll_data is None:
         continue
 
     # 处理每条边
-    for edge_idx, (edge, edge_coll, edge_cycles) in enumerate(
-        zip(sphere_link_data, sphere_link_coll_data, sphere_link_coll_cycles)
-    ):
-        if not edge_coll:
-            continue
+    if load_with_cycles and sphere_link_coll_cycles is not None:
+        # 有cycles数据的情况
+        for edge_idx, (edge, edge_coll, edge_cycles) in enumerate(
+            zip(sphere_link_data, sphere_link_coll_data, sphere_link_coll_cycles)
+        ):
+            if not edge_coll:
+                continue
 
-        # --- 检查是否为无碰撞边 ---
-        # 如果边中包含任何碰撞（值为0），则跳过此边
-        has_collision = any(
-            sphere_coll == 0 for pose_coll in edge_coll for sphere_coll in pose_coll
-        )
-        if has_collision:
-            continue  # 跳过有碰撞的边，只处理无碰撞边
-
-        performance_stats["total_edges_processed"] += 1
-        performance_stats["total_spheres_processed"] += len(edge) * len(edge_coll[0])
-
-        # --- CSP Rearrangement ---
-        linklist, linklist_coll, linklist_cycles = su.csp_rearrange_with_cycles(
-            edge, edge_coll, edge_cycles, groupsize=8
-        )
-
-        # --- Run Detailed Simulation Analysis ---
-        edge_query_count, colldict, _, cycle, local_stats = (
-            analyze_simulation_bottlenecks(
-                linklist,
-                linklist_coll,
-                {},
-                threshold,
-                sample_rate,
-                bins,
-                qnoncoll_len=qnoncoll_len,
-                cycle_check=sphere_cost,
-                num_oocds=num_oocds,
-                linklist_cycles=linklist_cycles,
+            # --- 检查是否为无碰撞边 ---
+            # 如果边中包含任何碰撞（值为0），则跳过此边
+            has_collision = any(
+                sphere_coll == 0 for pose_coll in edge_coll for sphere_coll in pose_coll
             )
-        )
+            # if has_collision:
+            #     continue  # 跳过有碰撞的边，只处理无碰撞边
 
-        # 累积统计数据
-        performance_stats["total_queries"] += edge_query_count
-        performance_stats["total_cycles"] += cycle
-        performance_stats["queue_full_events"] += local_stats["queue_full_events"]
-        performance_stats["oocd_idle_cycles"] += local_stats["oocd_idle_cycles"]
-        performance_stats["total_tasks_processed"] += local_stats[
-            "total_tasks_processed"
-        ]
-        performance_stats["simulation_iterations"] += local_stats[
-            "simulation_iterations"
-        ]
-        # 累积空闲原因统计
-        performance_stats["oocd_idle_no_tasks"] += local_stats["oocd_idle_no_tasks"]
-        performance_stats["oocd_idle_waiting_first_two"] += local_stats[
-            "oocd_idle_waiting_first_two"
-        ]
-        performance_stats["oocd_idle_qnoncoll_not_full"] += local_stats[
-            "oocd_idle_qnoncoll_not_full"
-        ]
-        # 累积队列统计
-        performance_stats["qcoll_lengths_sum"] += local_stats["qcoll_lengths_sum"]
-        performance_stats["qnoncoll_lengths_sum"] += local_stats["qnoncoll_lengths_sum"]
-        performance_stats["qcoll_max_length"] = max(
-            performance_stats["qcoll_max_length"], local_stats["qcoll_max_length"]
-        )
-        performance_stats["qnoncoll_max_length"] = max(
-            performance_stats["qnoncoll_max_length"], local_stats["qnoncoll_max_length"]
-        )
-        performance_stats["active_oocds_sum"] += local_stats["active_oocds_sum"]
-        # 累积qnoncoll未满原因统计
-        performance_stats["qnoncoll_unfull_range_0_20pct"] += local_stats[
-            "qnoncoll_unfull_range_0_20pct"
-        ]
-        performance_stats["qnoncoll_unfull_range_20_40pct"] += local_stats[
-            "qnoncoll_unfull_range_20_40pct"
-        ]
-        performance_stats["qnoncoll_unfull_range_40_60pct"] += local_stats[
-            "qnoncoll_unfull_range_40_60pct"
-        ]
-        performance_stats["qnoncoll_unfull_range_60_80pct"] += local_stats[
-            "qnoncoll_unfull_range_60_80pct"
-        ]
-        performance_stats["qnoncoll_unfull_range_80_90pct"] += local_stats[
-            "qnoncoll_unfull_range_80_90pct"
-        ]
-        performance_stats["qnoncoll_unfull_range_90_99pct"] += local_stats[
-            "qnoncoll_unfull_range_90_99pct"
-        ]
-        performance_stats["qnoncoll_added_count"] += local_stats["qnoncoll_added_count"]
-        performance_stats["qnoncoll_consumed_count"] += local_stats[
-            "qnoncoll_consumed_count"
-        ]
-        performance_stats["linklist_empty_qnoncoll_unfull"] += local_stats[
-            "linklist_empty_qnoncoll_unfull"
-        ]
-        performance_stats["qnoncoll_unfull_sum_when_idle"] += local_stats[
-            "qnoncoll_unfull_sum_when_idle"
-        ]
+            performance_stats["total_edges_processed"] += 1
+            performance_stats["total_spheres_processed"] += len(edge) * len(
+                edge_coll[0]
+            )
+
+            # --- CSP Rearrangement ---
+            linklist, linklist_coll, linklist_cycles = su.csp_rearrange_with_cycles(
+                edge, edge_coll, edge_cycles, groupsize=8
+            )
+
+            # --- Run Detailed Simulation Analysis ---
+            edge_query_count, colldict, _, cycle, local_stats = (
+                analyze_simulation_bottlenecks(
+                    linklist,
+                    linklist_coll,
+                    {},
+                    threshold,
+                    sample_rate,
+                    bins,
+                    qnoncoll_len=qnoncoll_len,
+                    cycle_check=sphere_cost,
+                    num_oocds=num_oocds,
+                    linklist_cycles=linklist_cycles,
+                )
+            )
+
+            # 累积统计数据
+            performance_stats["total_queries"] += edge_query_count
+            performance_stats["total_cycles"] += cycle
+            performance_stats["queue_full_events"] += local_stats["queue_full_events"]
+            performance_stats["oocd_idle_cycles"] += local_stats["oocd_idle_cycles"]
+            performance_stats["total_tasks_processed"] += local_stats[
+                "total_tasks_processed"
+            ]
+            performance_stats["simulation_iterations"] += local_stats[
+                "simulation_iterations"
+            ]
+            # 累积空闲原因统计
+            performance_stats["oocd_idle_no_tasks"] += local_stats["oocd_idle_no_tasks"]
+            performance_stats["oocd_idle_waiting_first_two"] += local_stats[
+                "oocd_idle_waiting_first_two"
+            ]
+            performance_stats["oocd_idle_qnoncoll_not_full"] += local_stats[
+                "oocd_idle_qnoncoll_not_full"
+            ]
+            # 累积队列统计
+            performance_stats["qcoll_lengths_sum"] += local_stats["qcoll_lengths_sum"]
+            performance_stats["qnoncoll_lengths_sum"] += local_stats[
+                "qnoncoll_lengths_sum"
+            ]
+            performance_stats["qcoll_max_length"] = max(
+                performance_stats["qcoll_max_length"], local_stats["qcoll_max_length"]
+            )
+            performance_stats["qnoncoll_max_length"] = max(
+                performance_stats["qnoncoll_max_length"],
+                local_stats["qnoncoll_max_length"],
+            )
+            performance_stats["active_oocds_sum"] += local_stats["active_oocds_sum"]
+            performance_stats["qnoncoll_added_count"] += local_stats[
+                "qnoncoll_added_count"
+            ]
+            performance_stats["qnoncoll_consumed_count"] += local_stats[
+                "qnoncoll_consumed_count"
+            ]
+    else:
+        # 没有cycles数据的情况
+        for edge_idx, (edge, edge_coll) in enumerate(
+            zip(sphere_link_data, sphere_link_coll_data)
+        ):
+            if not edge_coll:
+                continue
+
+            # --- 检查是否为无碰撞边 ---
+            # 如果边中包含任何碰撞（值为0），则跳过此边
+            has_collision = any(
+                sphere_coll == 0 for pose_coll in edge_coll for sphere_coll in pose_coll
+            )
+            # if has_collision:
+            #     continue  # 跳过有碰撞的边，只处理无碰撞边
+
+            performance_stats["total_edges_processed"] += 1
+            performance_stats["total_spheres_processed"] += len(edge) * len(
+                edge_coll[0]
+            )
+
+            # --- CSP Rearrangement （不带cycles）---
+            linklist, linklist_coll = su.csp_rearrange(edge, edge_coll, groupsize=8)
+            linklist_cycles = None
+
+            # --- Run Detailed Simulation Analysis ---
+            edge_query_count, colldict, _, cycle, local_stats = (
+                analyze_simulation_bottlenecks(
+                    linklist,
+                    linklist_coll,
+                    {},
+                    threshold,
+                    sample_rate,
+                    bins,
+                    qnoncoll_len=qnoncoll_len,
+                    cycle_check=sphere_cost,
+                    num_oocds=num_oocds,
+                    linklist_cycles=None,
+                )
+            )
+
+            # 累积统计数据
+            performance_stats["total_queries"] += edge_query_count
+            performance_stats["total_cycles"] += cycle
+            performance_stats["queue_full_events"] += local_stats["queue_full_events"]
+            performance_stats["oocd_idle_cycles"] += local_stats["oocd_idle_cycles"]
+            performance_stats["total_tasks_processed"] += local_stats[
+                "total_tasks_processed"
+            ]
+            performance_stats["simulation_iterations"] += local_stats[
+                "simulation_iterations"
+            ]
+            # 累积空闲原因统计
+            performance_stats["oocd_idle_no_tasks"] += local_stats["oocd_idle_no_tasks"]
+            performance_stats["oocd_idle_waiting_first_two"] += local_stats[
+                "oocd_idle_waiting_first_two"
+            ]
+            performance_stats["oocd_idle_qnoncoll_not_full"] += local_stats[
+                "oocd_idle_qnoncoll_not_full"
+            ]
+            # 累积队列统计
+            performance_stats["qcoll_lengths_sum"] += local_stats["qcoll_lengths_sum"]
+            performance_stats["qnoncoll_lengths_sum"] += local_stats[
+                "qnoncoll_lengths_sum"
+            ]
+            performance_stats["qcoll_max_length"] = max(
+                performance_stats["qcoll_max_length"], local_stats["qcoll_max_length"]
+            )
+            performance_stats["qnoncoll_max_length"] = max(
+                performance_stats["qnoncoll_max_length"],
+                local_stats["qnoncoll_max_length"],
+            )
+            performance_stats["active_oocds_sum"] += local_stats["active_oocds_sum"]
+            performance_stats["qnoncoll_added_count"] += local_stats[
+                "qnoncoll_added_count"
+            ]
+            performance_stats["qnoncoll_consumed_count"] += local_stats[
+                "qnoncoll_consumed_count"
+            ]
 
 # --- 性能分析报告 ---
 print("\n" + "=" * 60)
@@ -510,86 +545,16 @@ if performance_stats["oocd_idle_cycles"] > 0:
         f"  因qnoncoll未满: {idle_qnoncoll_pct:.1f}% ({performance_stats['oocd_idle_qnoncoll_not_full']} 周期)"
     )
 
-    # qnoncoll未满的详细分析
-    if performance_stats["oocd_idle_qnoncoll_not_full"] > 0:
-        print("\n  qnoncoll未满时的长度分布:")
-        total_unfull = performance_stats["oocd_idle_qnoncoll_not_full"]
-
-        range_0_20_pct = (
-            performance_stats["qnoncoll_unfull_range_0_20pct"] / total_unfull * 100
-        )
-        range_20_40_pct = (
-            performance_stats["qnoncoll_unfull_range_20_40pct"] / total_unfull * 100
-        )
-        range_40_60_pct = (
-            performance_stats["qnoncoll_unfull_range_40_60pct"] / total_unfull * 100
-        )
-        range_60_80_pct = (
-            performance_stats["qnoncoll_unfull_range_60_80pct"] / total_unfull * 100
-        )
-        range_80_90_pct = (
-            performance_stats["qnoncoll_unfull_range_80_90pct"] / total_unfull * 100
-        )
-        range_90_99_pct = (
-            performance_stats["qnoncoll_unfull_range_90_99pct"] / total_unfull * 100
-        )
-
+    # 计算因qnoncoll未满导致的周期浪费比例
+    # 周期浪费 = 因qnoncoll未满而空闲的周期数
+    # 总周期数 = 边的总周期 * CDU数
+    qnoncoll_wasted_cycles = performance_stats["oocd_idle_qnoncoll_not_full"]
+    total_cycles_with_copus = performance_stats["total_cycles"] * num_oocds
+    if total_cycles_with_copus > 0:
+        qnoncoll_waste_ratio = qnoncoll_wasted_cycles / total_cycles_with_copus * 100
         print(
-            f"    0-20%满:   {range_0_20_pct:.1f}% ({performance_stats['qnoncoll_unfull_range_0_20pct']} 次)"
+            f"\n  ⚠️ 因qnoncoll未满导致的周期浪费: {qnoncoll_wasted_cycles} / {total_cycles_with_copus} = {qnoncoll_waste_ratio:.2f}%"
         )
-        print(
-            f"    20-40%满:  {range_20_40_pct:.1f}% ({performance_stats['qnoncoll_unfull_range_20_40pct']} 次)"
-        )
-        print(
-            f"    40-60%满:  {range_40_60_pct:.1f}% ({performance_stats['qnoncoll_unfull_range_40_60pct']} 次)"
-        )
-        print(
-            f"    60-80%满:  {range_60_80_pct:.1f}% ({performance_stats['qnoncoll_unfull_range_60_80pct']} 次)"
-        )
-        print(
-            f"    80-90%满:  {range_80_90_pct:.1f}% ({performance_stats['qnoncoll_unfull_range_80_90pct']} 次)"
-        )
-        print(
-            f"    90-99%满:  {range_90_99_pct:.1f}% ({performance_stats['qnoncoll_unfull_range_90_99pct']} 次) ⚠️ 接近满但未满"
-        )
-
-        avg_unfull_len = (
-            performance_stats["qnoncoll_unfull_sum_when_idle"] / total_unfull
-        )
-        print(
-            f"    平均长度: {avg_unfull_len:.1f} / {qnoncoll_len} ({avg_unfull_len / qnoncoll_len * 100:.1f}%)"
-        )
-
-        # 填充vs消耗速度分析
-        if (
-            performance_stats["qnoncoll_added_count"] > 0
-            or performance_stats["qnoncoll_consumed_count"] > 0
-        ):
-            print("\n  qnoncoll填充与消耗分析:")
-            print(f"    总添加任务数: {performance_stats['qnoncoll_added_count']}")
-            print(f"    总消耗任务数: {performance_stats['qnoncoll_consumed_count']}")
-            if performance_stats["simulation_iterations"] > 0:
-                add_rate = (
-                    performance_stats["qnoncoll_added_count"]
-                    / performance_stats["simulation_iterations"]
-                )
-                consume_rate = (
-                    performance_stats["qnoncoll_consumed_count"]
-                    / performance_stats["simulation_iterations"]
-                )
-                print(f"    平均添加速度: {add_rate:.3f} 任务/周期")
-                print(f"    平均消耗速度: {consume_rate:.3f} 任务/周期")
-                if consume_rate > add_rate:
-                    print(
-                        f"    ⚠️ 消耗速度 > 添加速度 ({consume_rate / add_rate:.2f}倍)，这是导致队列未满的主要原因"
-                    )
-
-        # 输入数据耗尽分析
-        if performance_stats["linklist_empty_qnoncoll_unfull"] > 0:
-            print(
-                f"\n  ⚠️ linklist为空但qnoncoll未满的次数: {performance_stats['linklist_empty_qnoncoll_unfull']}"
-            )
-            print("     这表明输入数据不足也是导致队列未满的原因之一")
 
 # 队列利用率分析
 if performance_stats["simulation_iterations"] > 0:

@@ -218,6 +218,22 @@
         "--output-file",
         "../../trace_files/scene_benchmarks/bit_collision_data/iiwa_7_0001_sphere_geometric_cycles.pkl"
       ]
+    },
+    {
+      "name": "调试 analyze_hash_patterns.py",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/motion_planning_prediction/analysis/analyze_hash_patterns.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/motion_planning_prediction/analysis",
+      "args": [
+        "iiwa_7",
+        "1",
+        "../../trace_files/scene_benchmarks/bit_collision_data",
+        "iiwa",
+        "--collision-model",
+        "sphere"
+      ]
     }
   ]
 }

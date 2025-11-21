@@ -15,10 +15,8 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from multi_copu_simulation import (
-    MultiCOPU_Scheduler,
-    analyze_multi_copu_performance,
-)
+from multi_copu_simulation import MultiCOPU_Scheduler
+import simulation_utils as su
 
 
 # ======================== Utility Functions ========================
@@ -231,7 +229,7 @@ def benchmark_single_vs_multi_copu():
         sim_time = time.time() - start
 
         # 分析性能
-        perf = analyze_multi_copu_performance(result)
+        perf = su.analyze_multi_copu_performance(result)
 
         results[num_copus] = {
             "sim_time": sim_time,
@@ -304,7 +302,7 @@ def benchmark_load_balance():
     print(f"  标准差: {np.std(query_counts):.2f}")
     print(f"  负载均衡系数: {np.std(query_counts) / np.mean(query_counts):.4f}")
 
-    perf = analyze_multi_copu_performance(result)
+    perf = su.analyze_multi_copu_performance(result)
     print(f"  性能指标负载均衡: {perf['load_balance_variance']:.4f}")
     print("  ✓ 验证通过")
 
@@ -409,7 +407,7 @@ def benchmark_no_collision_scenario():
             )
 
             # 分析性能
-            perf = analyze_multi_copu_performance(result)
+            perf = su.analyze_multi_copu_performance(result)
 
             # 收集该edge的结果
             edge_results.append(

@@ -15,14 +15,65 @@ DEFAULT_CYCLE_CHECK = 40
 OOCDState = namedtuple("OOCDState", ["hash_key", "result", "busy", "free_cycle"])
 
 
-def reutrn_keyy(code):
-    """Creates a hash key from a quantized code."""
+def calculate_bins(quant_min, quant_max, quant_bits):
+    """
+    计算量化分箱的边界
+
+    Args:
+        quant_min: 坐标的最小值
+        quant_max: 坐标的最大值
+        quant_bits: 量化位数（每个维度的比特数）
+
+    Returns:
+        bins: 分箱边界数组
+    """
+    num_bins = 2**quant_bits
+    bins = np.linspace(quant_min, quant_max, num_bins)
+    return bins
+
+
+def return_keyy(code, quant_bits):
+    """
+    将量化编码转换为二进制字符串
+
+    Args:
+        code: 量化编码数组，例如 [3, 5, 2]（每个元素是量化值）
+        quant_bits: 每个量化值的比特宽度（例如4表示每个值用4位表示）
+
+    Returns:
+        keyy: 二进制编码字符串，例如 "001101010010"（每个元素转为二进制后拼接）
+
+    说明：
+        假定 quant_bits=4，则每个量化值用4个比特表示
+        例如：code=[3, 5, 2], quant_bits=4 -> "0011" + "0101" + "0010" = "001101010010"
+        最终返回的二进制字符串长度为 len(code) * quant_bits
+    """
     bitsize = len(code)
     keyy = ""
-    for j in range(0, bitsize):
-        if code[j] < 10:
-            keyy = keyy + "0"
-        keyy = keyy + str(code[j])
+
+    for j in range(bitsize):
+        # 将每个量化值转为二进制，用零补齐到quant_bits位
+        binary_str = format(int(code[j]), f"0{quant_bits}b")
+        keyy = keyy + binary_str
+
+    return keyy
+
+
+def compute_hash_keyy(link_coords, bins):
+    """
+    Args:
+        link_coords: 单个link的坐标列表（7D: [x, y, z, qx, qy, qz, qw] 或 [x, y, z, radius]）
+        bins: 分箱边界数组
+
+    Returns:
+        hash_key: 量化编码后的hash key字符串
+    """
+    # 只对坐标部分[0:3]进行量化
+    code_quant = np.digitize(link_coords[0:3], bins, right=True)
+    # 从bins计算quant_bits
+    quant_bits = (len(bins) - 1).bit_length()
+    # 转换为hash key字符串
+    keyy = return_keyy(code_quant, quant_bits)
     return keyy
 
 
@@ -365,7 +416,8 @@ def simulate_parallel_collision_detection(
 
             # 将配置数据“量化”以生成用于查询历史表的键 (key)
             code_quant = np.digitize(link, bins, right=True)
-            keyy = reutrn_keyy(code_quant)
+            quant_bits = (len(bins) - 1).bit_length()
+            keyy = return_keyy(code_quant, quant_bits)
 
             # 使用历史表进行碰撞预测
             is_collision_predicted = predict_collision(colldict, keyy, threshold)
@@ -507,7 +559,8 @@ def simulate_parallel_collision_detection_real_cycles(
 
             # 将配置数据"量化"以生成用于查询历史表的键 (key)
             code_quant = np.digitize(link, bins, right=True)
-            keyy = reutrn_keyy(code_quant)
+            quant_bits = (len(bins) - 1).bit_length()
+            keyy = return_keyy(code_quant, quant_bits)
 
             # 使用历史表进行碰撞预测
             is_collision_predicted = predict_collision(colldict, keyy, threshold)
@@ -652,7 +705,8 @@ def simulate_parallel_collision_detection_with_tracking(
 
             # 将配置数据"量化"以生成用于查询历史表的键 (key)
             code_quant = np.digitize(link, bins, right=True)
-            keyy = reutrn_keyy(code_quant)
+            quant_bits = (len(bins) - 1).bit_length()
+            keyy = return_keyy(code_quant, quant_bits)
 
             # 使用历史表进行碰撞预测
             is_collision_predicted = predict_collision(colldict, keyy, threshold)
@@ -800,7 +854,8 @@ def simulate_parallel_collision_detection_preemptive(
 
             # 将配置数据"量化"以生成用于查询历史表的键 (key)
             code_quant = np.digitize(link, bins, right=True)
-            keyy = reutrn_keyy(code_quant)
+            quant_bits = (len(bins) - 1).bit_length()
+            keyy = return_keyy(code_quant, quant_bits)
 
             # 使用历史表进行碰撞预测
             is_collision_predicted = predict_collision(colldict, keyy, threshold)
@@ -860,3 +915,127 @@ def simulate_parallel_collision_detection_preemptive(
 
     # 返回总查询数、更新后的碰撞历史表和是否找到碰撞的标志
     return query_count, colldict, coll_found, current_time, preemption_count
+
+
+def generate_recursive_reorder(num_poses, step_size=8):
+    """
+    生成递归式重排顺序（保持固定步长，只对组序列进行递归二分重排）。
+    """
+    # 步骤1：对组号进行递归二分重排
+    group_count = min(step_size, (num_poses + step_size - 1) // step_size)
+    group_order = recursive_binary_reorder(group_count)
+    # group_order = list(range(step_size))
+    # 步骤2：按重排后的组号顺序生成pose列表
+    reorder = []
+    for group_id in group_order:
+        pose_idx = group_id
+        while pose_idx < num_poses:
+            reorder.append(pose_idx)
+            pose_idx += step_size
+
+    return reorder
+
+
+def recursive_binary_reorder(n):
+    """
+    将 [0,1,2,...,n-1] 按递归二分方式重排（使用位反转）。
+    """
+    if n <= 1:
+        return list(range(n))
+
+    # 计算需要的位数
+    num_bits = 0
+    temp = n - 1
+    while temp > 0:
+        num_bits += 1
+        temp >>= 1
+
+    reorder = []
+    for i in range(n):
+        # 对i进行位反转
+        reversed_i = 0
+        for bit in range(num_bits):
+            reversed_i = (reversed_i << 1) | ((i >> bit) & 1)
+        reorder.append(reversed_i)
+
+    return reorder
+
+
+def allocate_edge_data_to_copus(
+    edge_coords,
+    edge_flags,
+    edge_cycles,
+    num_copus,
+    use_recursive_reorder=True,
+    step_size=8,
+):
+    """
+    将单条edge的pose数据按轮转方式分配给所有COPU。
+    """
+    num_poses = len(edge_coords)
+
+    # 步骤1：确定pose顺序（可选递归重排）
+    if use_recursive_reorder:
+        reorder = generate_recursive_reorder(num_poses, step_size)
+    else:
+        reorder = list(range(num_poses))
+
+    # 步骤2：初始化所有COPU的数据列表
+    copus_coords = [[] for _ in range(num_copus)]
+    copus_flags = [[] for _ in range(num_copus)]
+    copus_cycles = [[] for _ in range(num_copus)]
+
+    # 步骤3：按轮转方式将poses分配给各COPU
+    for reordered_idx, original_pose_idx in enumerate(reorder):
+        copu_id = reordered_idx % num_copus
+        pose_coords = edge_coords[original_pose_idx]  # List[link_coord]
+        pose_flags = edge_flags[original_pose_idx]  # List[link_flag]
+
+        # 展平link数据
+        copus_coords[copu_id].extend(pose_coords)
+        copus_flags[copu_id].extend(pose_flags)
+
+        # 处理周期数据
+        if edge_cycles is not None:
+            pose_cycles = edge_cycles[original_pose_idx]
+            copus_cycles[copu_id].extend(pose_cycles)
+        else:
+            copus_cycles[copu_id].extend([40 for _ in range(len(pose_coords))])
+
+    return copus_coords, copus_flags, copus_cycles
+
+
+def analyze_multi_copu_performance(results):
+    """
+    分析多COPU系统的性能指标
+    """
+    cht_stats = results["cht_stats"]
+    copu_stats = results["copus"]
+
+    # KPI 1: 系统吞吐量
+    total_queries = sum(c["total_queries"] for c in copu_stats)
+    system_throughput = total_queries / max(1, results["total_cycles"])
+
+    # KPI 2: COPU平均利用率
+    avg_utilization = sum(c["oocd_utilization"] for c in copu_stats) / len(copu_stats)
+
+    # KPI 3: CHT冲突率
+    cht_conflict_rate = cht_stats["conflict_rate"]
+
+    # KPI 4: 负载平衡
+    query_counts = [c["total_queries"] for c in copu_stats]
+    if len(query_counts) > 1:
+        load_balance = np.std(query_counts) / (np.mean(query_counts) + 1e-6)
+    else:
+        load_balance = 0.0
+
+    return {
+        "system_throughput": system_throughput,
+        "avg_copu_utilization": avg_utilization,
+        "cht_conflict_rate": cht_conflict_rate,
+        "load_balance_variance": load_balance,
+        "total_cycles": results["total_cycles"],
+        "total_queries": total_queries,
+        "num_copus": len(copu_stats),
+        "per_copu_queries": query_counts,
+    }

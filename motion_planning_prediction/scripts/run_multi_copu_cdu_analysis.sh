@@ -4,7 +4,9 @@
 # 统计不同COPU数量(1,2,4,8)和CDU数量(1,2,4,6,8)下的仿真结果
 # 将结果输出到CSV文件供后续分析
 #
-
+# 运行实例
+# ./run_multi_copu_cdu_analysis.sh
+# ./run_multi_copu_cdu_analysis.sh --cht-type=multi_bank --num-banks=8
 # 获取脚本所在目录
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
@@ -21,11 +23,21 @@ OUTPUT_DIR="result_files"
 # 检查是否使用 --no-cht-conflict 选项
 ENABLE_CHT_CONFLICT=true
 CONFLICT_SUFFIX=""
+CHT_TYPE="dual_port"
+NUM_BANKS=8
+CHT_ARGS=""
+
 for arg in "$@"; do
     if [ "$arg" = "--no-cht-conflict" ]; then
         ENABLE_CHT_CONFLICT=false
-        CONFLICT_SUFFIX="_no_cht_conflict"
-        break
+        CONFLICT_SUFFIX="${CONFLICT_SUFFIX}_no_cht_conflict"
+    elif [[ "$arg" == --cht-type=* ]]; then
+        CHT_TYPE="${arg#*=}"
+        CONFLICT_SUFFIX="${CONFLICT_SUFFIX}_${CHT_TYPE}"
+        CHT_ARGS="$CHT_ARGS --cht-type $CHT_TYPE"
+    elif [[ "$arg" == --num-banks=* ]]; then
+        NUM_BANKS="${arg#*=}"
+        CHT_ARGS="$CHT_ARGS --num-banks $NUM_BANKS"
     fi
 done
 
@@ -47,6 +59,10 @@ echo "数据文件夹: $DATA_FOLDER"
 echo "采样率: $SAMPLE_RATE"
 echo "最大周期: $MAX_CYCLES"
 echo "CHT冲突检测: $ENABLE_CHT_CONFLICT"
+echo "CHT类型: $CHT_TYPE"
+if [ "$CHT_TYPE" = "multi_bank" ]; then
+    echo "Bank数量: $NUM_BANKS"
+fi
 echo "结果输出: $CSV_FILE"
 echo "工作目录: $(pwd)"
 echo "=========================================="
@@ -67,7 +83,8 @@ for num_copus in "${COPU_NUMS[@]}"; do
         if output=$(python ../multi_copu_real_data_simulation.py \
             "$BASENAME" "$BENCHID" "$DATA_FOLDER" "$num_copus" \
             "$THRESHOLD" "$num_cdus" "$SAMPLE_RATE" "$MAX_CYCLES" \
-            $([ "$ENABLE_CHT_CONFLICT" = false ] && echo "--no-cht-conflict") 2>&1); then
+            $([ "$ENABLE_CHT_CONFLICT" = false ] && echo "--no-cht-conflict") \
+            $CHT_ARGS 2>&1); then
             
             # 从输出中提取关键指标
             total_edges=$(echo "$output" | grep "总Edge数:" | awk '{print $NF}')

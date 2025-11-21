@@ -33,3 +33,6 @@ motion_planning_prediction/tests/result_files/*.png
 motion_planning_prediction/analysis/result_files/obb_hash_analysis/*.png
 motion_planning_prediction/analysis/result_files/obb_hash_analysis/*
 motion_planning_prediction/scripts/result_files/*.xlsx
+result_files/*.csv
+motion_planning_prediction/analysis/result_files/*.csv
+motion_planning_prediction/scripts/result_files/*.csv 
