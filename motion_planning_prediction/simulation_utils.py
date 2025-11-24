@@ -1039,3 +1039,180 @@ def analyze_multi_copu_performance(results):
         "num_copus": len(copu_stats),
         "per_copu_queries": query_counts,
     }
+
+
+def simulate_parallel_collision_detection_dedicated(
+    linklist,
+    linklist_coll,
+    colldict,
+    threshold,
+    sample_rate,
+    bins,
+    qnoncoll_len=DEFAULT_QNONCOLL_LEN,
+    qcoll_len=DEFAULT_QCOLL_LEN,
+    cycle_check=DEFAULT_CYCLE_CHECK,
+    num_oocds=NUM_OOCDS,
+    num_dedicated_oocds=1,
+):
+    """
+    模拟并行的碰撞检测过程，支持专用CDU策略。
+    
+    参数:
+        num_dedicated_oocds: 专门用于QCOLL任务的CDU数量。
+                             这些CDU优先处理QCOLL，除非QNONCOLL已满。
+                             剩余的CDU (num_oocds - num_dedicated_oocds) 为共享CDU，
+                             无优先级地处理QCOLL和QNONCOLL任务。
+    """
+    # 初始化硬件碰撞检测器 (OOCD)
+    oocds = [
+        OOCDState(hash_key=0, result=0, busy=0, free_cycle=0) for _ in range(num_oocds)
+    ]
+    # 使用deque替代list，提高队列操作效率
+    qcoll = deque(maxlen=qcoll_len)  # 预测碰撞任务队列
+    qnoncoll = deque(maxlen=qnoncoll_len)  # 预测无碰撞任务队列
+    cycle = 0  # 仿真周期计数器
+    first_two_running = 0  # 当前正在运行的前两个任务计数
+    first_two_checked = 0  # 前两个任务开始处理的周期标记
+    coll_found = 0  # 是否发现真实碰撞的标志
+    links_remaining = len(linklist)  # 剩余待处理的配置数量
+    everything_free = 0  # 所有任务是否完成的标志
+    query_count = 0.0  # 实际执行的硬件查询总数
+
+    # 主循环：直到发现碰撞或所有任务完成
+    while not coll_found and not everything_free:
+        # --- 步骤1: 处理硬件检测器 (OOCD) 的状态 ---
+        dequeued_this_cycle = False  # 每个周期最多只出队一次
+        for oocd_id in range(len(oocds)):
+            oocd = oocds[oocd_id]
+            # 如果一个检测器任务已完成 (繁忙状态且到达完成周期)
+            if oocd.busy == 1 and oocd.free_cycle <= cycle:
+                query_count += 1  # 增加硬件查询计数
+                if oocd.result == 0:  # 假设0代表真实发生碰撞
+                    coll_found = 1
+                # 根据真实的检测结果，更新碰撞历史表
+                colldict = update_collision_dict(
+                    colldict, oocd.hash_key, oocd.result, sample_rate
+                )
+
+            # 如果一个检测器现在空闲 (到达完成周期) 并且本周期还未分配过任务
+            if oocd.free_cycle <= cycle and not dequeued_this_cycle:
+                is_dedicated = oocd_id < num_dedicated_oocds
+                task_assigned = False
+                
+                if is_dedicated:
+                    # 专用CDU策略:
+                    # 1. 如果QNONCOLL已满，优先处理QNONCOLL以解除阻塞
+                    if len(qnoncoll) >= qnoncoll_len:
+                        oocds[oocd_id] = OOCDState(
+                            hash_key=qnoncoll[0][0],
+                            result=qnoncoll[0][1],
+                            busy=1,
+                            free_cycle=cycle + cycle_check,
+                        )
+                        qnoncoll.popleft()
+                        task_assigned = True
+                    # 2. 否则，专门处理QCOLL
+                    elif len(qcoll) > 0 and first_two_checked < cycle:
+                        first_two_running += 1
+                        if first_two_running == 1:
+                            first_two_checked = cycle + cycle_check
+                        oocds[oocd_id] = OOCDState(
+                            hash_key=qcoll[0][0],
+                            result=qcoll[0][1],
+                            busy=1,
+                            free_cycle=cycle + cycle_check,
+                        )
+                        qcoll.popleft()
+                        task_assigned = True
+                    # 3. 如果没有更多待处理的链接（清空阶段）且QNONCOLL有任务，处理QNONCOLL
+                    elif len(linklist) == 0 and len(qnoncoll) > 0:
+                        oocds[oocd_id] = OOCDState(
+                            hash_key=qnoncoll[0][0],
+                            result=qnoncoll[0][1],
+                            busy=1,
+                            free_cycle=cycle + cycle_check,
+                        )
+                        qnoncoll.popleft()
+                        task_assigned = True
+                    # 4. 否则空闲
+                else:
+                    # 共享CDU策略 (无优先级/混合使用):
+                    # 只要有任务就处理，不区分优先级
+                    
+                    # 尝试QCOLL
+                    if len(qcoll) > 0 and first_two_checked < cycle:
+                        first_two_running += 1
+                        if first_two_running == 1:
+                            first_two_checked = cycle + cycle_check
+                        oocds[oocd_id] = OOCDState(
+                            hash_key=qcoll[0][0],
+                            result=qcoll[0][1],
+                            busy=1,
+                            free_cycle=cycle + cycle_check,
+                        )
+                        qcoll.popleft()
+                        task_assigned = True
+                    # 尝试QNONCOLL (无"满"限制)
+                    elif len(qnoncoll) > 0:
+                        oocds[oocd_id] = OOCDState(
+                            hash_key=qnoncoll[0][0],
+                            result=qnoncoll[0][1],
+                            busy=1,
+                            free_cycle=cycle + cycle_check,
+                        )
+                        qnoncoll.popleft()
+                        task_assigned = True
+                
+                if task_assigned:
+                    dequeued_this_cycle = True
+                else:
+                    # 如果没有分配任务，保持空闲
+                    oocds[oocd_id] = OOCDState(
+                        hash_key=0, result=0, busy=0, free_cycle=0
+                    )
+
+        # --- 步骤2: 预测下一个配置并放入相应队列 ---
+        if len(linklist) > 0:
+            link, linkcoll = linklist[0], linklist_coll[0]
+
+            # 将配置数据“量化”以生成用于查询历史表的键 (key)
+            code_quant = np.digitize(link, bins, right=True)
+            quant_bits = (len(bins) - 1).bit_length()
+            keyy = return_keyy(code_quant, quant_bits)
+
+            # 使用历史表进行碰撞预测
+            is_collision_predicted = predict_collision(colldict, keyy, threshold)
+
+            # 根据预测结果，将配置放入不同的队列
+            if is_collision_predicted:
+                if len(qcoll) < qcoll_len:  # 如果队列未满
+                    qcoll.append([keyy, linkcoll])
+                    del linklist[0]
+                    del linklist_coll[0]
+            else:
+                if len(qnoncoll) < qnoncoll_len:  # 如果队列未满
+                    qnoncoll.append([keyy, linkcoll])
+                    del linklist[0]
+                    del linklist_coll[0]
+
+        # --- 步骤3: 检查仿真是否结束 ---
+        links_remaining = len(linklist)
+        # 如果所有输入配置都已处理，所有检测器都空闲，且所有队列都为空
+        if (
+            links_remaining == 0
+            and not any(oocd.free_cycle > cycle for oocd in oocds)
+            and not qnoncoll
+            and not qcoll
+        ):
+            everything_free = 1  # 设置结束标志
+
+        cycle += 1  # 时间周期前进
+
+    # --- 步骤4: 计算仿真结束时仍在运行的任务 ---
+    # 对于未完成的检查，按其已执行的比例计入查询总数
+    for oocd in oocds:
+        if oocd.free_cycle > cycle:
+            query_count += (cycle_check - oocd.free_cycle + cycle) / cycle_check
+
+    # 返回总查询数、更新后的碰撞历史表和是否找到碰撞的标志
+    return query_count, colldict, coll_found, cycle

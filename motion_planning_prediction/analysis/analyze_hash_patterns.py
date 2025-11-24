@@ -8,6 +8,7 @@ Hash编码差异分析工具
 - 用于评估重排策略对hash冲突率的影响
 - 支持多种碰撞模型: sphere, link 等
 """
+# python analyze_hash_patterns.py iiwa_7 1-20 ../../trace_files/scene_benchmarks/bit_collision_data iiwa --collision-model link
 
 import sys
 import os
@@ -16,6 +17,12 @@ from collections import defaultdict
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
 import simulation_utils as su
+from hash_diversity_analyzer import (
+    analyze_hash_diversity_multi_benchmark,
+    print_multi_benchmark_diversity_report,
+    analyze_pose_hash_bit_differences_multi_benchmark,
+    print_pose_hash_bit_report,
+)
 
 # 全局参数配置
 QUANT_MIN = -1.5  # 量化最小值
@@ -349,7 +356,12 @@ def process_benchmark(
         reorder_sequence = su.generate_recursive_reorder(len(edge), step_size=8)
         analysis_results = analyze_pose_pair_hashes(edge, reorder_sequence)
         results.append(
-            {"benchid": benchid, "edge_idx": edge_idx, "results": analysis_results}
+            {
+                "benchid": benchid,
+                "edge_idx": edge_idx,
+                "results": analysis_results,
+                "edge_coords": edge,
+            }
         )
 
     return results
@@ -458,6 +470,22 @@ def main():
 
     print_bit_statistics(bit_diffs)
     print_benchmark_statistics(all_analysis_results)
+
+    # Pose级Hash编码Bit位差异分析汇总（多benchmark）
+    print("\n" + "=" * 70)
+    print("Pose级Hash编码Bit位差异综合分析")
+    print("=" * 70)
+    pose_bit_stats = analyze_pose_hash_bit_differences_multi_benchmark(
+        all_analysis_results, BINS
+    )
+    print_pose_hash_bit_report(pose_bit_stats)
+
+    # # Hash多样性分析
+    # print("\n" + "=" * 70)
+    # print("Hash编码多样性分析")
+    # print("=" * 70)
+    # diversity_report = analyze_hash_diversity_multi_benchmark(all_analysis_results, BINS)
+    # print_multi_benchmark_diversity_report(diversity_report)
 
 
 if __name__ == "__main__":

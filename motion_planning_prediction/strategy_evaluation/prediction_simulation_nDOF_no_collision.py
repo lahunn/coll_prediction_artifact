@@ -36,12 +36,12 @@ fall_prediction = 0
 fall_cycle = 0
 
 # --- Simulation Parameters from Command Line ---
-if len(sys.argv) < 7:
+if len(sys.argv) < 8:
     print(
-        "Usage: python prediction_simulation_nDOF_sphere_no_collision.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <num_benchmarks> [robot_name] [num_oocds_list]"
+        "Usage: python prediction_simulation_nDOF_no_collision.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <num_benchmarks> <robot_name> [collision_model_type] [num_oocds_list]"
     )
     print(
-        'Example: python prediction_simulation_nDOF_sphere_no_collision.py 0.5 0.1 8 ../trace_files/scene_benchmarks/bit_collision_data franka_14 100 franka "1,2,4,7,14,28"'
+        'Example: python prediction_simulation_nDOF_no_collision.py 0.5 0.1 8 ../trace_files/scene_benchmarks/bit_collision_data franka_14 100 franka link "1,2,4,7,14,28"'
     )
     sys.exit(1)
 
@@ -53,28 +53,45 @@ basename = sys.argv[5]
 num_benchmarks = int(sys.argv[6])
 robot_name = sys.argv[7]
 
-# 获取num_oocds列表，默认为7
+# Handle optional arguments for collision_model_type and num_oocds_list
+collision_model_type = "link"
+num_oocds_list = [7]
+
 if len(sys.argv) > 8:
-    num_oocds_str = sys.argv[8]
-    num_oocds_list = [int(x.strip()) for x in num_oocds_str.split(",")]
-else:
-    num_oocds_list = [7]
+    arg8 = sys.argv[8]
+    # Check if arg8 is the list (backward compatibility or omitted type)
+    if "," in arg8 or arg8.replace(" ", "").isdigit():
+        num_oocds_list = [int(x.strip()) for x in arg8.split(",")]
+    else:
+        collision_model_type = arg8
+        if len(sys.argv) > 9:
+            num_oocds_str = sys.argv[9]
+            num_oocds_list = [int(x.strip()) for x in num_oocds_str.split(",")]
 
 # 获取机器人参数
 robot_params = get_robot_params(robot_name)
-sphere_num = robot_params["sphere_num"]
-sphere_cost = 48
 
-num_spheres = sphere_num
-qnoncoll_len = num_spheres * qnoncoll_multiplier
+if collision_model_type == "sphere":
+    num_elements = robot_params["sphere_num"]
+    element_cost = 48  # sphere_cost
+    csv_file = "result_files/sphere_oocds_analysis.csv"
+    print_title = "=== Sphere Collision Detection Prediction Simulation (No Collision) ==="
+else:
+    num_elements = robot_params["obb_num"]
+    element_cost = robot_params["obb_cost"]
+    csv_file = "result_files/obb_oocds_analysis.csv"
+    print_title = "=== OBB Collision Detection Prediction Simulation (No Collision) ==="
 
-print("=== 球体碰撞检测预测仿真（无碰撞边筛选）===")
-print(f"阈值: {threshold}")
-print(f"采样率: {sample_rate}")
-print(f"队列长度倍数: {qnoncoll_multiplier}")
-print(f"非碰撞队列长度: {qnoncoll_len}")
-print(f"数据文件夹: {data_folder}")
-print(f"基准测试数量: {num_benchmarks}")
+qnoncoll_len = num_elements * qnoncoll_multiplier
+
+print(print_title)
+print(f"Threshold: {threshold}")
+print(f"Sample Rate: {sample_rate}")
+print(f"Queue Length Multiplier: {qnoncoll_multiplier}")
+print(f"Non-collision Queue Length: {qnoncoll_len}")
+print(f"Data Folder: {data_folder}")
+print(f"Number of Benchmarks: {num_benchmarks}")
+print(f"Collision Model: {collision_model_type}")
 print(f"OOCD数量列表: {num_oocds_list}")
 print("=" * 50)
 
@@ -97,17 +114,17 @@ for num_oocds in num_oocds_list:
         all_cycle = 0
         colldict = {}
 
-        # 加载球体数据（支持新的3元组格式）
-        sphere_link_data, sphere_link_coll_data = (
-            su.load_data(basename, benchid, data_folder, collision_model_type="sphere")
+        # 加载数据（支持新的3元组格式）
+        edge_link_data, edge_link_coll_data = (
+            su.load_data(basename, benchid, data_folder, collision_model_type=collision_model_type)
         )
 
-        if sphere_link_data is None or sphere_link_coll_data is None:
+        if edge_link_data is None or edge_link_coll_data is None:
             continue
 
         # 处理每条边
         for edge_idx, (edge, edge_coll) in enumerate(
-            zip(sphere_link_data, sphere_link_coll_data)
+            zip(edge_link_data, edge_link_coll_data)
         ):
             if not edge_coll:
                 continue
@@ -115,7 +132,7 @@ for num_oocds in num_oocds_list:
             # --- 检查是否为无碰撞边 ---
             # 如果边中包含任何碰撞（值为0），则跳过此边
             has_collision = any(
-                sphere_coll == 0 for pose_coll in edge_coll for sphere_coll in pose_coll
+                link_coll == 0 for pose_coll in edge_coll for link_coll in pose_coll
             )
             if has_collision:
                 continue  # 跳过有碰撞的边，只处理无碰撞边
@@ -134,7 +151,7 @@ for num_oocds in num_oocds_list:
                     sample_rate,
                     bins,
                     qnoncoll_len=qnoncoll_len,
-                    cycle_check=sphere_cost,
+                    cycle_check=element_cost,
                     num_oocds=num_oocds,
                 )
             )
@@ -195,7 +212,6 @@ for result in results:
 print("\n" + "=" * 60)
 
 # 输出到CSV
-csv_file = "result_files/sphere_oocds_analysis.csv"
 with open(csv_file, "a", newline="") as csvfile:
     writer = csv.writer(csvfile)
     # 写入表头（如果文件为空）
