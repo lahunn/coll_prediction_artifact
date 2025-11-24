@@ -71,6 +71,7 @@ def simulate_collision_analysis(
     collision_found_source = None  # 发现碰撞的任务来源
     total_tasks_predicted_coll = 0  # 预测为碰撞的总任务数
     total_tasks = 0  # 总任务数
+    first_collision_position = None  # 首个实际碰撞任务的位置（1-based）
 
     # 主循环
     while not coll_found and not everything_free:
@@ -136,6 +137,10 @@ def simulate_collision_analysis(
             link, linkcoll = linklist[0], linklist_coll[0]
             total_tasks += 1
 
+            # 记录首个实际碰撞任务的位置
+            if first_collision_position is None and linkcoll == 0:
+                first_collision_position = total_tasks
+
             code_quant = np.digitize(link, bins, right=True)
             quant_bits = (len(bins) - 1).bit_length()
             keyy = su.return_keyy(code_quant, quant_bits)
@@ -173,6 +178,8 @@ def simulate_collision_analysis(
         "collision_found_source": collision_found_source,
         "total_tasks": total_tasks,
         "total_tasks_predicted_coll": total_tasks_predicted_coll,
+        "first_collision_position": first_collision_position,
+        "total_cycles": cycle,
     }
 
 
@@ -202,6 +209,8 @@ def main():
     all_intervals = []
     checks_for_collisions = []
     total_collision_edges = 0
+    first_collision_positions = []  # 记录所有碰撞edge的首个碰撞位置
+    collision_edge_cycles = []  # 记录所有碰撞edge消耗的cycle数
 
     # Per-benchmark stats
     benchmark_stats = []
@@ -250,6 +259,8 @@ def main():
             intervals = stats["qcoll_add_times"]
             checks = stats["checks_at_collision"]
             source = stats["collision_found_source"]
+            first_pos = stats["first_collision_position"]
+            total_cycles = stats["total_cycles"]
 
             bench_total_tasks += stats["total_tasks"]
             bench_pred_coll_tasks += stats["total_tasks_predicted_coll"]
@@ -273,6 +284,13 @@ def main():
 
                 if source == "qcoll":
                     bench_found_in_qcoll += 1
+                
+                # 收集首个碰撞位置
+                if first_pos is not None:
+                    first_collision_positions.append(first_pos)
+                
+                # 收集cycle消耗
+                collision_edge_cycles.append(total_cycles)
 
         # 计算该benchmark的统计数据
         avg_int = np.mean(bench_intervals) if bench_intervals else 0.0
@@ -339,6 +357,34 @@ def main():
         print(f"   统计Edge数: {len(checks_for_collisions)} / {total_collision_edges}")
     else:
         print("\n2. 无碰撞Edge统计数据")
+
+    if first_collision_positions:
+        avg_position = np.mean(first_collision_positions)
+        median_position = np.median(first_collision_positions)
+        min_position = np.min(first_collision_positions)
+        max_position = np.max(first_collision_positions)
+        print("\n3. 重排后首个实际碰撞任务的位置统计:")
+        print(f"   平均值: {avg_position:.2f}")
+        print(f"   中位数: {median_position:.2f}")
+        print(f"   最小值: {min_position}")
+        print(f"   最大值: {max_position}")
+        print(f"   统计Edge数: {len(first_collision_positions)} / {total_collision_edges}")
+    else:
+        print("\n3. 无首个碰撞位置统计数据")
+
+    if collision_edge_cycles:
+        avg_cycles = np.mean(collision_edge_cycles)
+        median_cycles = np.median(collision_edge_cycles)
+        min_cycles = np.min(collision_edge_cycles)
+        max_cycles = np.max(collision_edge_cycles)
+        print("\n4. 碰撞Edge的碰撞检测平均消耗cycle数:")
+        print(f"   平均值: {avg_cycles:.2f} cycles")
+        print(f"   中位数: {median_cycles:.2f} cycles")
+        print(f"   最小值: {min_cycles} cycles")
+        print(f"   最大值: {max_cycles} cycles")
+        print(f"   统计Edge数: {len(collision_edge_cycles)} / {total_collision_edges}")
+    else:
+        print("\n4. 无碰撞Edge cycle消耗统计数据")
 
     print("=" * 50)
 

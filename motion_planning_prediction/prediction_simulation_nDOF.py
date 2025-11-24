@@ -33,6 +33,7 @@ import csv
 from trace_generation.config.ana_parameters import get_robot_params
 
 # --- Simulation Settings ---
+num_oocds = 7
 binnumber = 16
 intervalsize = 2 / binnumber
 bins = np.zeros(binnumber)
@@ -46,6 +47,7 @@ fall_prediction = 0
 fall_oracle = 0
 total_checks = 0
 fall_cycle = 0
+theoretical_min_cycles = 0
 
 # --- Simulation Parameters from Command Line ---
 if len(sys.argv) < 8:
@@ -122,6 +124,11 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
                 # 如果 pose_coll 中没有0 (即当前姿态无碰撞)，则需要检查该姿态下的所有link
                 total_checks += len(pose_coll)
 
+    # 计算理论最小周期数消耗
+    theoretical_min_cycles += su.calculate_oracle_cycles_for_edges(
+        edge_link_coll_data, num_oocds=num_oocds, cycle_check=check_cost
+    )
+
     # 处理每条边
     for edge, edge_coll in zip(edge_link_data, edge_link_coll_data):
         if not edge_coll:
@@ -152,7 +159,7 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
             bins,
             qnoncoll_len=qnoncoll_len,
             cycle_check=check_cost,
-            num_oocds=7,
+            num_oocds=num_oocds,
         )
 
         all_prediction += edge_query_count
@@ -174,6 +181,7 @@ print(f"  实际查询总数: {total_checks}")
 print(f"  预测查询总数: {fall_prediction:.2f}")
 print(f"  Oracle查询总数: {fall_oracle}")
 print(f"  预测周期总数 (成本): {fall_cycle}")
+print(f"  理论最小周期数: {theoretical_min_cycles}")
 print(f"  查询减少率: {(1 - fall_prediction / total_checks) * 100:.2f}%")
 print("=" * 50)
 
@@ -193,6 +201,7 @@ with open(csv_file, "a", newline="") as csvfile:
             fall_prediction,
             fall_oracle,
             fall_cycle,
+            theoretical_min_cycles,
             reduction_rate,
         ]
     )

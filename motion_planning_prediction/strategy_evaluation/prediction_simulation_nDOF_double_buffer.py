@@ -1,0 +1,233 @@
+#!/usr/bin/env python3
+"""
+双缓冲架构碰撞检测预测仿真程序（nDOF机器人）
+
+使用双缓冲架构进行碰撞检测的预测策略评估：
+- Bank A 和 Bank B 两组队列
+- 当前 edge 完成时切换 Bank
+- 两个预测器同时工作，为当前和下一个 edge 生成任务
+
+数据格式:
+- sphere_link_data[edge][pose][sphere] = [x, y, z, radius]
+- sphere_link_coll_data[edge][pose][sphere] = 1 or 0
+
+文件命名约定: {basename}_{benchid:04d}_{collision_model_type}.pkl
+其中 collision_model_type 为 'link' 或 'sphere'
+
+脚本接受七个命令行参数：
+1. threshold: 预测阈值 (float)
+2. sample_rate: 采样率 (float)
+3. qnoncoll_multiplier: 用于计算非碰撞队列长度的乘数 (int)
+4. data_folder: 数据文件夹路径
+5. basename: 数据文件基础名称（如 iiwa_7）
+6. num_benchmarks: 基准测试数量
+7. robot_name: 机器人名称
+
+使用示例:
+    python prediction_simulation_nDOF_double_buffer.py 0.5 0.1 8 ../../trace_files/scene_benchmarks/bit_collision_data iiwa_7 10 iiwa link
+"""
+
+import sys
+import os
+import numpy as np
+from tqdm import tqdm
+
+# 添加上级目录到path以导入simulation_utils
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
+import simulation_utils as su
+import csv
+
+# 添加 trace_generation 目录到 Python 路径
+from trace_generation.config.ana_parameters import get_robot_params
+
+# --- Simulation Settings ---
+binnumber = 16
+intervalsize = 2 / binnumber
+bins = np.zeros(binnumber)
+start = -1
+for i in range(binnumber):
+    bins[i] = start
+    start += intervalsize
+
+# --- Simulation Parameters from Command Line ---
+if len(sys.argv) < 8:
+    print(
+        "Usage: python prediction_simulation_nDOF_double_buffer.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <num_benchmarks> <robot_name> [collision_model_type]"
+    )
+    print(
+        "Example: python prediction_simulation_nDOF_double_buffer.py 0.5 0.1 8 ../trace_files/scene_benchmarks/bit_collision_data iiwa_7 10 iiwa link"
+    )
+    sys.exit(1)
+
+threshold = float(sys.argv[1])
+sample_rate = float(sys.argv[2])
+qnoncoll_multiplier = int(sys.argv[3])
+data_folder = sys.argv[4]
+basename = sys.argv[5]
+num_benchmarks = int(sys.argv[6])
+robot_name = sys.argv[7]
+collision_model_type = sys.argv[8] if len(sys.argv) > 8 else "link"
+
+# 获取机器人参数
+robot_params = get_robot_params(robot_name)
+
+if collision_model_type == "sphere":
+    num_elements = robot_params["sphere_num"]
+    check_cost = robot_params["sphere_cost"]
+    csv_file = "../result_files/sphere_results_double_buffer.csv"
+    print_title = "=== Sphere Collision Detection - Double Buffer Architecture ==="
+else:
+    num_elements = robot_params["obb_num"]
+    check_cost = robot_params["obb_cost"]
+    csv_file = "../result_files/obb_results_double_buffer.csv"
+    print_title = "=== OBB Collision Detection - Double Buffer Architecture ==="
+
+qnoncoll_len = num_elements * qnoncoll_multiplier
+
+print(print_title)
+print(f"Threshold: {threshold}")
+print(f"Sample Rate: {sample_rate}")
+print(f"Queue Length Multiplier: {qnoncoll_multiplier}")
+print(f"Non-collision Queue Length: {qnoncoll_len}")
+print(f"Data Folder: {data_folder}")
+print(f"Number of Benchmarks: {num_benchmarks}")
+print(f"Robot: {robot_name}")
+print(f"Collision Model: {collision_model_type}")
+print("Architecture: Double Buffer (Bank A + Bank B)")
+print("=" * 50)
+
+# --- Benchmark Range ---
+benchrange = range(1, num_benchmarks + 1)
+
+# --- Statistics ---
+total_checks = 0
+total_oracle_queries = 0
+total_prediction_queries = 0
+total_cycles = 0
+total_oracle_cycles = 0
+total_bank_swaps = 0
+total_cdu_idle_cycles = 0
+
+# --- Main Simulation Loop ---
+for benchid in tqdm(benchrange, desc="Processing benchmarks"):
+    bench_prediction = 0
+    bench_oracle = 0
+    bench_cycles = 0
+    bench_oracle_cycles = 0
+    colldict = {}
+
+    # 加载数据
+    edge_link_data, edge_link_coll_data = su.load_data(
+        basename, benchid, data_folder, collision_model_type=collision_model_type
+    )
+
+    if edge_link_data is None or edge_link_coll_data is None:
+        continue
+
+    # 累计实际查询总数（理想的顺序Oracle）
+    for edge_coll in edge_link_coll_data:
+        for pose_coll in edge_coll:
+            try:
+                first_collision_index = pose_coll.index(0)
+                total_checks += first_collision_index + 1
+            except ValueError:
+                total_checks += len(pose_coll)
+
+    # 计算 Oracle 理论周期数
+    bench_oracle_cycles = su.calculate_oracle_cycles_for_edges(
+        edge_link_coll_data, num_oocds=7, cycle_check=check_cost
+    )
+    total_oracle_cycles += bench_oracle_cycles
+
+    # 逐边计算 Oracle 查询数
+    for edge, edge_coll in zip(edge_link_data, edge_link_coll_data):
+        if not edge_coll:
+            continue
+
+        coll_found_oracle = any(
+            link_coll == 0 for pose_coll in edge_coll for link_coll in pose_coll
+        )
+        if coll_found_oracle:
+            bench_oracle += 1
+        else:
+            bench_oracle += num_elements * len(edge_coll)
+
+    # --- Run Double Buffer Simulation ---
+    edge_query_count, colldict, cycle, stats = (
+        su.simulate_parallel_collision_detection_double_buffer(
+            edge_link_data,
+            edge_link_coll_data,
+            colldict,
+            threshold,
+            sample_rate,
+            bins,
+            qnoncoll_len=qnoncoll_len,
+            cycle_check=check_cost,
+            num_oocds=7,
+        )
+    )
+
+    bench_prediction += edge_query_count
+    bench_cycles += cycle
+    total_bank_swaps += stats["bank_swap_count"]
+    total_cdu_idle_cycles += stats["cdu_idle_cycles"]
+
+    total_oracle_queries += bench_oracle
+    total_prediction_queries += bench_prediction
+    total_cycles += bench_cycles
+
+    # 每处理10个benchmark打印一次
+    if (benchid) % 10 == 0:
+        print(
+            f"[{benchid}/{num_benchmarks}] Queries: {bench_prediction:.2f}, Oracle: {bench_oracle}, "
+            f"Cycles: {bench_cycles}, Bank Swaps: {stats['bank_swap_count']}"
+        )
+
+print("\n" + "=" * 50)
+print("Final Statistics:")
+print(f"  Total Actual Checks: {total_checks}")
+print(f"  Total Prediction Queries: {total_prediction_queries:.2f}")
+print(f"  Total Oracle Queries: {total_oracle_queries}")
+print(
+    f"  Query Reduction Rate: {(1 - total_prediction_queries / total_checks) * 100:.2f}%"
+)
+print(f"\n  Total Cycles (Prediction): {total_cycles}")
+print(f"  Total Cycles (Oracle): {total_oracle_cycles}")
+print(f"  Cycle Efficiency: {(total_oracle_cycles / total_cycles) * 100:.2f}%")
+print(f"\n  Total Bank Swaps: {total_bank_swaps}")
+print(f"  Total CDU Idle Cycles: {total_cdu_idle_cycles}")
+print(
+    f"  Average CDU Utilization: {(1.0 - total_cdu_idle_cycles / (total_cycles * 7)) * 100:.2f}%"
+)
+print("=" * 50)
+
+# 输出到CSV
+reduction_rate = (
+    (1 - total_prediction_queries / total_checks) * 100 if total_checks > 0 else 0
+)
+cycle_efficiency = (total_oracle_cycles / total_cycles) * 100 if total_cycles > 0 else 0
+cdu_utilization = (
+    (1.0 - total_cdu_idle_cycles / (total_cycles * 7)) * 100 if total_cycles > 0 else 0
+)
+
+with open(csv_file, "a", newline="") as csvfile:
+    writer = csv.writer(csvfile)
+    writer.writerow(
+        [
+            threshold,
+            sample_rate,
+            qnoncoll_multiplier,
+            basename,
+            num_benchmarks,
+            robot_name,
+            total_checks,
+            total_prediction_queries,
+            total_oracle_queries,
+            total_cycles,
+            total_oracle_cycles,
+            total_bank_swaps,
+            reduction_rate,
+            cycle_efficiency,
+            cdu_utilization,
+        ]
+    )

@@ -18,6 +18,24 @@
       ],
     },
     {
+      "name": "调试 prediction_simulation_nDOF_double_buffer.py",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/motion_planning_prediction/strategy_evaluation/prediction_simulation_nDOF_double_buffer.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/motion_planning_prediction/strategy_evaluation",
+      "args": [
+        "0.5",
+        "0.1",
+        "8",
+        "../../trace_files/scene_benchmarks/bit_collision_data",
+        "iiwa_7",
+        "10",
+        "iiwa",
+        "link"
+      ],
+    },
+    {
       "name": "调试 optimize_s_parameters_sphere.py",
       "type": "debugpy",
       "request": "launch",

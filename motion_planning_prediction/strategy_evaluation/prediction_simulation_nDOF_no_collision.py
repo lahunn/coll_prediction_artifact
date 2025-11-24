@@ -107,11 +107,13 @@ for num_oocds in num_oocds_list:
     # --- Global Statistics ---
     fall_prediction = 0
     fall_cycle = 0
+    fall_theoretical_cycles = 0
 
     # --- Main Simulation Loop ---
     for benchid in tqdm(benchrange, desc=f"OOCD={num_oocds} 处理基准测试"):
         all_prediction = 0
         all_cycle = 0
+        all_theoretical_cycles = 0
         colldict = {}
 
         # 加载数据（支持新的3元组格式）
@@ -137,6 +139,11 @@ for num_oocds in num_oocds_list:
             if has_collision:
                 continue  # 跳过有碰撞的边，只处理无碰撞边
 
+            # 计算理论最小周期数
+            all_theoretical_cycles += su.calculate_oracle_cycles(
+                edge_coll, num_oocds=num_oocds, cycle_check=element_cost
+            )
+
             # --- CSP Rearrangement ---
             # 将edge数据重排为适合CSP策略的顺序
             linklist, linklist_coll = su.csp_rearrange(edge, edge_coll, groupsize=4)
@@ -161,6 +168,7 @@ for num_oocds in num_oocds_list:
 
         fall_prediction += all_prediction
         fall_cycle += all_cycle
+        fall_theoretical_cycles += all_theoretical_cycles
 
         # 每处理10个benchmark打印一次
         if (benchid + 1) % 10 == 0:
@@ -172,12 +180,14 @@ for num_oocds in num_oocds_list:
             "num_oocds": num_oocds,
             "fall_prediction": fall_prediction,
             "fall_cycle": fall_cycle,
+            "fall_theoretical_cycles": fall_theoretical_cycles,
         }
     )
 
     print(f"OOCD={num_oocds} 结果:")
     print(f"  预测查询总数: {fall_prediction:.2f}")
     print(f"  预测周期总数 (成本): {fall_cycle}")
+    print(f"  理论最小周期数: {fall_theoretical_cycles}")
 
 print("\n" + "=" * 60)
 print("OOCD数量与总周期数关系分析:")
@@ -227,6 +237,7 @@ with open(csv_file, "a", newline="") as csvfile:
                 "num_oocds",
                 "fall_prediction",
                 "fall_cycle",
+                "fall_theoretical_cycles",
             ]
         )
 
@@ -243,5 +254,6 @@ with open(csv_file, "a", newline="") as csvfile:
                 result["num_oocds"],
                 result["fall_prediction"],
                 result["fall_cycle"],
+                result["fall_theoretical_cycles"],
             ]
         )

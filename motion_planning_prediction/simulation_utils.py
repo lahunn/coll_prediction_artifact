@@ -1056,7 +1056,7 @@ def simulate_parallel_collision_detection_dedicated(
 ):
     """
     模拟并行的碰撞检测过程，支持专用CDU策略。
-    
+
     参数:
         num_dedicated_oocds: 专门用于QCOLL任务的CDU数量。
                              这些CDU优先处理QCOLL，除非QNONCOLL已满。
@@ -1098,7 +1098,7 @@ def simulate_parallel_collision_detection_dedicated(
             if oocd.free_cycle <= cycle and not dequeued_this_cycle:
                 is_dedicated = oocd_id < num_dedicated_oocds
                 task_assigned = False
-                
+
                 if is_dedicated:
                     # 专用CDU策略:
                     # 1. 如果QNONCOLL已满，优先处理QNONCOLL以解除阻塞
@@ -1138,7 +1138,7 @@ def simulate_parallel_collision_detection_dedicated(
                 else:
                     # 共享CDU策略 (无优先级/混合使用):
                     # 只要有任务就处理，不区分优先级
-                    
+
                     # 尝试QCOLL
                     if len(qcoll) > 0 and first_two_checked < cycle:
                         first_two_running += 1
@@ -1162,7 +1162,7 @@ def simulate_parallel_collision_detection_dedicated(
                         )
                         qnoncoll.popleft()
                         task_assigned = True
-                
+
                 if task_assigned:
                     dequeued_this_cycle = True
                 else:
@@ -1216,3 +1216,276 @@ def simulate_parallel_collision_detection_dedicated(
 
     # 返回总查询数、更新后的碰撞历史表和是否找到碰撞的标志
     return query_count, colldict, coll_found, cycle
+
+
+def calculate_oracle_cycles(edge_coll_data, num_oocds, cycle_check):
+    """
+    根据num_oocds,计算单个edge的理论最小周期数消耗.
+
+    如果edge 会发生碰撞,那么edge消耗的理论最小周期数消耗是单个cycle_check
+    如果edge不会发生碰撞,那么edge消耗的理论最小周期数就是 ceil(edge中总的碰撞检查数/num_oocds) * cycle_check
+    """
+    has_collision = False
+    total_checks = 0
+
+    for pose_coll in edge_coll_data:
+        # 检查当前pose是否有碰撞 (0表示碰撞)
+        if any(c == 0 for c in pose_coll):
+            has_collision = True
+            break
+        total_checks += len(pose_coll)
+
+    if has_collision:
+        return cycle_check
+    else:
+        # 使用向上取整计算批次: (total + num - 1) // num
+        num_batches = (total_checks + num_oocds - 1) // num_oocds
+        return num_batches * cycle_check
+
+
+def calculate_oracle_cycles_for_edges(edges_coll_data, num_oocds, cycle_check):
+    """
+    统计edge数组的理论最小周期数消耗总和。
+
+    Args:
+        edges_coll_data: 边碰撞数据列表 [edge][pose][element]
+        num_oocds: OOCD/CDU数量
+        cycle_check: 单个检查周期时间
+
+    Returns:
+        int: 所有边的理论最小周期数消耗总和
+    """
+    total_theoretical_cycles = 0
+
+    for edge_coll in edges_coll_data:
+        edge_cycles = calculate_oracle_cycles(edge_coll, num_oocds, cycle_check)
+        total_theoretical_cycles += edge_cycles
+
+    return total_theoretical_cycles
+
+
+def simulate_parallel_collision_detection_double_buffer(
+    edges_data,
+    edges_coll,
+    colldict,
+    threshold,
+    sample_rate,
+    bins,
+    qnoncoll_len=DEFAULT_QNONCOLL_LEN,
+    qcoll_len=DEFAULT_QCOLL_LEN,
+    cycle_check=DEFAULT_CYCLE_CHECK,
+    num_oocds=NUM_OOCDS,
+):
+    """
+    双缓冲架构的并行碰撞检测仿真。
+
+    核心机制：
+    - 两组队列 (Bank A 和 Bank B)，分别处理不同的 edge
+    - 当一个 edge 处理完成（碰撞或全部完成）时，CDU 切换到另一组队列
+    - 两个预测器同时工作，为当前 edge 和下一 edge 生成任务
+
+    Args:
+        edges_data: 边数据列表 [edge][pose][element]
+        edges_coll: 边碰撞标志 [edge][pose][element]
+        其他参数同基础仿真函数
+
+    Returns:
+        query_count: 总查询数
+        colldict: 更新后的碰撞历史表
+        total_cycles: 总周期数
+        stats: 统计信息字典
+    """
+    # 初始化 CDU 阵列
+    oocds = [
+        OOCDState(hash_key=0, result=0, busy=0, free_cycle=0) for _ in range(num_oocds)
+    ]
+
+    # Bank A 队列
+    qcoll_a = deque(maxlen=qcoll_len)
+    qnoncoll_a = deque(maxlen=qnoncoll_len)
+    linklist_a = []
+    linklist_coll_a = []
+
+    # Bank B 队列
+    qcoll_b = deque(maxlen=qcoll_len)
+    qnoncoll_b = deque(maxlen=qnoncoll_len)
+    linklist_b = []
+    linklist_coll_b = []
+
+    # 状态变量
+    active_bank_is_a = True  # True = Bank A 供给 CDU, False = Bank B
+    current_edge_idx = 0
+    cycle = 0
+    total_query_count = 0.0
+    bank_swap_count = 0
+    cdu_idle_cycles = 0
+
+    first_two_running = 0
+    first_two_checked = 0
+
+    # 主循环
+    while True:
+        # 选择当前活跃的 Bank
+        if active_bank_is_a:
+            qcoll = qcoll_a
+            qnoncoll = qnoncoll_a
+            linklist = linklist_a
+            linklist_coll = linklist_coll_a
+            # Staging Bank
+            qcoll_staging = qcoll_b
+            qnoncoll_staging = qnoncoll_b
+            linklist_staging = linklist_b
+            linklist_coll_staging = linklist_coll_b
+        else:
+            qcoll = qcoll_b
+            qnoncoll = qnoncoll_b
+            linklist = linklist_b
+            linklist_coll = linklist_coll_b
+            # Staging Bank
+            qcoll_staging = qcoll_a
+            qnoncoll_staging = qnoncoll_a
+            linklist_staging = linklist_a
+            linklist_coll_staging = linklist_coll_a
+
+        # --- 步骤1: 处理 CDU 状态 ---
+        coll_found = 0
+        dequeued_this_cycle = False
+        for oocd_id in range(len(oocds)):
+            oocd = oocds[oocd_id]
+
+            if oocd.busy == 1 and oocd.free_cycle <= cycle:
+                total_query_count += 1
+                if oocd.result == 0:
+                    coll_found = 1
+                colldict = update_collision_dict(
+                    colldict, oocd.hash_key, oocd.result, sample_rate
+                )
+
+            if oocd.free_cycle <= cycle and not dequeued_this_cycle:
+                if len(qcoll) > 0 and first_two_checked < cycle:
+                    first_two_running += 1
+                    if first_two_running == 1:
+                        first_two_checked = cycle + cycle_check
+                    oocds[oocd_id] = OOCDState(
+                        hash_key=qcoll[0][0],
+                        result=qcoll[0][1],
+                        busy=1,
+                        free_cycle=cycle + cycle_check,
+                    )
+                    qcoll.popleft()
+                    dequeued_this_cycle = True
+                elif (
+                    len(qnoncoll) == qnoncoll_len
+                    or (len(linklist) == 0 and len(qnoncoll) > 0)
+                ) and first_two_checked < cycle:
+                    oocds[oocd_id] = OOCDState(
+                        hash_key=qnoncoll[0][0],
+                        result=qnoncoll[0][1],
+                        busy=1,
+                        free_cycle=cycle + cycle_check,
+                    )
+                    qnoncoll.popleft()
+                    dequeued_this_cycle = True
+                else:
+                    oocds[oocd_id] = OOCDState(
+                        hash_key=0, result=0, busy=0, free_cycle=0
+                    )
+
+        # 计算 CDU 空闲数
+        cdu_idle_this_cycle = sum(
+            1 for oocd in oocds if oocd.free_cycle <= cycle and not oocd.busy
+        )
+        cdu_idle_cycles += cdu_idle_this_cycle
+
+        # --- 步骤2: 为 Active Bank 预测并入队 ---
+        if len(linklist) > 0:
+            link, linkcoll = linklist[0], linklist_coll[0]
+            code_quant = np.digitize(link, bins, right=True)
+            quant_bits = (len(bins) - 1).bit_length()
+            keyy = return_keyy(code_quant, quant_bits)
+            is_collision_predicted = predict_collision(colldict, keyy, threshold)
+
+            if is_collision_predicted:
+                if len(qcoll) < qcoll_len:
+                    qcoll.append([keyy, linkcoll])
+                    del linklist[0]
+                    del linklist_coll[0]
+            else:
+                if len(qnoncoll) < qnoncoll_len:
+                    qnoncoll.append([keyy, linkcoll])
+                    del linklist[0]
+                    del linklist_coll[0]
+
+        # --- 步骤2b: 为 Staging Bank 预测并入队 ---
+        if len(linklist_staging) > 0:
+            link_s, linkcoll_s = linklist_staging[0], linklist_coll_staging[0]
+            code_quant_s = np.digitize(link_s, bins, right=True)
+            quant_bits_s = (len(bins) - 1).bit_length()
+            keyy_s = return_keyy(code_quant_s, quant_bits_s)
+            is_collision_predicted_s = predict_collision(colldict, keyy_s, threshold)
+
+            if is_collision_predicted_s:
+                if len(qcoll_staging) < qcoll_len:
+                    qcoll_staging.append([keyy_s, linkcoll_s])
+                    del linklist_staging[0]
+                    del linklist_coll_staging[0]
+            else:
+                if len(qnoncoll_staging) < qnoncoll_len:
+                    qnoncoll_staging.append([keyy_s, linkcoll_s])
+                    del linklist_staging[0]
+                    del linklist_coll_staging[0]
+
+        # --- 步骤3: 检查当前 edge 是否完成 ---
+        everything_free = (
+            len(linklist) == 0
+            and not any(oocd.free_cycle > cycle for oocd in oocds)
+            and len(qnoncoll) == 0
+            and len(qcoll) == 0
+        )
+
+        # 当前 edge 完成（碰撞或全部完成）
+        if coll_found or everything_free:
+            # 加载下一个 edge 到当前 Bank
+            if current_edge_idx < len(edges_data):
+                edge_flat, edge_coll_flat = csp_rearrange(
+                    edges_data[current_edge_idx],
+                    edges_coll[current_edge_idx],
+                    groupsize=8,
+                )
+                if active_bank_is_a:
+                    linklist_a.extend(edge_flat)
+                    linklist_coll_a.extend(edge_coll_flat)
+                else:
+                    linklist_b.extend(edge_flat)
+                    linklist_coll_b.extend(edge_coll_flat)
+                current_edge_idx += 1
+            else:
+                break
+            # 切换 Bank
+            if everything_free and (
+                len(qcoll_staging) > 0
+                or len(qnoncoll_staging) > 0
+                or len(linklist_staging) > 0
+            ):
+                active_bank_is_a = not active_bank_is_a
+                bank_swap_count += 1
+                first_two_running = 0
+                first_two_checked = 0
+
+        cycle += 1
+
+    # 计算未完成任务
+    for oocd in oocds:
+        if oocd.free_cycle > cycle:
+            total_query_count += (cycle_check - oocd.free_cycle + cycle) / cycle_check
+
+    stats = {
+        "total_edges": len(edges_data),
+        "bank_swap_count": bank_swap_count,
+        "cdu_idle_cycles": cdu_idle_cycles,
+        "cdu_utilization": 1.0 - (cdu_idle_cycles / (cycle * num_oocds))
+        if cycle > 0
+        else 0.0,
+    }
+
+    return total_query_count, colldict, cycle, stats
