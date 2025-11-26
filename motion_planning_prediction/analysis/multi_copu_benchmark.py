@@ -16,7 +16,6 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from multi_copu_simulation import MultiCOPU_Scheduler
-import simulation_utils as su
 
 
 # ======================== Utility Functions ========================
@@ -76,6 +75,42 @@ def partition_data_for_copus(data, flags, cycles, num_copus):
         cycles_list.append(cycles[start_idx:end_idx])
 
     return data_list, flags_list, cycles_list
+
+
+def analyze_multi_copu_performance(results):
+    """
+    分析多COPU系统的性能指标
+    """
+    cht_stats = results["cht_stats"]
+    copu_stats = results["copus"]
+
+    # KPI 1: 系统吞吐量
+    total_queries = sum(c["total_queries"] for c in copu_stats)
+    system_throughput = total_queries / max(1, results["total_cycles"])
+
+    # KPI 2: COPU平均利用率
+    avg_utilization = sum(c["oocd_utilization"] for c in copu_stats) / len(copu_stats)
+
+    # KPI 3: CHT冲突率
+    cht_conflict_rate = cht_stats["conflict_rate"]
+
+    # KPI 4: 负载平衡
+    query_counts = [c["total_queries"] for c in copu_stats]
+    if len(query_counts) > 1:
+        load_balance = np.std(query_counts) / (np.mean(query_counts) + 1e-6)
+    else:
+        load_balance = 0.0
+
+    return {
+        "system_throughput": system_throughput,
+        "avg_copu_utilization": avg_utilization,
+        "cht_conflict_rate": cht_conflict_rate,
+        "load_balance_variance": load_balance,
+        "total_cycles": results["total_cycles"],
+        "total_queries": total_queries,
+        "num_copus": len(copu_stats),
+        "per_copu_queries": query_counts,
+    }
 
 
 # ======================== Benchmark 1: Data Load Verification ========================
@@ -229,7 +264,7 @@ def benchmark_single_vs_multi_copu():
         sim_time = time.time() - start
 
         # 分析性能
-        perf = su.analyze_multi_copu_performance(result)
+        perf = analyze_multi_copu_performance(result)
 
         results[num_copus] = {
             "sim_time": sim_time,
@@ -302,7 +337,7 @@ def benchmark_load_balance():
     print(f"  标准差: {np.std(query_counts):.2f}")
     print(f"  负载均衡系数: {np.std(query_counts) / np.mean(query_counts):.4f}")
 
-    perf = su.analyze_multi_copu_performance(result)
+    perf = analyze_multi_copu_performance(result)
     print(f"  性能指标负载均衡: {perf['load_balance_variance']:.4f}")
     print("  ✓ 验证通过")
 
@@ -407,7 +442,7 @@ def benchmark_no_collision_scenario():
             )
 
             # 分析性能
-            perf = su.analyze_multi_copu_performance(result)
+            perf = analyze_multi_copu_performance(result)
 
             # 收集该edge的结果
             edge_results.append(

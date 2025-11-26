@@ -48,6 +48,10 @@ fall_oracle = 0
 total_checks = 0
 fall_cycle = 0
 theoretical_min_cycles = 0
+total_pred_coll_cycles = 0
+total_pred_noncoll_cycles = 0
+total_oracle_coll_cycles = 0
+total_oracle_noncoll_cycles = 0
 
 # --- Simulation Parameters from Command Line ---
 if len(sys.argv) < 8:
@@ -145,12 +149,19 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
             # 如果没有碰撞，需要检查所有姿态的所有link
             all_oracle += num_elements * len(edge_coll)
 
+        # 计算oracle周期数
+        oracle_edge_cycles = su.calculate_oracle_cycles(edge_coll, num_oocds, check_cost)
+        if coll_found_oracle:
+            total_oracle_coll_cycles += oracle_edge_cycles
+        else:
+            total_oracle_noncoll_cycles += oracle_edge_cycles
+
         # --- CSP Rearrangement ---
         # 将edge数据重排为适合CSP策略的顺序
         linklist, linklist_coll = su.csp_rearrange(edge, edge_coll, groupsize=4)
 
         # --- Run Centralized Simulation ---
-        edge_query_count, colldict, _, cycle = su.simulate_parallel_collision_detection(
+        edge_query_count, colldict, coll_found, cycle = su.simulate_parallel_collision_detection(
             linklist,
             linklist_coll,
             colldict,
@@ -161,6 +172,11 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
             cycle_check=check_cost,
             num_oocds=num_oocds,
         )
+
+        if coll_found:
+            total_pred_coll_cycles += cycle
+        else:
+            total_pred_noncoll_cycles += cycle
 
         all_prediction += edge_query_count
         all_cycle += cycle
@@ -183,6 +199,10 @@ print(f"  Oracle查询总数: {fall_oracle}")
 print(f"  预测周期总数 (成本): {fall_cycle}")
 print(f"  理论最小周期数: {theoretical_min_cycles}")
 print(f"  查询减少率: {(1 - fall_prediction / total_checks) * 100:.2f}%")
+print(f"\n  预测碰撞edge周期数: {total_pred_coll_cycles}")
+print(f"  预测非碰撞edge周期数: {total_pred_noncoll_cycles}")
+print(f"  Oracle碰撞edge周期数: {total_oracle_coll_cycles}")
+print(f"  Oracle非碰撞edge周期数: {total_oracle_noncoll_cycles}")
 print("=" * 50)
 
 # 输出到CSV
@@ -203,5 +223,9 @@ with open(csv_file, "a", newline="") as csvfile:
             fall_cycle,
             theoretical_min_cycles,
             reduction_rate,
+            total_pred_coll_cycles,
+            total_pred_noncoll_cycles,
+            total_oracle_coll_cycles,
+            total_oracle_noncoll_cycles,
         ]
     )

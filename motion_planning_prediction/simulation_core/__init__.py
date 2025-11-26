@@ -1,53 +1,52 @@
 """
-Backward compatibility layer for simulation_utils.py
+Simulation Core Package
 
-This module re-exports all functions and classes from the simulation_core package
-to maintain backward compatibility with existing code that imports from simulation_utils.
+This package contains the core simulation functionality for collision detection,
+organized into modular components for better maintainability.
 """
 
-# Re-export all symbols from simulation_core submodules
-from simulation_core.constants import (
+from .constants import (
     NUM_OOCDS,
     MAX_COLLISION_COUNT,
     DEFAULT_QNONCOLL_LEN,
     DEFAULT_QCOLL_LEN,
     DEFAULT_CYCLE_CHECK,
 )
-from simulation_core.data_structures import (
+from .data_structures import (
     OOCDState,
     OOCDStatePreemptive,
     Prediction,
 )
-from simulation_core.hash_utils import (
+from .hash_utils import (
     calculate_bins,
     return_keyy,
     compute_hash_keyy,
 )
-from simulation_core.collision_prediction import (
+from .collision_prediction import (
     update_collision_dict,
     predict_collision,
     calculate_accuracy,
     enqueue_predictions,
 )
-from simulation_core.data_loader import (
+from .data_loader import (
     load_motion_trace_data,
     load_data,
     load_data_with_cycles,
 )
-from simulation_core.data_preprocessing import (
+from .data_preprocessing import (
     csp_rearrange,
     csp_rearrange_with_cycles,
     generate_recursive_reorder,
     recursive_binary_reorder,
     allocate_edge_data_to_copus,
 )
-from simulation_core.oocd_processor import (
+from .oocd_processor import (
     process_oocds,
     process_oocd_states_preemptive,
     handle_preemption,
     process_oocd_states_dedicated,
 )
-from simulation_core.simulators import (
+from .simulators import (
     simulate_parallel_collision_detection,
     simulate_parallel_collision_detection_real_cycles,
     simulate_parallel_collision_detection_with_tracking,
@@ -55,7 +54,7 @@ from simulation_core.simulators import (
     simulate_parallel_collision_detection_dedicated,
     simulate_parallel_collision_detection_double_buffer,
 )
-from simulation_core.oracle_utils import (
+from .oracle_utils import (
     calculate_oracle_cycles,
     calculate_oracle_cycles_for_edges,
 )
@@ -67,34 +66,41 @@ __all__ = [
     'DEFAULT_QNONCOLL_LEN',
     'DEFAULT_QCOLL_LEN',
     'DEFAULT_CYCLE_CHECK',
+    
     # Data Structures
     'OOCDState',
     'OOCDStatePreemptive',
     'Prediction',
+    
     # Hash Utils
     'calculate_bins',
     'return_keyy',
     'compute_hash_keyy',
+    
     # Collision Prediction
     'update_collision_dict',
     'predict_collision',
     'calculate_accuracy',
     'enqueue_predictions',
+    
     # Data Loader
     'load_motion_trace_data',
     'load_data',
     'load_data_with_cycles',
+    
     # Data Preprocessing
     'csp_rearrange',
     'csp_rearrange_with_cycles',
     'generate_recursive_reorder',
     'recursive_binary_reorder',
     'allocate_edge_data_to_copus',
+    
     # OOCD Processor
     'process_oocds',
     'process_oocd_states_preemptive',
     'handle_preemption',
     'process_oocd_states_dedicated',
+    
     # Simulators
     'simulate_parallel_collision_detection',
     'simulate_parallel_collision_detection_real_cycles',
@@ -102,6 +108,7 @@ __all__ = [
     'simulate_parallel_collision_detection_preemptive',
     'simulate_parallel_collision_detection_dedicated',
     'simulate_parallel_collision_detection_double_buffer',
+    
     # Oracle Utils
     'calculate_oracle_cycles',
     'calculate_oracle_cycles_for_edges',

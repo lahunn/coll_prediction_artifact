@@ -1,0 +1,9 @@
+"""
+Constants for collision detection simulation.
+"""
+
+NUM_OOCDS = 7
+MAX_COLLISION_COUNT = 15
+DEFAULT_QNONCOLL_LEN = 56
+DEFAULT_QCOLL_LEN = 8
+DEFAULT_CYCLE_CHECK = 40
