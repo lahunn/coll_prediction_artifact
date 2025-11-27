@@ -23,18 +23,18 @@ python simple_obb_visualization.py ./robots/panda/panda.urdf --links panda_link1
 """
 
 import time
-import sys
 import argparse
 from pathlib import Path
 import numpy as np
 import pybullet as p
 import pybullet_data
 
-# 添加脚本目录到路径
-sys.path.append(str(Path(__file__).parent))
 
-from obb_calculator import calculate_link_obbs, check_dependencies
-from obb_forward_kinematics import OBBForwardKinematics
+from trace_generation.core.robot.obb_calculator import (
+    calculate_link_obbs,
+    check_dependencies,
+)
+from trace_generation.core.robot.obb_forward_kinematics import OBBForwardKinematics
 
 # 检查依赖库状态
 HAS_OBB_LIBS, missing_libs = check_dependencies()
