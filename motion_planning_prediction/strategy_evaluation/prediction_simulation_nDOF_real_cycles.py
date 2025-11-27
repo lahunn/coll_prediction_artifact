@@ -26,13 +26,8 @@ import csv
 from trace_generation.config.ana_parameters import get_robot_params
 
 # --- Simulation Settings ---
-binnumber = 16
-intervalsize = 2 / binnumber
-bins = np.zeros(binnumber)
-start = -1
-for i in range(binnumber):
-    bins[i] = start
-    start += intervalsize
+quant_bits = 4  # 4 bits per dimension (16 bins)
+bins = su.calculate_bins_from_workspace("iiwa", quant_bits)
 
 # --- Global Statistics ---
 fall_prediction = 0

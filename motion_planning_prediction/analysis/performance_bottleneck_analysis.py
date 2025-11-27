@@ -10,6 +10,7 @@ import os
 import numpy as np
 from tqdm import tqdm
 import csv
+from collections import deque
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
 import simulation_utils as su
@@ -18,14 +19,8 @@ import simulation_utils as su
 from trace_generation.config.ana_parameters import get_robot_params
 
 # --- Simulation Settings ---
-QUANT_BITS = 4
-binnumber = 2**QUANT_BITS
-intervalsize = 2 / binnumber
-bins = np.zeros(binnumber)
-start = -1
-for i in range(binnumber):
-    bins[i] = start
-    start += intervalsize
+quant_bits = 4  # 4 bits per dimension (16 bins)
+bins = su.calculate_bins_from_workspace("iiwa", quant_bits)
 
 # --- Simulation Parameters from Command Line ---
 if len(sys.argv) < 8:
@@ -142,10 +137,8 @@ def analyze_simulation_bottlenecks(
     ]
 
     # 使用deque替代list，提高队列操作效率
-    qcoll = su.deque(maxlen=8)  # 预测碰撞任务队列 [keyy, linkcoll, cycle]
-    qnoncoll = su.deque(
-        maxlen=qnoncoll_len
-    )  # 预测无碰撞任务队列 [keyy, linkcoll, cycle]
+    qcoll = deque(maxlen=8)  # 预测碰撞任务队列 [keyy, linkcoll, cycle]
+    qnoncoll = deque(maxlen=qnoncoll_len)  # 预测无碰撞任务队列 [keyy, linkcoll, cycle]
 
     cycle = 0  # 仿真周期计数器
     first_two_running = 0  # 当前正在运行的前两个任务计数
@@ -263,7 +256,7 @@ def analyze_simulation_bottlenecks(
 
             # 将配置数据"量化"以生成用于查询历史表的键 (key)
             code_quant = np.digitize(link, bins, right=True)
-            keyy = su.return_keyy(code_quant, quant_bits=QUANT_BITS)
+            keyy = su.return_keyy(code_quant, quant_bits=quant_bits)
 
             # 使用历史表进行碰撞预测
             is_collision_predicted = su.predict_collision(colldict, keyy, threshold)

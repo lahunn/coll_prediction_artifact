@@ -22,14 +22,7 @@ import csv
 from trace_generation.config.ana_parameters import get_robot_params
 
 # --- Simulation Settings ---
-binnumber = 16
-intervalsize = 2 / binnumber
-bins = np.zeros(binnumber)
-start = -1
-for i in range(binnumber):
-    bins[i] = start
-    start += intervalsize
-
+quant_bits = 4  # 2^4 = 16 bins
 # --- Global Statistics ---
 fall_prediction = 0
 fall_oracle = 0
@@ -64,6 +57,9 @@ collision_model_type = sys.argv[8] if len(sys.argv) > 8 else "link"
 
 # 获取机器人参数
 robot_params = get_robot_params(robot_name)
+
+# 使用workspace信息计算bins
+bins = su.calculate_bins_from_workspace(robot_name, quant_bits)
 
 if collision_model_type == "sphere":
     num_elements = robot_params["sphere_num"]

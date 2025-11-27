@@ -1,3 +1,5 @@
+from typing import Union
+import numpy as np
 from trace_generation.utils.problem import ProblemManager
 from trace_generation.core.scene.obstacle_manager import ObstacleManager
 from trace_generation.core.robot.environment import RobotEnv
@@ -17,6 +19,10 @@ class ModularEnv:
     - robot_env: 机器人环境
     - collision_env: 碰撞检测环境（支持Link和Sphere模型）
     """
+
+    # 类型注解：支持 tuple 和 np.ndarray
+    init_state: Union[tuple, np.ndarray]
+    goal_state: Union[tuple, np.ndarray]
 
     def __init__(
         self,

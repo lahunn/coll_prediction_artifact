@@ -44,13 +44,8 @@ import csv
 from trace_generation.config.ana_parameters import get_robot_params
 
 # --- Simulation Settings ---
-binnumber = 16
-intervalsize = 2 / binnumber
-bins = np.zeros(binnumber)
-start = -1
-for i in range(binnumber):
-    bins[i] = start
-    start += intervalsize
+quant_bits = 4  # 4 bits per dimension (16 bins)
+bins = su.calculate_bins_from_workspace("iiwa", quant_bits)
 
 # --- Simulation Parameters from Command Line ---
 if len(sys.argv) < 9:
@@ -151,6 +146,9 @@ all_qnoncoll_lengths = []
 total_coll_edges = 0
 total_noncoll_edges = 0
 
+# Track queries for collision and non-collision edges
+total_noncoll_edge_queries = 0
+
 # --- Main Simulation Loop ---
 for benchid in tqdm(benchrange, desc="Processing benchmarks"):
     bench_prediction = 0
@@ -228,6 +226,9 @@ for benchid in tqdm(benchrange, desc="Processing benchmarks"):
     total_coll_edge_cycles += stats["total_coll_edge_cycles"]
     total_noncoll_edge_cycles += stats["total_noncoll_edge_cycles"]
 
+    # Track non-collision edge queries
+    total_noncoll_edge_queries += stats.get("total_noncoll_edge_queries", 0)
+
     # Collect lengths for statistics
     all_qcoll_lengths.extend(stats["qcoll_lengths_at_start"])
     all_qnoncoll_lengths.extend(stats["qnoncoll_lengths_at_start"])
@@ -260,6 +261,16 @@ print(f"  Oracle Coll Edge Cycles: {total_oracle_coll_edge_cycles}")
 print(f"  Oracle Non-Coll Edge Cycles: {total_oracle_noncoll_edge_cycles}")
 print(f"\n  Total Collision Edges: {total_coll_edges}")
 print(f"  Total Non-Collision Edges: {total_noncoll_edges}")
+
+# Calculate average checks for collision edges
+total_coll_edge_queries = total_prediction_queries - total_noncoll_edge_queries
+avg_coll_edge_checks = (
+    total_coll_edge_queries / total_coll_edges if total_coll_edges > 0 else 0
+)
+print(f"\n  Total Collision Edge Queries: {total_coll_edge_queries:.2f}")
+print(f"  Total Non-Collision Edge Queries: {total_noncoll_edge_queries:.2f}")
+print(f"  Average Checks per Collision Edge: {avg_coll_edge_checks:.2f}")
+
 print(f"\n  Total CDU Idle Cycles: {total_cdu_idle_cycles}")
 print(
     f"  Average CDU Utilization: {(1.0 - total_cdu_idle_cycles / (total_cycles * 7)) * 100:.2f}%"

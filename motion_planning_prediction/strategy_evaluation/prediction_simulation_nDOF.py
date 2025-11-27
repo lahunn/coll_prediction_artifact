@@ -24,24 +24,21 @@ Link级碰撞检测预测仿真程序（nDOF机器人）
 """
 
 import sys
+import os
 import numpy as np
 from tqdm import tqdm
-import simulation_utils as su
 import csv
+
+# 添加上级目录到path以导入simulation_utils
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
+import simulation_utils as su
 
 # 添加 trace_generation 目录到 Python 路径
 from trace_generation.config.ana_parameters import get_robot_params
 
 # --- Simulation Settings ---
 num_oocds = 7
-binnumber = 16
-intervalsize = 2 / binnumber
-bins = np.zeros(binnumber)
-start = -1
-for i in range(binnumber):
-    bins[i] = start
-    start += intervalsize
-
+quant_bits = 4
 # --- Global Statistics ---
 fall_prediction = 0
 fall_oracle = 0
@@ -59,7 +56,7 @@ if len(sys.argv) < 8:
         "Usage: python prediction_simulation_nDOF.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <num_benchmarks> <robot_name> [collision_model_type]"
     )
     print(
-        "Example: python prediction_simulation_nDOF.py 0.5 0.1 8 ../trace_files/scene_benchmarks/bit_collision_data iiwa_7 100 iiwa link"
+        "Example: python prediction_simulation_nDOF.py 0.5 0.1 8 ../../trace_files/scene_benchmarks/bit_collision_data iiwa_7 100 iiwa link"
     )
     sys.exit(1)
 
@@ -74,6 +71,9 @@ collision_model_type = sys.argv[8] if len(sys.argv) > 8 else "link"
 
 # 获取机器人参数
 robot_params = get_robot_params(robot_name)
+
+# 使用workspace信息计算bins
+bins = su.calculate_bins_from_workspace(robot_name, quant_bits)
 
 if collision_model_type == "sphere":
     num_elements = robot_params["sphere_num"]
@@ -150,7 +150,9 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
             all_oracle += num_elements * len(edge_coll)
 
         # 计算oracle周期数
-        oracle_edge_cycles = su.calculate_oracle_cycles(edge_coll, num_oocds, check_cost)
+        oracle_edge_cycles = su.calculate_oracle_cycles(
+            edge_coll, num_oocds, check_cost
+        )
         if coll_found_oracle:
             total_oracle_coll_cycles += oracle_edge_cycles
         else:
@@ -161,16 +163,18 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
         linklist, linklist_coll = su.csp_rearrange(edge, edge_coll, groupsize=4)
 
         # --- Run Centralized Simulation ---
-        edge_query_count, colldict, coll_found, cycle = su.simulate_parallel_collision_detection(
-            linklist,
-            linklist_coll,
-            colldict,
-            threshold,
-            sample_rate,
-            bins,
-            qnoncoll_len=qnoncoll_len,
-            cycle_check=check_cost,
-            num_oocds=num_oocds,
+        edge_query_count, colldict, coll_found, cycle = (
+            su.simulate_parallel_collision_detection(
+                linklist,
+                linklist_coll,
+                colldict,
+                threshold,
+                sample_rate,
+                bins,
+                qnoncoll_len=qnoncoll_len,
+                cycle_check=check_cost,
+                num_oocds=num_oocds,
+            )
         )
 
         if coll_found:
@@ -192,17 +196,18 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
         )
 
 print("\n" + "=" * 50)
-print("最终统计:")
-print(f"  实际查询总数: {total_checks}")
-print(f"  预测查询总数: {fall_prediction:.2f}")
-print(f"  Oracle查询总数: {fall_oracle}")
-print(f"  预测周期总数 (成本): {fall_cycle}")
-print(f"  理论最小周期数: {theoretical_min_cycles}")
-print(f"  查询减少率: {(1 - fall_prediction / total_checks) * 100:.2f}%")
-print(f"\n  预测碰撞edge周期数: {total_pred_coll_cycles}")
-print(f"  预测非碰撞edge周期数: {total_pred_noncoll_cycles}")
-print(f"  Oracle碰撞edge周期数: {total_oracle_coll_cycles}")
-print(f"  Oracle非碰撞edge周期数: {total_oracle_noncoll_cycles}")
+print("Final Statistics:")
+print(f"  Total Actual Checks: {total_checks}")
+print(f"  Total Prediction Queries: {fall_prediction:.2f}")
+print(f"  Total Oracle Queries: {fall_oracle}")
+print(f"  Query Reduction Rate: {(1 - fall_prediction / total_checks) * 100:.2f}%")
+print(f"\n  Total Cycles (Prediction): {fall_cycle}")
+print(f"  Total Cycles (Oracle): {theoretical_min_cycles}")
+print(f"  Cycle Efficiency: {(theoretical_min_cycles / fall_cycle) * 100:.2f}%")
+print(f"\n  Prediction Coll Edge Cycles: {total_pred_coll_cycles}")
+print(f"  Prediction Non-Coll Edge Cycles: {total_pred_noncoll_cycles}")
+print(f"  Oracle Coll Edge Cycles: {total_oracle_coll_cycles}")
+print(f"  Oracle Non-Coll Edge Cycles: {total_oracle_noncoll_cycles}")
 print("=" * 50)
 
 # 输出到CSV

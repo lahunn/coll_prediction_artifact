@@ -21,6 +21,7 @@ from .hash_utils import (
     calculate_bins,
     return_keyy,
     compute_hash_keyy,
+    calculate_bins_from_workspace,
 )
 from .collision_prediction import (
     update_collision_dict,
@@ -76,6 +77,7 @@ __all__ = [
     'calculate_bins',
     'return_keyy',
     'compute_hash_keyy',
+    'calculate_bins_from_workspace',
     
     # Collision Prediction
     'update_collision_dict',
