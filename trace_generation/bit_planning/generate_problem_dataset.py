@@ -23,6 +23,8 @@ from trace_generation.core.robot.modular_env import ModularEnv
 from trace_generation.bit_planning.algorithm.bit_star import BITStar
 from trace_generation.utils.planning_utils import uniform_sample, distance
 
+EDGE_COUNT_LIMIT = 100
+
 
 def visualize_problem(modular_env, obstacles, start=None, goal=None, path=None):
     """可视化问题场景（需要GUI模式）"""
@@ -160,23 +162,29 @@ def generate_problem_dataset(
     safe_zone_radius=0.5,
     visualize=False,
     enable_self_collision=False,
-    collision_model_type: str = "sphere",
 ):
     """生成完整的问题数据集"""
     # 不再传递config_output_file,使用内存记录
     print(f"机器人: {robot_name}, 问题数: {num_problems}, 障碍物: {num_obstacles}")
-    print(f"碰撞检测模型: {collision_model_type}")
+    print("碰撞检测模型: link + sphere (双模型生成)")
     print(f"自碰撞检测: {'启用' if enable_self_collision else '禁用'}")
 
-    # 先创建模块化环境 (使用 robot_name 而不是 robot_file)
-    modular_env = ModularEnv(
+    # 创建两个模块化环境：link 和 sphere
+    modular_env_link = ModularEnv(
         robot_name,
         map_file=None,
         GUI=visualize,
-        collision_model_type=collision_model_type,
+        collision_model_type="link",
         enable_self_collision=enable_self_collision,
     )
-    config_dim = modular_env.config_dim
+    modular_env_sphere = ModularEnv(
+        robot_name,
+        map_file=None,
+        GUI=False,  # 第二个环境不需要GUI
+        collision_model_type="sphere",
+        enable_self_collision=enable_self_collision,
+    )
+    config_dim = modular_env_link.config_dim
 
     if output_file is None:
         output_file = f"maze_files/{robot_name}_{config_dim}_{num_problems}.pkl"
@@ -196,12 +204,12 @@ def generate_problem_dataset(
     while success_count < num_problems:
         print(f"\n正在生成问题 {success_count + 1}/{num_problems} ...")
 
-        # 在生成问题前重置数据收集列表
-        modular_env.collision_env.config_list = []
-        modular_env.collision_env.data_manager.reset()
+        # 使用link环境生成问题
+        modular_env_link.collision_env.config_list = []
+        modular_env_link.collision_env.data_manager.reset()
 
         problem = generate_single_problem(
-            modular_env,
+            modular_env_link,
             num_obstacles,
             workspace_range,
             voxel_size_range,
@@ -211,36 +219,73 @@ def generate_problem_dataset(
             visualize=visualize,
         )
 
-        if (
-            problem is not None
-            and modular_env.collision_env.data_manager.edge_fp_call_count > 100
-        ):
-            problems.append(problem)
-            success_count += 1
+        if problem is None:
+            continue
 
-            # 生成文件名
-            pair_filename = f"{base_filename}_{success_count:04d}.pkl"
-            pair_filepath = os.path.join(obstacle_config_dir, pair_filename)
+        obstacles, start, goal, path_link = problem
+        link_edge_count = modular_env_link.collision_env.data_manager.edge_fp_call_count
+        if link_edge_count <= EDGE_COUNT_LIMIT:
+            continue
+        # 使用sphere环境对同一问题重新规划
+        print("  使用sphere模型重新规划...")
+        modular_env_sphere.collision_env.config_list = []
+        modular_env_sphere.collision_env.data_manager.reset()
 
-            coll_filename = (
-                f"{base_filename}_{success_count:04d}_{collision_model_type}.pkl"
-            )
-            coll_filepath = os.path.join(collision_data_dir, coll_filename)
+        # 加载相同的障碍物
+        modular_env_sphere.load_obstacles(obstacles)
 
-            # 保存障碍物-配置对
-            obstacle_config_pair = {
-                "obstacles": problem[0],
-                "configs": modular_env.collision_env.config_list.copy(),
-            }
+        # 执行规划
+        modular_env_sphere.init_state = start
+        modular_env_sphere.goal_state = goal
+        planner_sphere = BITStar(modular_env_sphere)
+        _, edges_sphere, _, cost_sphere, _, _ = planner_sphere.plan(
+            pathLengthLimit=float("inf"), time_budget=max_planning_time
+        )
 
-            with open(pair_filepath, "wb") as f:
-                pickle.dump(obstacle_config_pair, f)
+        path_sphere = None
+        if cost_sphere < float("inf"):
+            path_sphere = reconstruct_path(edges_sphere, start, goal)
+        if path_sphere is None or len(path_sphere) <= 1:
+            continue
+        sphere_edge_count = (
+            modular_env_sphere.collision_env.data_manager.edge_fp_call_count
+        )
 
-            # 保存碰撞检测数据
-            modular_env.collision_env.data_manager.save_collision_data(coll_filepath)
+        # 只有两种模型都成功且edge调用数>EDGE_COUNT_LIMIT 才保存
+        problems.append(problem)
+        success_count += 1
 
-    modular_env.obstacle_manager.cleanup_obstacles()
-    modular_env.close()  # 现在这个方法是空的，但为了接口一致性保留
+        # 生成文件名
+        pair_filename = f"{base_filename}_{success_count:04d}.pkl"
+        pair_filepath = os.path.join(obstacle_config_dir, pair_filename)
+
+        # 保存障碍物-配置对（只保存一次）
+        obstacle_config_pair = {
+            "obstacles": obstacles,
+            "configs": modular_env_link.collision_env.config_list.copy(),
+        }
+
+        with open(pair_filepath, "wb") as f:
+            pickle.dump(obstacle_config_pair, f)
+
+        # 保存link碰撞检测数据
+        coll_filename_link = f"{base_filename}_{success_count:04d}_link.pkl"
+        coll_filepath_link = os.path.join(collision_data_dir, coll_filename_link)
+        modular_env_link.collision_env.data_manager.save_collision_data(
+            coll_filepath_link
+        )
+
+        # 保存sphere碰撞检测数据
+        coll_filename_sphere = f"{base_filename}_{success_count:04d}_sphere.pkl"
+        coll_filepath_sphere = os.path.join(collision_data_dir, coll_filename_sphere)
+        modular_env_sphere.collision_env.data_manager.save_collision_data(
+            coll_filepath_sphere
+        )
+
+        print(f"  ✓ Link edges: {link_edge_count}, Sphere edges: {sphere_edge_count}")
+
+    modular_env_link.close()
+    modular_env_sphere.close()
 
     with open(output_file, "wb") as f:
         pickle.dump(problems, f)
@@ -253,7 +298,8 @@ def generate_problem_dataset(
     print(f"  文件数量: {success_count}")
     print(f"  文件命名格式: {base_filename}_XXXX.pkl (例: {base_filename}_0001.pkl)")
     print(f"碰撞检测数据保存到: {collision_data_dir}/")
-    print(f"  OBB文件格式: {base_filename}_XXXX_obb.pkl")
+    print(f"  Link文件格式: {base_filename}_XXXX_link.pkl")
+    print(f"  Sphere文件格式: {base_filename}_XXXX_sphere.pkl")
     print(
         f"路径长度 - 平均: {np.mean(path_lengths):.2f}, 最小: {np.min(path_lengths)}, 最大: {np.max(path_lengths)}"
     )
@@ -288,13 +334,6 @@ def main():
         action="store_true",
         help="Enable self-collision detection",
     )
-    parser.add_argument(
-        "--collision-model-type",
-        type=str,
-        default="link",
-        choices=["link", "sphere"],
-        help="Collision detection model type: 'link' (PyBullet) or 'sphere' (geometric)",
-    )
 
     args = parser.parse_args()
 
@@ -310,7 +349,6 @@ def main():
         safe_zone_radius=args.safe_zone_radius,
         visualize=args.visualize,
         enable_self_collision=args.enable_self_collision,
-        collision_model_type=args.collision_model_type,
     )
 
     return 0

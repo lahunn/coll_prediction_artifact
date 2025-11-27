@@ -58,9 +58,6 @@ class ModularEnv:
             physics_client=self.robot_env.physics_client
         )
 
-        # 加载障碍物
-        self.collision_env.load_obstacles(self.obstacle_manager.obstacles)
-
         # 为兼容性添加属性
         self.init_state = tuple(self.robot_env.init_state)
         self.goal_state = tuple(self.robot_env.goal_state)
@@ -323,6 +320,15 @@ class ModularEnv:
         self.collision_env.load_obstacles(self.obstacle_manager.obstacles)
 
         return obstacles
+
+    def load_obstacles(self, obstacles):
+        """
+        加载指定的障碍物列表到环境中
+        Args:
+            obstacles: 障碍物列表
+        """
+        self.obstacle_manager.load_obstacles(obstacles)
+        self.collision_env.load_obstacles(self.obstacle_manager.obstacles)
 
     def __str__(self):
         return f"ModularEnv({self.robot_env.__str__()})"

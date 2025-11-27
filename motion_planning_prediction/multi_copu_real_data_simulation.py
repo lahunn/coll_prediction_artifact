@@ -23,11 +23,10 @@
 #      python multi_copu_real_data_simulation.py iiwa_7 46 ../trace_files/scene_benchmarks/bit_collision_data 4 1.0 7 0.1 100000 --real-cycles
 #
 #   2) 范围benchmarks（多Bank CHT，8个bank，关闭冲突检测）
-#      python multi_copu_real_data_simulation.py iiwa_7 1-10 ../trace_files/scene_benchmarks/bit_collision_data 8 1.0 7 1.0 100000 \
-#        --cht-type multi_bank --num-banks 8 --no-cht-conflict
+#      python multi_copu_real_data_simulation.py iiwa_7 1-10 ../trace_files/scene_benchmarks/bit_collision_data 4 1.0 7 1.0 100000 --cht-type multi_bank --num-banks 8 --no-cht-conflict
 #
 #   3) 最简参数（其余使用默认：OOCD=7, sample_rate=1.0, max_cycles=100000）
-#      python multi_copu_real_data_simulation.py iiwa_7 1 ../trace_files/scene_benchmarks/bit_collision_data 8 1.0
+#      python multi_copu_real_data_simulation.py iiwa_7 1 ../trace_files/scene_benchmarks/bit_collision_data 4 1.0
 
 import sys
 import os

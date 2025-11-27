@@ -48,19 +48,18 @@ echo "使用工作空间范围: X=[$X_START, $X_END], Z=[$Z_START, $Z_END]"
 # 生成数据集
 echo ""
 echo "========================================================================"
-echo "生成 $ROBOT_NAME 数据集"
+echo "生成 $ROBOT_NAME 数据集 (双模型: Link + Sphere)"
 echo "========================================================================"
 python generate_problem_dataset.py \
     --robot-name "$ROBOT_NAME" \
     --num-problems 50 \
-    --num-obstacles 6 \
+    --num-obstacles 10 \
     --max-time 5.0 \
     --workspace-min "$X_START" \
     --workspace-max "$X_END" \
     --safe-zone-radius 0.15 \
     --voxel-size-min 0.12 \
-    --voxel-size-max 0.20 \
-    --collision-model-type "sphere"
+    --voxel-size-max 0.20
 
 if [ $? -eq 0 ]; then
     echo "✓ $ROBOT_NAME 数据集生成成功"
@@ -72,5 +71,3 @@ echo ""
 echo "========================================================================"
 echo "数据集生成完成"
 echo "========================================================================"
-echo "生成的文件:"
-ls -lh maze_files/*.pkl 2>/dev/null || echo "没有找到生成的文件"
