@@ -23,6 +23,7 @@ import sys
 # 添加项目根目录到路径
 from trace_generation.core.robot.environment import RobotEnv
 
+
 class WorkspaceAnalyzer:
     """机器人工作空间分析器"""
 
@@ -186,13 +187,13 @@ class WorkspaceAnalyzer:
 
         print("\n=== 工作空间分析结果 ===")
         print(
-            f"X 轴范围: {workspace_bounds['x_start']:.3f} 到 {workspace_bounds['x_end']:.3f}"
+            f"X 轴范围: {workspace_bounds['x_start']:.2f} 到 {workspace_bounds['x_end']:.2f}"
         )
         print(
-            f"Y 轴范围: {workspace_bounds['y_start']:.3f} 到 {workspace_bounds['y_end']:.3f}"
+            f"Y 轴范围: {workspace_bounds['y_start']:.2f} 到 {workspace_bounds['y_end']:.2f}"
         )
         print(
-            f"Z 轴范围: {workspace_bounds['z_start']:.3f} 到 {workspace_bounds['z_end']:.3f}"
+            f"Z 轴范围: {workspace_bounds['z_start']:.2f} 到 {workspace_bounds['z_end']:.2f}"
         )
 
         stats = workspace_bounds["statistics"]
@@ -211,17 +212,37 @@ class WorkspaceAnalyzer:
     def save_workspace_bounds(self, workspace_bounds, output_file):
         """保存工作空间边界到JSON文件"""
         try:
+            # 创建一个四舍五入到2位小数的副本用于保存
+            rounded_bounds = self._round_workspace_bounds(workspace_bounds)
+
             with open(output_file, "w") as f:
-                json.dump(workspace_bounds, f, indent=2)
+                json.dump(rounded_bounds, f, indent=2)
             print(f"\n工作空间边界已保存到: {output_file}")
         except Exception as e:
             print(f"保存文件失败: {e}")
+
+    def _round_workspace_bounds(self, workspace_bounds):
+        """对工作空间边界值进行四舍五入到2位小数"""
+        if workspace_bounds is None:
+            return None
+
+        rounded = {}
+        for key, value in workspace_bounds.items():
+            if isinstance(value, dict):
+                rounded[key] = self._round_workspace_bounds(value)
+            elif isinstance(value, (int, float)):
+                rounded[key] = round(value, 2)
+            else:
+                rounded[key] = value
+
+        return rounded
 
     def disconnect(self):
         """断开PyBullet连接"""
         if self.robot_env is not None:
             self.robot_env.close()
             self.robot_env = None
+
 
 def load_workspace_bounds(json_file):
     """
@@ -239,6 +260,7 @@ def load_workspace_bounds(json_file):
     except Exception as e:
         print(f"加载工作空间文件失败: {e}")
         return None
+
 
 def main():
     """主程序"""
@@ -259,7 +281,7 @@ def main():
             return
 
         # 采样工作空间
-        positions = analyzer.sample_workspace(num_samples=2000)
+        positions = analyzer.sample_workspace(num_samples=10000)
 
         # 分析工作空间边界
         workspace_bounds = analyzer.analyze_workspace_bounds(positions)
@@ -272,6 +294,7 @@ def main():
 
     finally:
         analyzer.disconnect()
+
 
 if __name__ == "__main__":
     main()
