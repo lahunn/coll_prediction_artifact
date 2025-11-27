@@ -62,7 +62,7 @@ def count_bit_differences_from_keys(key1, key2, quant_bits):
             diff_count += 1
             # 计算维度和bit位置
             dim = i // bits_per_dim
-            bit_pos = i % bits_per_dim
+            bit_pos = bits_per_dim - 1 - (i % bits_per_dim)  # bit_pos=0为最低位
             diff_bits.append((dim, bit_pos))
             bit_level_diffs[(dim, bit_pos)] += 1
 
@@ -98,7 +98,7 @@ def analyze_pose_pair_hashes(edge_coords, reorder_sequence, bins, bit_balance_st
                 key = su.compute_hash_keyy(link_coords[0:3], bins)
                 for i in range(len(key)):
                     dim = i // quant_bits
-                    bit_pos = i % quant_bits
+                    bit_pos = quant_bits - 1 - (i % quant_bits)  # bit_pos=0为最低位
                     bit_balance_stats[(dim, bit_pos)][f"count_{key[i]}"] += 1
 
     # 初始化统计数据结构
