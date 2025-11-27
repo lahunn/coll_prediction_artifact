@@ -12,34 +12,34 @@ Hash编码差异分析工具
 
 import sys
 import os
-import numpy as np
 from collections import defaultdict
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
 import simulation_utils as su
-from hash_diversity_analyzer import (
-    analyze_hash_diversity_multi_benchmark,
-    print_multi_benchmark_diversity_report,
-    analyze_pose_hash_bit_differences_multi_benchmark,
-    print_pose_hash_bit_report,
-)
 
 # 全局参数配置
 QUANT_MIN = -1.5  # 量化最小值
 QUANT_MAX = 1.5  # 量化最大值
 QUANT_BITS = 4  # 量化位数
-BINS = su.calculate_bins(QUANT_MIN, QUANT_MAX, QUANT_BITS)
+
+# 从命令行参数中获取机器人名称并计算bins
+def get_global_bins(robot_name):
+    return su.calculate_bins_from_workspace(robot_name, QUANT_BITS)
+
+# 全局变量将在main函数中初始化
+BINS = None
 
 # 全局变量
 collision_model_type = "link"  # 碰撞模型类型: "sphere" 或 "link"
 
 
-def count_bit_differences(code1, code2):
+def count_bit_differences_from_keys(key1, key2, quant_bits):
     """
-    比较两个hash编码的bit位差异
+    比较两个hash key字符串的bit位差异
 
     Args:
-        code1, code2: 两个量化编码数组
+        key1, key2: 两个hash key字符串
+        quant_bits: 每个维度的量化位数
 
     Returns:
         diff_bits: 差异的bit位位置列表 (dim, bit_pos)
@@ -47,42 +47,59 @@ def count_bit_differences(code1, code2):
         diff_dimensions: 差异涉及的维度列表
         bit_level_diffs: 按bit位统计的差异数字典 {(dim, bit_pos): count}
     """
+    if len(key1) != len(key2):
+        raise ValueError("Hash keys must have the same length")
+
     diff_bits = []
     diff_dimensions = []
     diff_count = 0
     bit_level_diffs = defaultdict(int)
 
-    # 按维度比较
-    for dim in range(len(code1)):
-        if code1[dim] != code2[dim]:
-            diff_dimensions.append(dim)
-            # 比较该维度的bit位
-            xor_val = code1[dim] ^ code2[dim]
-            bit_pos = 0
-            while xor_val > 0:
-                if xor_val & 1:
-                    diff_bits.append((dim, bit_pos))
-                    bit_level_diffs[(dim, bit_pos)] += 1
-                    diff_count += 1
-                xor_val >>= 1
-                bit_pos += 1
+    bits_per_dim = quant_bits
+
+    for i in range(len(key1)):
+        if key1[i] != key2[i]:
+            diff_count += 1
+            # 计算维度和bit位置
+            dim = i // bits_per_dim
+            bit_pos = i % bits_per_dim
+            diff_bits.append((dim, bit_pos))
+            bit_level_diffs[(dim, bit_pos)] += 1
+
+    # 找出有差异的维度
+    diff_dimensions = list(set(dim for dim, _ in diff_bits))
 
     return diff_bits, diff_count, diff_dimensions, bit_level_diffs
 
 
-def analyze_pose_pair_hashes(edge_coords, reorder_sequence):
+def analyze_pose_pair_hashes(edge_coords, reorder_sequence, bins, bit_balance_stats=None):
     """
     分析重排后相邻pose对的hash差异
 
     Args:
         edge_coords: edge的坐标数据 List[List[link_coords]]
         reorder_sequence: 重排后的pose索引序列
+        bins: 量化bin边界数组
+        bit_balance_stats: 可选，用于统计所有unit的bit分布 defaultdict
 
     Returns:
         analysis_results: 包含详细分析数据的字典
     """
     num_poses = len(edge_coords)
     num_links_per_pose = len(edge_coords[0]) if num_poses > 0 else 0
+
+    # 计算量化位数
+    quant_bits = (len(bins[0]) - 1).bit_length()
+
+    # 统计所有unit的bit分布
+    if bit_balance_stats is not None:
+        for pose in edge_coords:
+            for link_coords in pose:
+                key = su.compute_hash_keyy(link_coords[0:3], bins)
+                for i in range(len(key)):
+                    dim = i // quant_bits
+                    bit_pos = i % quant_bits
+                    bit_balance_stats[(dim, bit_pos)][f"count_{key[i]}"] += 1
 
     # 初始化统计数据结构
     analysis_results = {
@@ -127,20 +144,20 @@ def analyze_pose_pair_hashes(edge_coords, reorder_sequence):
             link_coords2 = edge_coords[pose_idx2][link_idx]
 
             # 计算hash编码
-            code1 = np.digitize(link_coords1[0:3], BINS, right=True)
-            code2 = np.digitize(link_coords2[0:3], BINS, right=True)
+            key1 = su.compute_hash_keyy(link_coords1[0:3], bins)
+            key2 = su.compute_hash_keyy(link_coords2[0:3], bins)
 
             # 比较差异
-            diff_bits, diff_count, diff_dims, bit_level_diffs = count_bit_differences(
-                code1, code2
+            diff_bits, diff_count, diff_dims, bit_level_diffs = count_bit_differences_from_keys(
+                key1, key2, quant_bits
             )
 
             is_same_hash = diff_count == 0
 
             link_info = {
                 "link_idx": link_idx,
-                "code1": code1.tolist(),
-                "code2": code2.tolist(),
+                "key1": key1,
+                "key2": key2,
                 "is_same_hash": is_same_hash,
                 "diff_bit_count": diff_count,
                 "diff_dimensions": diff_dims,
@@ -277,6 +294,34 @@ def print_bit_statistics(bit_diffs):
             print(f"{dim:6d} {bit_pos:8d} {count:10d}")
 
 
+def print_bit_balance_statistics(bit_balance_stats):
+    """打印Bit位平衡统计"""
+    if not bit_balance_stats:
+        return
+
+    print("\n" + "=" * 70)
+    print("Bit位平衡统计 (按均衡度降序)")
+    print("=" * 70)
+    print(f"{'维度':>6} {'Bit位':>8} {'Count_0':>10} {'Count_1':>10} {'总计':>8} {'均衡度':>10}")
+    print("-" * 60)
+
+    balance_list = []
+    for (dim, bit_pos), counts in bit_balance_stats.items():
+        c0 = counts["count_0"]
+        c1 = counts["count_1"]
+        total = c0 + c1
+        if total > 0:
+            balance = 1 - abs(c0 - c1) / total  # 均衡度：1为完全平衡，0为完全不平衡
+        else:
+            balance = 0
+        balance_list.append((dim, bit_pos, c0, c1, total, balance))
+
+    balance_list.sort(key=lambda x: x[5], reverse=True)  # 按均衡度降序
+
+    for dim, bit_pos, c0, c1, total, balance in balance_list:
+        print(f"{dim:6d} {bit_pos:8d} {c0:10d} {c1:10d} {total:8d} {balance:10.3f}")
+
+
 def print_benchmark_statistics(all_analysis_results):
     """打印按Benchmark统计"""
     print("\n" + "=" * 70)
@@ -314,7 +359,7 @@ def print_benchmark_statistics(all_analysis_results):
         )
 
 
-def process_edge(edge, edge_coll, benchid):
+def process_edge(edge, edge_coll, benchid, bit_balance_stats=None):
     """处理单条边的hash差异分析"""
     if not edge_coll:
         return None
@@ -322,12 +367,12 @@ def process_edge(edge, edge_coll, benchid):
     num_poses = len(edge)
     reorder_sequence = su.generate_recursive_reorder(num_poses, step_size=8)
 
-    analysis_results = analyze_pose_pair_hashes(edge, reorder_sequence)
+    analysis_results = analyze_pose_pair_hashes(edge, reorder_sequence, BINS, bit_balance_stats)
     return {"benchid": benchid, "edge_idx": 0, "results": analysis_results}
 
 
 def process_benchmark(
-    basename, benchid, data_folder, collision_model_type, load_with_cycles
+    basename, benchid, data_folder, collision_model_type, load_with_cycles, bit_balance_stats=None
 ):
     """处理单个benchmark的所有边"""
     # 加载数据
@@ -354,7 +399,7 @@ def process_benchmark(
             continue
 
         reorder_sequence = su.generate_recursive_reorder(len(edge), step_size=8)
-        analysis_results = analyze_pose_pair_hashes(edge, reorder_sequence)
+        analysis_results = analyze_pose_pair_hashes(edge, reorder_sequence, BINS, bit_balance_stats)
         results.append(
             {
                 "benchid": benchid,
@@ -405,11 +450,14 @@ def parse_arguments():
 
 def main():
     """主函数"""
-    global collision_model_type
+    global collision_model_type, BINS
 
     basename, benchid_list, data_folder, robot_name, load_with_cycles = (
         parse_arguments()
     )
+
+    # 初始化全局bins
+    BINS = get_global_bins(robot_name)
 
     print("Hash编码差异分析")
     print(
@@ -421,12 +469,15 @@ def main():
     print(f"加载带cycles数据: {load_with_cycles}")
     print("=" * 70)
 
+    # 初始化bit平衡统计
+    bit_balance_stats = defaultdict(lambda: {"count_0": 0, "count_1": 0})
+
     # 处理所有benchid
     all_analysis_results = []
     for benchid in benchid_list:
         print(f"\n正在处理 Benchmark {benchid}...")
         results = process_benchmark(
-            basename, benchid, data_folder, collision_model_type, load_with_cycles
+            basename, benchid, data_folder, collision_model_type, load_with_cycles, bit_balance_stats
         )
         all_analysis_results.extend(results)
 
@@ -470,15 +521,7 @@ def main():
 
     print_bit_statistics(bit_diffs)
     print_benchmark_statistics(all_analysis_results)
-
-    # Pose级Hash编码Bit位差异分析汇总（多benchmark）
-    print("\n" + "=" * 70)
-    print("Pose级Hash编码Bit位差异综合分析")
-    print("=" * 70)
-    pose_bit_stats = analyze_pose_hash_bit_differences_multi_benchmark(
-        all_analysis_results, BINS
-    )
-    print_pose_hash_bit_report(pose_bit_stats)
+    print_bit_balance_statistics(bit_balance_stats)
 
     # # Hash多样性分析
     # print("\n" + "=" * 70)

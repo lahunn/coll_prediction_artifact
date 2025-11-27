@@ -14,6 +14,7 @@
 """
 
 from collections import deque, namedtuple
+import numpy as np
 import simulation_utils as su
 
 # ======================== Constants ========================
@@ -177,7 +178,7 @@ class MultiBankSRAM_CHT:
         self.enable_conflict_check = enable_conflict_check
         # 默认配置: 使用第0, 1, 2维度的第0位作为Bank选择位
         # 格式: [(dim_index, bit_index), ...]
-        self.bank_config = bank_config if bank_config else [(0, 0), (0, 1), (1, 0)]
+        self.bank_config = bank_config if bank_config else [(0, 0), (1, 0), (2, 0)]
 
         self.memory = {}  # {hash_key: [COLL, NONCOLL]}
         self.current_cycle = 0
@@ -206,7 +207,8 @@ class MultiBankSRAM_CHT:
         for i, (dim, bit) in enumerate(self.bank_config):
             # 计算该维度对应的bit位在二进制字符串中的位置
             # 例如: quant_bits=4时，维度0占bit 0-3，维度1占bit 4-7，维度2占bit 8-11
-            bit_pos = dim * quant_bits + bit
+            # bit=0是最低位，对应位置 dim*quant_bits + (quant_bits-1)
+            bit_pos = dim * quant_bits + (quant_bits - 1 - bit)
             if bit_pos < len(hash_key):
                 # 从hash_key中直接提取该bit位的值
                 bit_val = int(hash_key[bit_pos])
@@ -219,13 +221,10 @@ class MultiBankSRAM_CHT:
         # 获取该Bank当前的待处理请求数
         pending_for_bank = self.bank_pending_counts[bank_id]
 
-        # 单端口SRAM: 每周期处理1个请求
-        # 如果当前有N个请求在排队，新请求需要等待N个周期才能开始处理
-        # 加上1个周期的访问延迟
-
         if self.enable_conflict_check:
-            wait_cycles = pending_for_bank
-            if wait_cycles > 0:
+            # 双端口SRAM: 每周期最多2个并行访问
+            wait_cycles = pending_for_bank // 2
+            if pending_for_bank >= 2:
                 self.bank_conflicts += 1
             return cycle + wait_cycles + ONE_CYCLE_DELAY
         else:
@@ -351,6 +350,7 @@ class MultiBankSRAM_CHT:
             "entries_used": len(self.memory),
             "bank_access_counts": self.bank_access_counts,
             "load_balance_std": load_balance_std,
+            "bank_config": self.bank_config,
         }
 
 
@@ -776,3 +776,49 @@ class MultiCOPU_Scheduler:
         }
 
         return results
+
+
+def analyze_multi_copu_performance(results):
+    """
+    分析多COPU系统的性能指标
+
+    Args:
+        results (dict): MultiCOPU_Scheduler.simulate 返回的结果字典
+
+    Returns:
+        dict: 包含吞吐量、利用率、CHT冲突率、负载均衡等指标
+    """
+    cht_stats = results["cht_stats"]
+    copu_stats = results["copus"]
+
+    # KPI 1: 系统吞吐量
+    total_queries = sum(c["total_queries"] for c in copu_stats)
+    system_throughput = total_queries / max(1, results["total_cycles"])
+
+    # KPI 2: COPU平均利用率
+    avg_utilization = (
+        sum(c["oocd_utilization"] for c in copu_stats) / len(copu_stats)
+        if len(copu_stats) > 0
+        else 0.0
+    )
+
+    # KPI 3: CHT冲突率
+    cht_conflict_rate = cht_stats["conflict_rate"]
+
+    # KPI 4: 负载平衡
+    query_counts = [c["total_queries"] for c in copu_stats]
+    if len(query_counts) > 1:
+        load_balance = np.std(query_counts) / (np.mean(query_counts) + 1e-6)
+    else:
+        load_balance = 0.0
+
+    return {
+        "system_throughput": system_throughput,
+        "avg_copu_utilization": avg_utilization,
+        "cht_conflict_rate": cht_conflict_rate,
+        "load_balance_variance": load_balance,
+        "total_cycles": results["total_cycles"],
+        "total_queries": total_queries,
+        "num_copus": len(copu_stats),
+        "per_copu_queries": query_counts,
+    }

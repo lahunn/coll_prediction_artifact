@@ -8,9 +8,14 @@ Hash编码多样性分析工具
 - 支持单个benchmark和多benchmark的平均统计
 """
 
-import numpy as np
-from collections import defaultdict
 import math
+import sys
+import os
+from collections import defaultdict
+
+# 添加上级目录到path以导入simulation_utils
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
+import simulation_utils as su
 
 def analyze_hash_diversity(edge_coords, bins):
     """
@@ -47,12 +52,11 @@ def analyze_hash_diversity(edge_coords, bins):
             link_coords = edge_coords[pose_idx][link_idx]
 
             # 计算该unit的hash编码
-            code = np.digitize(link_coords[0:3], bins, right=True)
-            code_tuple = tuple(code)
+            hash_key = su.compute_hash_keyy(link_coords[0:3], bins)
 
-            hash_frequency[code_tuple] += 1
-            per_link_stats[link_idx]["hashes"].add(code_tuple)
-            per_link_stats[link_idx]["frequency"][code_tuple] += 1
+            hash_frequency[hash_key] += 1
+            per_link_stats[link_idx]["hashes"].add(hash_key)
+            per_link_stats[link_idx]["frequency"][hash_key] += 1
 
     # 计算统计指标
     unique_hashes = len(hash_frequency)
@@ -310,6 +314,45 @@ def print_multi_benchmark_diversity_report(diversity_report):
         )
 
 
+def count_bit_differences_from_keys(key1, key2, quant_bits):
+    """
+    比较两个hash key字符串的bit位差异
+
+    Args:
+        key1, key2: 两个hash key字符串
+        quant_bits: 每个维度的量化位数
+
+    Returns:
+        diff_bits: 差异的bit位位置列表 (dim, bit_pos)
+        diff_count: 差异的bit总数
+        diff_dimensions: 差异涉及的维度列表
+        bit_level_diffs: 按bit位统计的差异数字典 {(dim, bit_pos): count}
+    """
+    if len(key1) != len(key2):
+        raise ValueError("Hash keys must have the same length")
+
+    diff_bits = []
+    diff_dimensions = []
+    diff_count = 0
+    bit_level_diffs = defaultdict(int)
+
+    bits_per_dim = quant_bits
+
+    for i in range(len(key1)):
+        if key1[i] != key2[i]:
+            diff_count += 1
+            # 计算维度和bit位置
+            dim = i // bits_per_dim
+            bit_pos = i % bits_per_dim
+            diff_bits.append((dim, bit_pos))
+            bit_level_diffs[(dim, bit_pos)] += 1
+
+    # 找出有差异的维度
+    diff_dimensions = list(set(dim for dim, _ in diff_bits))
+
+    return diff_bits, diff_count, diff_dimensions, bit_level_diffs
+
+
 def analyze_pose_hash_bit_differences(pose_coords, bins):
     """
     分析单个pose中各个unit的hash编码bit位差异
@@ -328,10 +371,13 @@ def analyze_pose_hash_bit_differences(pose_coords, bins):
     num_units = len(pose_coords)
     hash_codes = []
     
+    # 计算量化位数
+    quant_bits = (len(bins[0]) - 1).bit_length()
+    
     # 计算所有unit的hash编码
     for link_coords in pose_coords:
-        code = np.digitize(link_coords[0:3], bins, right=True)
-        hash_codes.append(tuple(code))
+        code = su.compute_hash_keyy(link_coords[0:3], bins)
+        hash_codes.append(code)
     
     unique_hashes = len(set(hash_codes))
     
@@ -339,15 +385,14 @@ def analyze_pose_hash_bit_differences(pose_coords, bins):
     bit_differences = defaultdict(int)
     for i in range(num_units):
         for j in range(i + 1, num_units):
-            for dim in range(len(hash_codes[i])):
-                if hash_codes[i][dim] != hash_codes[j][dim]:
-                    xor_val = hash_codes[i][dim] ^ hash_codes[j][dim]
-                    bit_pos = 0
-                    while xor_val > 0:
-                        if xor_val & 1:
-                            bit_differences[(dim, bit_pos)] += 1
-                        xor_val >>= 1
-                        bit_pos += 1
+            # 使用字符串hash key比较bit位差异
+            diff_bits, diff_count, diff_dims, bit_level_diffs = count_bit_differences_from_keys(
+                hash_codes[i], hash_codes[j], quant_bits
+            )
+            
+            # 聚合bit位差异统计
+            for (dim, bit_pos), count in bit_level_diffs.items():
+                bit_differences[(dim, bit_pos)] += count
     
     return {
         "total_units": num_units,
@@ -356,132 +401,3 @@ def analyze_pose_hash_bit_differences(pose_coords, bins):
         "per_unit_codes": hash_codes,
     }
 
-
-def analyze_pose_hash_bit_differences_multi_benchmark(all_analysis_results, bins):
-    """
-    分析多个benchid中所有edge的pose级hash编码bit位差异
-
-    Args:
-        all_analysis_results: 所有benchmark的所有edge分析结果列表
-        bins: 量化bin边界数组
-
-    Returns:
-        pose_bit_stats: 包含所有pose的bit位差异统计字典：
-            - total_benchmarks: 总benchmark数
-            - total_edges: 总edge数
-            - total_poses: 总pose数
-            - total_units: 总unit数
-            - avg_unique_hashes: 平均不同hash编码数
-            - unique_hashes_distribution: 不同hash编码数的分布列表
-            - bit_differences_aggregated: {(dim, bit_pos): count} 聚合的bit位差异
-            - per_benchmark_stats: 按benchmark统计的pose级bit差异
-    """
-    if not all_analysis_results:
-        return None
-
-    # 按benchmark分组
-    benchmark_groups = defaultdict(list)
-    for result in all_analysis_results:
-        benchid = result["benchid"]
-        benchmark_groups[benchid].append(result)
-
-    total_poses = 0
-    total_edges = 0
-    total_units_all = 0
-    bit_differences_aggregated = defaultdict(int)
-    unique_hashes_list = []
-    per_benchmark_stats = {}
-
-    for benchid in sorted(benchmark_groups.keys()):
-        group_results = benchmark_groups[benchid]
-        benchmark_bit_diffs = defaultdict(int)
-        benchmark_poses = 0
-        benchmark_unique_hashes = []
-
-        for result in group_results:
-            edge_coords = result.get("edge_coords")
-            if edge_coords is not None:
-                total_edges += 1
-                num_poses = len(edge_coords)
-                total_poses += num_poses
-                total_units_all += num_poses * len(edge_coords[0]) if num_poses > 0 else 0
-                benchmark_poses += num_poses
-
-                # 分析每个pose
-                for pose_idx, pose_coords in enumerate(edge_coords):
-                    bit_stats = analyze_pose_hash_bit_differences(pose_coords, bins)
-                    benchmark_unique_hashes.append(bit_stats["unique_hashes"])
-                    unique_hashes_list.append(bit_stats["unique_hashes"])
-
-                    # 聚合bit位差异
-                    for (dim, bit_pos), count in bit_stats["bit_differences"].items():
-                        bit_differences_aggregated[(dim, bit_pos)] += count
-                        benchmark_bit_diffs[(dim, bit_pos)] += count
-
-        if benchmark_unique_hashes:
-            per_benchmark_stats[benchid] = {
-                "edge_count": len(group_results),
-                "pose_count": benchmark_poses,
-                "avg_unique_hashes": sum(benchmark_unique_hashes) / len(benchmark_unique_hashes),
-                "bit_differences": dict(benchmark_bit_diffs),
-            }
-
-    return {
-        "total_benchmarks": len(benchmark_groups),
-        "total_edges": total_edges,
-        "total_poses": total_poses,
-        "total_units": total_units_all,
-        "avg_unique_hashes": sum(unique_hashes_list) / len(unique_hashes_list) if unique_hashes_list else 0.0,
-        "unique_hashes_distribution": unique_hashes_list,
-        "bit_differences_aggregated": dict(bit_differences_aggregated),
-        "per_benchmark_stats": per_benchmark_stats,
-    }
-
-
-def print_pose_hash_bit_report(pose_bit_stats):
-    """
-    打印pose级hash编码bit位差异的汇总报告
-
-    Args:
-        pose_bit_stats: 来自 analyze_pose_hash_bit_differences_multi_benchmark 的结果
-    """
-    if pose_bit_stats is None:
-        return
-
-    print("\n" + "=" * 70)
-    print("Pose级Hash编码Bit位差异分析汇总")
-    print("=" * 70)
-
-    print("\n全局统计:")
-    print(f"  总Benchmark数: {pose_bit_stats['total_benchmarks']}")
-    print(f"  总Edge数: {pose_bit_stats['total_edges']}")
-    print(f"  总Pose数: {pose_bit_stats['total_poses']}")
-    print(f"  总Unit数: {pose_bit_stats['total_units']}")
-    print(f"  平均不同Hash编码数: {pose_bit_stats['avg_unique_hashes']:.2f}")
-
-    # 打印bit位差异统计（前20个）
-    bit_diffs = pose_bit_stats["bit_differences_aggregated"]
-    if bit_diffs:
-        print("\nBit位差异统计 (按差异数降序, 前20):")
-        print(f"{'维度':>6} {'Bit位':>8} {'差异对数':>12}")
-        print("-" * 30)
-
-        sorted_bits = sorted(bit_diffs.items(), key=lambda x: x[1], reverse=True)
-        for (dim, bit_pos), count in sorted_bits[:20]:
-            print(f"{dim:6d} {bit_pos:8d} {count:12d}")
-    else:
-        print("\n无bit位差异")
-
-    # 打印按Benchmark统计
-    per_benchmark = pose_bit_stats["per_benchmark_stats"]
-    if per_benchmark:
-        print("\n按Benchmark统计:")
-        print(f"{'Benchmark':>12} {'Edge数':>8} {'Pose数':>8} {'平均Hash数':>15}")
-        print("-" * 50)
-
-        for benchid in sorted(per_benchmark.keys()):
-            stats = per_benchmark[benchid]
-            print(
-                f"{benchid:12d} {stats['edge_count']:8d} "
-                f"{stats['pose_count']:8d} {stats['avg_unique_hashes']:15.2f}"
-            )

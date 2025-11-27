@@ -21,6 +21,7 @@ font = {
 def plot_accuracy_recall_comparison():
     """
     图1: 不同密度场景下OBB和Sphere策略的准确率和召回率对比
+    统一取QuantBits=4(OBB)和CoordBits=4(Sphere)，对不同Threshold和SampleRate计算平均值
     """
     # 读取OBB详细结果
     obb_data = pd.read_csv("../result_files/coord_hashing_cost_results.csv", header=0)
@@ -30,7 +31,7 @@ def plot_accuracy_recall_comparison():
         header=0,
     )
 
-    # 提取每个密度级别的最优结果
+    # 提取每个密度级别的结果
     densities = ["dens3", "dens6", "dens9", "dens12"]
     density_labels = ["Density 3", "Density 6", "Density 9", "Density 12"]
 
@@ -40,17 +41,19 @@ def plot_accuracy_recall_comparison():
     sphere_recall = []
 
     for density in densities:
-        # OBB: 找到该密度下成本最小的配置
-        obb_density = obb_data[obb_data["Density"] == density]
-        best_obb = obb_density.loc[obb_density["PredCost"].idxmin()]
-        obb_precision.append(best_obb["PosePrecision"])
-        obb_recall.append(best_obb["PoseRecall"])
+        # OBB: 固定QuantBits=4，对所有Threshold和SampleRate求平均
+        obb_density = obb_data[
+            (obb_data["Density"] == density) & (obb_data["QuantBits"] == 4)
+        ]
+        obb_precision.append(obb_density["PosePrecision"].mean())
+        obb_recall.append(obb_density["PoseRecall"].mean())
 
-        # Sphere: 找到该密度下成本最小的配置
-        sphere_density = sphere_data[sphere_data["Density"] == density]
-        best_sphere = sphere_density.loc[sphere_density["PredCost"].idxmin()]
-        sphere_precision.append(best_sphere["PosePrecision"])
-        sphere_recall.append(best_sphere["PoseRecall"])
+        # Sphere: 固定CoordBits=4，对所有Threshold和SampleRate求平均
+        sphere_density = sphere_data[
+            (sphere_data["Density"] == density) & (sphere_data["CoordBits"] == 4)
+        ]
+        sphere_precision.append(sphere_density["PosePrecision"].mean())
+        sphere_recall.append(sphere_density["PoseRecall"].mean())
 
     # 创建图表
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7))
@@ -114,8 +117,8 @@ def plot_accuracy_recall_comparison():
             )
 
     plt.tight_layout()
-    plt.savefig("figs/fig_obb_sphere_precision_recall.pdf")
-    print("✅ 图1已保存: figs/fig_obb_sphere_precision_recall.pdf")
+    plt.savefig("figs/fig_obb_sphere_precision_recall.png", dpi=300)
+    print("✅ 图1已保存: figs/fig_obb_sphere_precision_recall.png")
     plt.close()
 
 
@@ -196,8 +199,8 @@ def plot_cost_comparison():
         )
 
     plt.tight_layout()
-    plt.savefig("figs/fig_obb_sphere_cost.pdf")
-    print("✅ 图2已保存: figs/fig_obb_sphere_cost.pdf")
+    plt.savefig("figs/fig_obb_sphere_cost.png", dpi=300)
+    print("✅ 图2已保存: figs/fig_obb_sphere_cost.png")
     plt.close()
 
 
@@ -272,8 +275,8 @@ def plot_threshold_comparison(density="dens6"):
         axes[1].set_ylim([0, 100])
 
         plt.tight_layout()
-        plt.savefig(f"figs/fig_threshold_comparison_{density}_obb_q{qb}.pdf")
-        print(f"✅ 图3已保存: figs/fig_threshold_comparison_{density}_obb_q{qb}.pdf")
+        plt.savefig(f"figs/fig_threshold_comparison_{density}_obb_q{qb}.png", dpi=300)
+        print(f"✅ 图3已保存: figs/fig_threshold_comparison_{density}_obb_q{qb}.png")
         plt.close()
 
     # 为每个CoordBits生成Sphere图表
@@ -331,8 +334,10 @@ def plot_threshold_comparison(density="dens6"):
         axes[1].set_ylim([0, 100])
 
         plt.tight_layout()
-        plt.savefig(f"figs/fig_threshold_comparison_{density}_sphere_c{cb}.pdf")
-        print(f"✅ 图3已保存: figs/fig_threshold_comparison_{density}_sphere_c{cb}.pdf")
+        plt.savefig(
+            f"figs/fig_threshold_comparison_{density}_sphere_c{cb}.png", dpi=300
+        )
+        print(f"✅ 图3已保存: figs/fig_threshold_comparison_{density}_sphere_c{cb}.png")
         plt.close()
 
 
@@ -475,8 +480,8 @@ def plot_combined_threshold_comparison():
     fig.text(0.5, 0.01, "Threshold Value (S)", ha="center", fontsize=28)
 
     plt.tight_layout(rect=(0, 0.02, 1, 1))
-    plt.savefig("figs/fig_threshold_comparison_combined.pdf")
-    print("✅ 图3综合版已保存: figs/fig_threshold_comparison_combined.pdf")
+    plt.savefig("figs/fig_threshold_comparison_combined.png", dpi=300)
+    print("✅ 图3综合版已保存: figs/fig_threshold_comparison_combined.png")
     plt.close()
 
 
@@ -591,8 +596,8 @@ def plot_pr_curves():
         ax.plot([0, 100], [0, 100], "k--", alpha=0.2, linewidth=1)
 
     plt.tight_layout()
-    plt.savefig("figs/fig_obb_sphere_pr_curves.pdf")
-    print("✅ 图4已保存: figs/fig_obb_sphere_pr_curves.pdf")
+    plt.savefig("figs/fig_obb_sphere_pr_curves.png", dpi=300)
+    print("✅ 图4已保存: figs/fig_obb_sphere_pr_curves.png")
     plt.close()
 
 
@@ -753,8 +758,8 @@ def plot_cost_vs_threshold():
         ax.legend(fontsize=20, loc="best")
 
     plt.tight_layout()
-    plt.savefig("figs/fig_cost_vs_threshold.pdf")
-    print("✅ 图5已保存: figs/fig_cost_vs_threshold.pdf")
+    plt.savefig("figs/fig_cost_vs_threshold.png", dpi=300)
+    print("✅ 图5已保存: figs/fig_cost_vs_threshold.png")
     plt.close()
 
 
@@ -831,8 +836,8 @@ def plot_cost_vs_quantbits():
     ax.set_ylim(bottom=0)
 
     plt.tight_layout()
-    plt.savefig("figs/fig_cost_vs_quantbits_obb.pdf")
-    print("✅ 图6-OBB已保存: figs/fig_cost_vs_quantbits_obb.pdf")
+    plt.savefig("figs/fig_cost_vs_quantbits_obb.png", dpi=300)
+    print("✅ 图6-OBB已保存: figs/fig_cost_vs_quantbits_obb.png")
     plt.close()
 
     # === Sphere图表 ===
@@ -878,8 +883,8 @@ def plot_cost_vs_quantbits():
     ax.set_ylim(bottom=0)
 
     plt.tight_layout()
-    plt.savefig("figs/fig_cost_vs_coordbits_sphere.pdf")
-    print("✅ 图6-Sphere已保存: figs/fig_cost_vs_coordbits_sphere.pdf")
+    plt.savefig("figs/fig_cost_vs_coordbits_sphere.png", dpi=300)
+    print("✅ 图6-Sphere已保存: figs/fig_cost_vs_coordbits_sphere.png")
     plt.close()
 
 

@@ -12,11 +12,26 @@
 - 将原始配置按pose维度均匀分配给各COPU
 - 每个COPU处理其分配的pose对应的所有link检测任务
 """
-# 用法: python multi_copu_real_data_simulation.py <basename> <benchid> <data_folder> <num_copus> <threshold> [sample_rate] [max_cycles] [--real-cycles]
-# 示例: python multi_copu_real_data_simulation.py iiwa_7 1 ../trace_files/scene_benchmarks/bit_collision_data 8 1.0 1.0 100000
+# 用法:
+#   python multi_copu_real_data_simulation.py <basename> <benchid|start-end> <data_folder> <num_copus> <threshold>
+#                                             [num_oocds] [sample_rate] [max_cycles]
+#                                             [--real-cycles] [--no-cht-conflict]
+#                                             [--cht-type {dual_port,multi_bank}] [--num-banks N]
+#
+# 示例:
+#   1) 单个benchmark（双端口CHT，使用真实周期）
+#      python multi_copu_real_data_simulation.py iiwa_7 46 ../trace_files/scene_benchmarks/bit_collision_data 4 1.0 7 0.1 100000 --real-cycles
+#
+#   2) 范围benchmarks（多Bank CHT，8个bank，关闭冲突检测）
+#      python multi_copu_real_data_simulation.py iiwa_7 1-10 ../trace_files/scene_benchmarks/bit_collision_data 8 1.0 7 1.0 100000 \
+#        --cht-type multi_bank --num-banks 8 --no-cht-conflict
+#
+#   3) 最简参数（其余使用默认：OOCD=7, sample_rate=1.0, max_cycles=100000）
+#      python multi_copu_real_data_simulation.py iiwa_7 1 ../trace_files/scene_benchmarks/bit_collision_data 8 1.0
 
 import sys
 import os
+import argparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -152,8 +167,10 @@ def run_multi_copu_simulation(
     Returns:
         dict: 聚合的仿真结果
     """
+    # 从basename提取机器人名称（例如从"iiwa_7"提取"iiwa"）
+    robot_name = "iiwa"
     # 使用工具函数计算bins
-    bins = su.calculate_bins(QUANT_MIN, QUANT_MAX, quant_bits)
+    bins = su.calculate_bins_from_workspace(robot_name, quant_bits)
 
     # 统计聚合变量
     total_cycles = 0
@@ -428,67 +445,89 @@ def print_results(results, is_range=False):
 
 def main():
     """主程序"""
-    # 命令行参数
-    if len(sys.argv) < 6:
-        print(
-            "用法 (单个): python multi_copu_real_data_simulation.py <basename> <benchid> <data_folder> <num_copus> <threshold> [num_oocds] [sample_rate] [max_cycles] [--real-cycles] [--no-cht-conflict]"
-        )
-        print(
-            "用法 (范围): python multi_copu_real_data_simulation.py <basename> <benchid_start>-<benchid_end> <data_folder> <num_copus> <threshold> [num_oocds] [sample_rate] [max_cycles] [--real-cycles] [--no-cht-conflict]"
-        )
-        print(
-            "示例 (单个): python multi_copu_real_data_simulation.py iiwa_7 46 ../trace_files/scene_benchmarks/bit_collision_data 4 1.0 7 0.1 10000"
-        )
-        print(
-            "示例 (范围): python multi_copu_real_data_simulation.py iiwa_7 1-10 ../trace_files/scene_benchmarks/bit_collision_data 4 1.0 7 0.1 10000 --no-cht-conflict"
-        )
-        sys.exit(1)
+    # 使用 argparse 简化并清晰化参数解析
+    parser = argparse.ArgumentParser(
+        description="Multi-COPU real data simulation",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
 
-    is_range_mode = "-" in sys.argv[2]
-    num_oocds = 7
-    sample_rate = 1.0
-    max_cycles = 100000
-    use_real_cycles = "--real-cycles" in sys.argv
-    enable_conflict_check = "--no-cht-conflict" not in sys.argv
+    # 位置参数（与原用法保持兼容）
+    parser.add_argument("basename", help="dataset basename, e.g. iiwa_7")
+    parser.add_argument(
+        "benchid",
+        help="benchmark id or range, e.g. 46 or 1-10",
+    )
+    parser.add_argument("data_folder", help="path to data folder")
+    parser.add_argument("num_copus", type=int, help="number of COPUs")
+    parser.add_argument("threshold", type=float, help="collision threshold")
 
-    # 解析CHT类型参数
-    cht_type="dual_port"
-    num_banks = 8
-    if "--cht-type" in sys.argv:
-        idx = sys.argv.index("--cht-type")
-        if idx + 1 < len(sys.argv):
-            cht_type = sys.argv[idx + 1]
+    # 兼容原位置可选参数: num_oocds, sample_rate, max_cycles
+    parser.add_argument(
+        "num_oocds",
+        type=int,
+        nargs="?",
+        default=7,
+        help="number of OOCDs per COPU",
+    )
+    parser.add_argument(
+        "sample_rate",
+        type=float,
+        nargs="?",
+        default=1.0,
+        help="sampling rate for free samples",
+    )
+    parser.add_argument(
+        "max_cycles",
+        type=int,
+        nargs="?",
+        default=100000,
+        help="max simulation cycles",
+    )
 
-    if "--num-banks" in sys.argv:
-        idx = sys.argv.index("--num-banks")
-        if idx + 1 < len(sys.argv):
-            num_banks = int(sys.argv[idx + 1])
-    # 为 multi_bank 类型准备 CHT 参数
-    if cht_type == "multi_bank":
-        cht_kwargs = {"num_banks": num_banks}
-    else:
-        cht_kwargs = {}
+    # 可选开关与配置
+    parser.add_argument(
+        "--real-cycles",
+        action="store_true",
+        help="use real cycles from dataset",
+    )
+    parser.add_argument(
+        "--no-cht-conflict",
+        action="store_true",
+        help="disable CHT conflict checking",
+    )
+    parser.add_argument(
+        "--cht-type",
+        choices=["dual_port", "multi_bank"],
+        default="dual_port",
+        help="CHT implementation type",
+    )
+    parser.add_argument(
+        "--num-banks",
+        type=int,
+        default=8,
+        help="number of banks for multi_bank CHT",
+    )
 
-    # 解析可选数值参数 (顺序: num_oocds, sample_rate, max_cycles)
-    optional_values = []
-    for arg in sys.argv[6:]:
-        if arg.startswith("--"):
-            continue
-        if arg.replace(".", "", 1).isdigit():
-            optional_values.append(float(arg) if "." in arg else int(arg))
+    args = parser.parse_args()
 
-    if len(optional_values) >= 1:
-        num_oocds = int(optional_values[0])
-    if len(optional_values) >= 2:
-        sample_rate = float(optional_values[1])
-    if len(optional_values) >= 3:
-        max_cycles = int(optional_values[2])
+    # 归一化解析结果
+    basename = args.basename
+    benchid_arg = args.benchid
+    data_folder = args.data_folder
+    num_copus = args.num_copus
+    threshold = args.threshold
+    num_oocds = args.num_oocds
+    sample_rate = args.sample_rate
+    max_cycles = args.max_cycles
+    use_real_cycles = args.real_cycles
+    enable_conflict_check = not args.no_cht_conflict
+    cht_type = args.cht_type
+    num_banks = args.num_banks
 
-    basename = sys.argv[1]
-    benchid_arg = sys.argv[2]
-    data_folder = sys.argv[3]
-    num_copus = int(sys.argv[4])
-    threshold = float(sys.argv[5])
+    is_range_mode = "-" in benchid_arg
+
+    # CHT 额外参数
+    cht_kwargs = {"num_banks": num_banks} if cht_type == "multi_bank" else {}
 
     print("=" * 80)
     print("多COPU实际数据仿真")
