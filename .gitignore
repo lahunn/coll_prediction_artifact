@@ -37,3 +37,4 @@ result_files/*.csv
 motion_planning_prediction/analysis/result_files/*.csv
 motion_planning_prediction/scripts/result_files/*.csv 
 motion_planning_prediction/strategy_evaluation/result_files/*.csv
+motion_planning_prediction/plots/figs/*.png

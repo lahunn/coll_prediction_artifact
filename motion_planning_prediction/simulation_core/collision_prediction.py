@@ -3,34 +3,34 @@ Collision prediction functions.
 """
 
 import random
-import numpy as np
 from .constants import MAX_COLLISION_COUNT
-from .hash_utils import return_keyy
+from .hash_utils import compute_hash_keyy
 
 
 def update_collision_dict(colldict, hash_key, is_free, sample_rate):
     """
     Updates the collision history dictionary.
+    当计数器达到MAX_COLLISION_COUNT时，两个计数器同时除以2（右移1位）
     """
-    if hash_key in colldict:
-        if (
-            is_free == 1
-            and random.random() <= sample_rate
-            and colldict[hash_key][is_free] < MAX_COLLISION_COUNT
-        ):
-            colldict[hash_key][is_free] += 1
-        elif colldict[hash_key][is_free] < MAX_COLLISION_COUNT and is_free == 0:
-            colldict[hash_key][is_free] += 1
-    else:
-        colldict[hash_key] = [0, 0]
-        if (
-            is_free == 1
-            and random.random() <= sample_rate
-            and colldict[hash_key][is_free] < MAX_COLLISION_COUNT
-        ):
-            colldict[hash_key][is_free] += 1
-        elif colldict[hash_key][is_free] < MAX_COLLISION_COUNT and is_free == 0:
-            colldict[hash_key][is_free] += 1
+    # 检查是否需要更新计数器
+    should_update = False
+    if is_free == 1 and random.random() <= sample_rate:
+        should_update = True
+    elif is_free == 0:
+        should_update = True
+
+    if should_update:
+        if hash_key not in colldict:
+            colldict[hash_key] = [0, 0]
+        else:
+            # 检查是否达到计数器上限
+            if colldict[hash_key][is_free] >= MAX_COLLISION_COUNT:
+                # 饱和计数器：两个计数器同时除以2（右移1位）
+                colldict[hash_key][0] = colldict[hash_key][0] // 2
+                colldict[hash_key][1] = colldict[hash_key][1] // 2
+
+        # 增加计数
+        colldict[hash_key][is_free] += 1
     return colldict
 
 
@@ -71,6 +71,30 @@ def calculate_accuracy(predictions, actuals):
     return correct / len(predictions)
 
 
+def initialize_cht():
+    """
+    初始化碰撞历史表 (CHT)
+    """
+    return {}
+
+
+def inherit_cht(colldict, decay_factor=1.0):
+    """
+    继承碰撞历史表，应用衰减因子
+
+    Args:
+        colldict: 原始碰撞历史表
+        decay_factor: 衰减因子 (0-1)，1.0表示无衰减
+
+    Returns:
+        继承后的碰撞历史表
+    """
+    inherited = {}
+    for key, counts in colldict.items():
+        inherited[key] = [int(counts[0] * decay_factor), int(counts[1] * decay_factor)]
+    return inherited
+
+
 def enqueue_predictions(
     linklist,
     linklist_coll,
@@ -87,9 +111,7 @@ def enqueue_predictions(
 ):
     if len(linklist) > 0:
         link, linkcoll = linklist[0], linklist_coll[0]
-        code_quant = np.digitize(link, bins, right=True)
-        quant_bits = (len(bins) - 1).bit_length()
-        keyy = return_keyy(code_quant, quant_bits)
+        keyy = compute_hash_keyy(link, bins)
         is_collision_predicted = predict_collision(colldict, keyy, threshold)
         if predictions is not None:
             predictions.append(is_collision_predicted)
