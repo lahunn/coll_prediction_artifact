@@ -28,6 +28,8 @@ from .collision_prediction import (
     predict_collision,
     calculate_accuracy,
     enqueue_predictions,
+    initialize_cht,
+    inherit_cht,
 )
 from .data_loader import (
     load_motion_trace_data,
@@ -84,6 +86,8 @@ __all__ = [
     'predict_collision',
     'calculate_accuracy',
     'enqueue_predictions',
+    'initialize_cht',
+    'inherit_cht',
     
     # Data Loader
     'load_motion_trace_data',

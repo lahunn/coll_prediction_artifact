@@ -42,7 +42,14 @@ def load_motion_trace_data(planner_type, benchid, dimension):
         return None, None
 
 
-def load_data(basename, benchid, data_folder, collision_model_type="link"):
+def load_data(
+    basename,
+    benchid,
+    data_folder,
+    collision_model_type="link",
+    analysis_type="standard",
+    num_obstacles=None,
+):
     """
     Loads collision data from a pickle file.
 
@@ -51,14 +58,26 @@ def load_data(basename, benchid, data_folder, collision_model_type="link"):
         benchid: Benchmark number
         data_folder: Path to the data folder
         collision_model_type: Type of collision model ("link" or "sphere", default="link")
+        analysis_type: Type of analysis ("standard" or "continue", default="standard")
+        num_obstacles: Number of obstacles (optional, for new filename format)
 
     Returns:
         (collision_data, collision_flags) tuple or (None, None)
 
     File naming convention:
-        {basename}_{benchid:04d}_{collision_model_type}.pkl
+        - Standard (old): {basename}_{benchid:04d}_{collision_model_type}.pkl
+        - Continue (old): {basename}_{benchid:04d}_ctn_{collision_model_type}.pkl
+        - New (with obstacles): {basename}_{num_obstacles:02d}obs_{benchid:04d}_{collision_model_type}.pkl
     """
-    filename = f"{data_folder}/{basename}_{benchid:04d}_{collision_model_type}.pkl"
+    if num_obstacles is not None:
+        # New filename format with obstacle count
+        filename = f"{data_folder}/{basename}_{num_obstacles:02d}obs_{benchid:04d}_{collision_model_type}.pkl"
+    elif analysis_type == "continue":
+        filename = (
+            f"{data_folder}/{basename}_{benchid:04d}_ctn_{collision_model_type}.pkl"
+        )
+    else:
+        filename = f"{data_folder}/{basename}_{benchid:04d}_{collision_model_type}.pkl"
 
     try:
         with open(filename, "rb") as f:
