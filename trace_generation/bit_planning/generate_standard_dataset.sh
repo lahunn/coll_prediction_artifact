@@ -50,22 +50,31 @@ echo ""
 echo "========================================================================"
 echo "生成 $ROBOT_NAME 数据集 (双模型: Link + Sphere)"
 echo "========================================================================"
-python generate_problem_dataset.py \
-    --robot-name "$ROBOT_NAME" \
-    --num-problems 50 \
-    --num-obstacles 10 \
-    --max-time 5.0 \
-    --workspace-min "$X_START" \
-    --workspace-max "$X_END" \
-    --safe-zone-radius 0.15 \
-    --voxel-size-min 0.12 \
-    --voxel-size-max 0.20
 
-if [ $? -eq 0 ]; then
-    echo "✓ $ROBOT_NAME 数据集生成成功"
-else
-    echo "✗ $ROBOT_NAME 数据集生成失败"
-fi
+# 遍历不同的障碍物数量
+for NUM_OBSTACLES in 3 6 9 12; do
+    echo ""
+    echo "----------------------------------------------------------------"
+    echo "生成障碍物数量: $NUM_OBSTACLES"
+    echo "----------------------------------------------------------------"
+
+    python generate_problem_dataset.py \
+        --robot-name "$ROBOT_NAME" \
+        --num-problems 200 \
+        --num-obstacles "$NUM_OBSTACLES" \
+        --max-time 5.0 \
+        --workspace-min "$X_START" \
+        --workspace-max "$X_END" \
+        --safe-zone-radius 0.15 \
+        --voxel-size-min 0.12 \
+        --voxel-size-max 0.20
+
+    if [ $? -eq 0 ]; then
+        echo "✓ $ROBOT_NAME 数据集 (障碍物: $NUM_OBSTACLES) 生成成功"
+    else
+        echo "✗ $ROBOT_NAME 数据集 (障碍物: $NUM_OBSTACLES) 生成失败"
+    fi
+done
 
 echo ""
 echo "========================================================================"

@@ -165,6 +165,114 @@ def compare_collision(
         sphere_env.save_collision_data(output_file)
 
 
+def generate_sphere_collision_data(
+    obstacle_config_file,
+    robot_name="franka",
+    output_file=None,
+    enable_self_collision=False,
+    detector_type="pybullet",
+    return_cycles=False,
+):
+    """
+    基于obstacle_config_file生成球体碰撞数据并保存
+
+    Args:
+        obstacle_config_file: 障碍物-配置文件路径
+        robot_name: 机器人名称
+        output_file: 球体碰撞数据输出文件路径（必需）
+        enable_self_collision: 是否启用自碰撞检测
+        detector_type: 球体碰撞检测器类型 ("pybullet" 或 "geometric")
+        return_cycles: 是否记录周期数（仅geometric支持）
+    """
+    if not output_file:
+        raise ValueError("output_file is required for generate_sphere_collision_data")
+
+    print(f"加载obstacle_config_file: {obstacle_config_file}")
+    with open(obstacle_config_file, "rb") as f:
+        obstacle_data = pickle.load(f)
+    obstacles = obstacle_data["obstacles"]
+    configs = obstacle_data["configs"]
+
+    print(f"障碍物数量: {len(obstacles)}")
+    print(f"边数量: {len(configs)}")
+    print(f"自碰撞检测: {'启用' if enable_self_collision else '禁用'}")
+    print(f"检测器类型: {detector_type}")
+    if detector_type == "geometric" and return_cycles:
+        print("周期计数: 启用")
+
+    # 创建机器人环境
+    robot_env = RobotEnv(
+        robot_name, OBB_GUI=False, enable_self_collision=enable_self_collision
+    )
+
+    # 根据detector_type创建相应的球体环境
+    if detector_type == "geometric":
+        from trace_generation.core.collision.sphere_detector import SphereEnvGeometric
+
+        sphere_env = SphereEnvGeometric(
+            robot_env=robot_env, robot_name=robot_name, return_cycles=return_cycles
+        )
+    else:  # pybullet
+        from trace_generation.core.collision.sphere_method import SphereEnv
+
+        sphere_env = SphereEnv(
+            robot_env=robot_env, robot_name=robot_name, SPH_GUI=False
+        )
+
+    # 加载障碍物
+    sphere_env.load_obstacles(obstacles)
+
+    # 处理每个edge
+    for i, edge_configs in enumerate(configs):
+        edge_sphere_coords = []
+        edge_sphere_colls = []
+        edge_sphere_cycles = []  # 新增：存储周期数据
+
+        # 处理edge中的每个pose
+        for j, config in enumerate(edge_configs):
+            # 获取球体碰撞数据
+            if detector_type == "geometric" and return_cycles:
+                collision, coords, colls, cycles = sphere_env.get_sphere_collision_data(  # pyright: ignore[reportAssignmentType]
+                    config
+                )  # pyright: ignore[reportAssignmentType]
+                edge_sphere_cycles.append(cycles)
+            else:
+                collision, coords, colls = sphere_env.get_sphere_collision_data(config)  # pyright: ignore[reportAssignmentType]
+
+            edge_sphere_coords.append(coords)
+            edge_sphere_colls.append(colls)
+
+        # 存储球体数据
+        if edge_sphere_coords:
+            if detector_type == "geometric":
+                if return_cycles and edge_sphere_cycles:
+                    sphere_env.store_sphere_data(
+                        edge_sphere_coords,
+                        edge_sphere_colls,
+                        cycles=edge_sphere_cycles,  # type: ignore
+                        is_edge=True,
+                    )
+                else:
+                    sphere_env.store_sphere_data(
+                        edge_sphere_coords, edge_sphere_colls, is_edge=True
+                    )
+            else:  # pybullet模式不支持cycles参数
+                sphere_env.store_sphere_data(
+                    edge_sphere_coords, edge_sphere_colls, is_edge=True
+                )
+
+    # 清理资源
+    sphere_env.cleanup_obstacles()
+    sphere_env.close()
+    robot_env.close()
+
+    print("球体碰撞数据生成完成")
+
+    # 保存球体碰撞数据
+    sphere_env.save_collision_data(output_file)
+    print(f"球体碰撞数据已保存到: {output_file}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="对比OBB和球体碰撞检测结果")
 

@@ -23,7 +23,7 @@ from trace_generation.core.robot.modular_env import ModularEnv
 from trace_generation.bit_planning.algorithm.bit_star import BITStar
 from trace_generation.utils.planning_utils import uniform_sample, distance
 
-EDGE_COUNT_LIMIT = 100
+EDGE_COUNT_LIMIT = 3
 
 
 def visualize_problem(modular_env, obstacles, start=None, goal=None, path=None):
@@ -224,7 +224,10 @@ def generate_problem_dataset(
 
         obstacles, start, goal, path_link = problem
         link_edge_count = modular_env_link.collision_env.data_manager.edge_fp_call_count
-        if link_edge_count <= EDGE_COUNT_LIMIT:
+        if (
+            link_edge_count <= EDGE_COUNT_LIMIT
+            or link_edge_count > 500 + 400 * num_obstacles
+        ):
             continue
         # 使用sphere环境对同一问题重新规划
         print("  使用sphere模型重新规划...")
@@ -269,14 +272,18 @@ def generate_problem_dataset(
             pickle.dump(obstacle_config_pair, f)
 
         # 保存link碰撞检测数据
-        coll_filename_link = f"{base_filename}_{success_count:04d}_link.pkl"
+        coll_filename_link = (
+            f"{base_filename}_{num_obstacles:02d}obs_{success_count:04d}_link.pkl"
+        )
         coll_filepath_link = os.path.join(collision_data_dir, coll_filename_link)
         modular_env_link.collision_env.data_manager.save_collision_data(
             coll_filepath_link
         )
 
         # 保存sphere碰撞检测数据
-        coll_filename_sphere = f"{base_filename}_{success_count:04d}_sphere.pkl"
+        coll_filename_sphere = (
+            f"{base_filename}_{num_obstacles:02d}obs_{success_count:04d}_sphere.pkl"
+        )
         coll_filepath_sphere = os.path.join(collision_data_dir, coll_filename_sphere)
         modular_env_sphere.collision_env.data_manager.save_collision_data(
             coll_filepath_sphere
@@ -298,8 +305,8 @@ def generate_problem_dataset(
     print(f"  文件数量: {success_count}")
     print(f"  文件命名格式: {base_filename}_XXXX.pkl (例: {base_filename}_0001.pkl)")
     print(f"碰撞检测数据保存到: {collision_data_dir}/")
-    print(f"  Link文件格式: {base_filename}_XXXX_link.pkl")
-    print(f"  Sphere文件格式: {base_filename}_XXXX_sphere.pkl")
+    print(f"  Link文件格式: {base_filename}_{num_obstacles:02d}obs_XXXX_link.pkl")
+    print(f"  Sphere文件格式: {base_filename}_{num_obstacles:02d}obs_XXXX_sphere.pkl")
     print(
         f"路径长度 - 平均: {np.mean(path_lengths):.2f}, 最小: {np.min(path_lengths)}, 最大: {np.max(path_lengths)}"
     )
