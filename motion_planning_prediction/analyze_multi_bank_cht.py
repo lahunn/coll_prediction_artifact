@@ -153,6 +153,7 @@ def run_simulation(
         benchid_start, benchid_end = map(int, benchid_arg.split("-"))
         print(f"\n分析范围: {benchid_start}-{benchid_end}")
         all_bank_stats = []
+        total_benchmarks = 0
         for benchid in range(benchid_start, benchid_end + 1):
             print(f"  Benchmark {benchid} ...", end=" ")
             result = simulate_one(benchid)
@@ -160,19 +161,42 @@ def run_simulation(
                 print("✗ 加载失败")
                 continue
             print(f"✓ edges={result['num_edges']}")
-            print_bank_stats(result["cht_stats"])
             all_bank_stats.append(result["cht_stats"])
-        # 可选: 汇总统计
+            total_benchmarks += 1
+
+        # 汇总所有benchmark的统计信息
         if all_bank_stats:
-            print("\n【汇总统计】")
-            avg_conflict = sum(s["conflict_rate"] for s in all_bank_stats) / len(
-                all_bank_stats
-            )
-            avg_std = sum(s["load_balance_std"] for s in all_bank_stats) / len(
-                all_bank_stats
-            )
-            print(f"  平均冲突率: {avg_conflict:.4f}")
-            print(f"  平均负载均衡Std: {avg_std:.2f}")
+            print(f"\n【汇总统计】({total_benchmarks}个benchmark)")
+            # 合并所有bank访问数
+            num_banks = len(all_bank_stats[0]["bank_access_counts"])
+            total_bank_access = [0] * num_banks
+            total_conflicts = 0
+            total_entries = 0
+            total_edges = 0
+
+            for stats in all_bank_stats:
+                for i in range(num_banks):
+                    total_bank_access[i] += stats["bank_access_counts"][i]
+                total_conflicts += stats["total_conflicts"]
+                total_entries += stats["entries_used"]
+                total_edges += stats["num_edges"]
+
+            # 计算平均冲突率和负载均衡标准差
+            avg_conflict = sum(s["conflict_rate"] for s in all_bank_stats) / len(all_bank_stats)
+            avg_std = sum(s["load_balance_std"] for s in all_bank_stats) / len(all_bank_stats)
+
+            # 构造汇总统计字典
+            summary_stats = {
+                "bank_access_counts": total_bank_access,
+                "load_balance_std": avg_std,
+                "total_conflicts": total_conflicts,
+                "conflict_rate": avg_conflict,
+                "entries_used": total_entries,
+                "num_edges": total_edges,
+                "bank_config": all_bank_stats[-1]["bank_config"],
+            }
+
+            print_bank_stats(summary_stats)
     else:
         benchid = int(benchid_arg)
         print(f"\n分析Benchmark: {benchid}")
