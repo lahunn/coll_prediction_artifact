@@ -194,21 +194,21 @@ reduction_rate = (
     (1 - fall_prediction / total_checks) * 100 if total_checks > 0 else 0
 )
 
-with open(csv_file, "a", newline="") as csvfile:
-    writer = csv.writer(csvfile)
-    writer.writerow(
-        [
-            threshold,
-            sample_rate,
-            qnoncoll_multiplier,
-            basename,
-            num_benchmarks,
-            robot_name,
-            num_dedicated_oocds,
-            total_checks,
-            fall_prediction,
-            fall_oracle,
-            fall_cycle,
-            reduction_rate,
-        ]
-    )
+# with open(csv_file, "a", newline="") as csvfile:
+#     writer = csv.writer(csvfile)
+#     writer.writerow(
+#         [
+#             threshold,
+#             sample_rate,
+#             qnoncoll_multiplier,
+#             basename,
+#             num_benchmarks,
+#             robot_name,
+#             num_dedicated_oocds,
+#             total_checks,
+#             fall_prediction,
+#             fall_oracle,
+#             fall_cycle,
+#             reduction_rate,
+#         ]
+#     )

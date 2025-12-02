@@ -217,38 +217,38 @@ for result in results:
 print("\n" + "=" * 60)
 
 # 输出到CSV
-with open(csv_file, "a", newline="") as csvfile:
-    writer = csv.writer(csvfile)
-    # 写入表头（如果文件为空）
-    if csvfile.tell() == 0:
-        writer.writerow(
-            [
-                "threshold",
-                "sample_rate",
-                "qnoncoll_multiplier",
-                "basename",
-                "num_benchmarks",
-                "robot_name",
-                "num_oocds",
-                "fall_prediction",
-                "fall_cycle",
-                "fall_theoretical_cycles",
-            ]
-        )
+# with open(csv_file, "a", newline="") as csvfile:
+#     writer = csv.writer(csvfile)
+#     # 写入表头（如果文件为空）
+#     if csvfile.tell() == 0:
+#         writer.writerow(
+#             [
+#                 "threshold",
+#                 "sample_rate",
+#                 "qnoncoll_multiplier",
+#                 "basename",
+#                 "num_benchmarks",
+#                 "robot_name",
+#                 "num_oocds",
+#                 "fall_prediction",
+#                 "fall_cycle",
+#                 "fall_theoretical_cycles",
+#             ]
+#         )
 
-    # 写入结果
-    for result in results:
-        writer.writerow(
-            [
-                threshold,
-                sample_rate,
-                qnoncoll_multiplier,
-                basename,
-                num_benchmarks,
-                robot_name,
-                result["num_oocds"],
-                result["fall_prediction"],
-                result["fall_cycle"],
-                result["fall_theoretical_cycles"],
-            ]
-        )
+#     # 写入结果
+#     for result in results:
+#         writer.writerow(
+#             [
+#                 threshold,
+#                 sample_rate,
+#                 qnoncoll_multiplier,
+#                 basename,
+#                 num_benchmarks,
+#                 robot_name,
+#                 result["num_oocds"],
+#                 result["fall_prediction"],
+#                 result["fall_cycle"],
+#                 result["fall_theoretical_cycles"],
+#             ]
+#         )

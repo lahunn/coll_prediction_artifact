@@ -315,27 +315,27 @@ cdu_utilization = (
     (1.0 - total_cdu_idle_cycles / (total_cycles * 7)) * 100 if total_cycles > 0 else 0
 )
 
-with open(csv_file, "a", newline="") as csvfile:
-    writer = csv.writer(csvfile)
-    writer.writerow(
-        [
-            threshold,
-            sample_rate,
-            qnoncoll_multiplier,
-            basename,
-            num_benchmarks,
-            robot_name,
-            total_checks,
-            total_prediction_queries,
-            total_oracle_queries,
-            total_cycles,
-            total_oracle_cycles,
-            total_coll_edge_cycles,
-            total_noncoll_edge_cycles,
-            total_oracle_coll_edge_cycles,
-            total_oracle_noncoll_edge_cycles,
-            reduction_rate,
-            cycle_efficiency,
-            cdu_utilization,
-        ]
-    )
+# with open(csv_file, "a", newline="") as csvfile:
+#     writer = csv.writer(csvfile)
+#     writer.writerow(
+#         [
+#             threshold,
+#             sample_rate,
+#             qnoncoll_multiplier,
+#             basename,
+#             num_benchmarks,
+#             robot_name,
+#             total_checks,
+#             total_prediction_queries,
+#             total_oracle_queries,
+#             total_cycles,
+#             total_oracle_cycles,
+#             total_coll_edge_cycles,
+#             total_noncoll_edge_cycles,
+#             total_oracle_coll_edge_cycles,
+#             total_oracle_noncoll_edge_cycles,
+#             reduction_rate,
+#             cycle_efficiency,
+#             cdu_utilization,
+#         ]
+#     )

@@ -196,53 +196,53 @@ reduction_rate = (
     (1 - fall_prediction / total_checks) * 100 if total_checks > 0 else 0
 )
 
-with open(csv_file, "a", newline="") as csvfile:
-    writer = csv.writer(csvfile)
-    writer.writerow(
-        [
-            threshold,
-            sample_rate,
-            qnoncoll_multiplier,
-            basename,
-            num_benchmarks,
-            robot_name,
-            total_checks,
-            fall_prediction,
-            fall_oracle,
-            fall_cycle,
-            reduction_rate,
-        ]
-    )
+# with open(csv_file, "a", newline="") as csvfile:
+#     writer = csv.writer(csvfile)
+#     writer.writerow(
+#         [
+#             threshold,
+#             sample_rate,
+#             qnoncoll_multiplier,
+#             basename,
+#             num_benchmarks,
+#             robot_name,
+#             total_checks,
+#             fall_prediction,
+#             fall_oracle,
+#             fall_cycle,
+#             reduction_rate,
+#         ]
+#     )
 
 # 输出准确率曲线数据到单独的CSV文件
 if accuracy_stages:
-    with open(accuracy_csv_file, "a", newline="") as csvfile:
-        writer = csv.writer(csvfile)
-        # 写入表头（如果文件为空）
-        if csvfile.tell() == 0:
-            writer.writerow(
-                [
-                    "threshold",
-                    "sample_rate",
-                    "qnoncoll_multiplier",
-                    "training_size",
-                    "accuracy",
-                    "stage",
-                ]
-            )
+    # with open(accuracy_csv_file, "a", newline="") as csvfile:
+    #     writer = csv.writer(csvfile)
+    #     # 写入表头（如果文件为空）
+    #     if csvfile.tell() == 0:
+    #         writer.writerow(
+    #             [
+    #                 "threshold",
+    #                 "sample_rate",
+    #                 "qnoncoll_multiplier",
+    #                 "training_size",
+    #                 "accuracy",
+    #                 "stage",
+    #             ]
+    #         )
 
-        # 写入准确率曲线数据
-        for i, (size, acc) in enumerate(zip(training_sizes, accuracy_stages)):
-            writer.writerow(
-                [
-                    threshold,
-                    sample_rate,
-                    qnoncoll_multiplier,
-                    size,
-                    acc,
-                    i + 1,  # 阶段编号
-                ]
-            )
+    #     # 写入准确率曲线数据
+    #     for i, (size, acc) in enumerate(zip(training_sizes, accuracy_stages)):
+    #         writer.writerow(
+    #             [
+    #                 threshold,
+    #                 sample_rate,
+    #                 qnoncoll_multiplier,
+    #                 size,
+    #                 acc,
+    #                 i + 1,  # 阶段编号
+    #             ]
+    #         )
 
     print(f"准确率曲线数据已保存到 {accuracy_csv_file}")
     print(f"记录了 {len(accuracy_stages)} 个准确率阶段")

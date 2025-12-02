@@ -79,12 +79,12 @@ bins = su.calculate_bins_from_workspace(robot_name, quant_bits)
 if collision_model_type == "sphere":
     num_elements = robot_params["sphere_num"]
     check_cost = robot_params["sphere_cost"]
-    csv_file = "result_files/sphere_results.csv"
+    csv_file = "../result_files/sphere_results.csv"
     print_title = "=== 球体碰撞检测预测仿真 ==="
 else:
     num_elements = robot_params["obb_num"]
     check_cost = robot_params["obb_cost"]
-    csv_file = "result_files/obb_results.csv"
+    csv_file = "../result_files/obb_results.csv"
     print_title = "=== OBB碰撞检测预测仿真 ==="
 
 qnoncoll_len = num_elements * qnoncoll_multiplier
@@ -219,51 +219,51 @@ print("=" * 50)
 
 # 输出到CSV
 reduction_rate = (1 - fall_prediction / total_checks) * 100 if total_checks > 0 else 0
-with open(csv_file, "a", newline="") as csvfile:
-    writer = csv.writer(csvfile)
-    # 如果文件不存在，添加header
-    if not os.path.exists(csv_file) or os.path.getsize(csv_file) == 0:
-        writer.writerow(
-            [
-                "threshold",
-                "sample_rate",
-                "qnoncoll_multiplier",
-                "basename",
-                "num_benchmarks",
-                "robot_name",
-                "total_checks",
-                "fall_prediction",
-                "fall_oracle",
-                "fall_cycle",
-                "theoretical_min_cycles",
-                "reduction_rate",
-                "total_pred_coll_cycles",
-                "total_pred_noncoll_cycles",
-                "total_oracle_coll_cycles",
-                "total_oracle_noncoll_cycles",
-                "query_difference_percent",
-            ]
-        )
-    writer.writerow(
-        [
-            threshold,
-            sample_rate,
-            qnoncoll_multiplier,
-            basename,
-            num_benchmarks,
-            robot_name,
-            total_checks,
-            fall_prediction,
-            fall_oracle,
-            fall_cycle,
-            theoretical_min_cycles,
-            reduction_rate,
-            total_pred_coll_cycles,
-            total_pred_noncoll_cycles,
-            total_oracle_coll_cycles,
-            total_oracle_noncoll_cycles,
-            (fall_prediction - fall_oracle) / fall_oracle * 100
-            if fall_oracle > 0
-            else 0,  # Query Difference (%)
-        ]
-    )
+# with open(csv_file, "a", newline="") as csvfile:
+#     writer = csv.writer(csvfile)
+#     # 如果文件不存在，添加header
+#     if not os.path.exists(csv_file) or os.path.getsize(csv_file) == 0:
+#         writer.writerow(
+#             [
+#                 "threshold",
+#                 "sample_rate",
+#                 "qnoncoll_multiplier",
+#                 "basename",
+#                 "num_benchmarks",
+#                 "robot_name",
+#                 "total_checks",
+#                 "fall_prediction",
+#                 "fall_oracle",
+#                 "fall_cycle",
+#                 "theoretical_min_cycles",
+#                 "reduction_rate",
+#                 "total_pred_coll_cycles",
+#                 "total_pred_noncoll_cycles",
+#                 "total_oracle_coll_cycles",
+#                 "total_oracle_noncoll_cycles",
+#                 "query_difference_percent",
+#             ]
+#         )
+#     writer.writerow(
+#         [
+#             threshold,
+#             sample_rate,
+#             qnoncoll_multiplier,
+#             basename,
+#             num_benchmarks,
+#             robot_name,
+#             total_checks,
+#             fall_prediction,
+#             fall_oracle,
+#             fall_cycle,
+#             theoretical_min_cycles,
+#             reduction_rate,
+#             total_pred_coll_cycles,
+#             total_pred_noncoll_cycles,
+#             total_oracle_coll_cycles,
+#             total_oracle_noncoll_cycles,
+#             (fall_prediction - fall_oracle) / fall_oracle * 100
+#             if fall_oracle > 0
+#             else 0,  # Query Difference (%)
+#         ]
+#     )
