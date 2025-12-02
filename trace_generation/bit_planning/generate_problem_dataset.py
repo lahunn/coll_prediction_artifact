@@ -16,6 +16,7 @@ import os
 import pickle
 import numpy as np
 import argparse
+import shutil
 
 # 添加项目路径
 
@@ -23,7 +24,8 @@ from trace_generation.core.robot.modular_env import ModularEnv
 from trace_generation.bit_planning.algorithm.bit_star import BITStar
 from trace_generation.utils.planning_utils import uniform_sample, distance
 
-EDGE_COUNT_LIMIT = 3
+EDGE_COUNT_LIMIT = 10
+# 最低边调用数阈值，低于该值的问题将被丢弃,排除掉一些过分简单的情况
 
 
 def visualize_problem(modular_env, obstacles, start=None, goal=None, path=None):
@@ -150,6 +152,120 @@ def reconstruct_path(edges, start, goal):
     return list(path)
 
 
+def redistribute_problems_by_difficulty(
+    robot_name, config_dim, num_obstacles, filename_to_edge_count
+):
+    """根据link_edge_count重新划分问题到不同难度级别"""
+    print("\n开始重新划分问题到不同难度级别...")
+
+    # 源目录和目标目录
+    source_dir = "../../trace_files/bit_traces"
+    collision_source_dir = "../../trace_files/scene_benchmarks/bit_collision_data"
+
+    # 创建难度级别目录
+    difficulty_levels = ["G1", "G2", "G3", "G4", "G5"]
+    for level in difficulty_levels:
+        os.makedirs(f"{source_dir}/{level}", exist_ok=True)
+        os.makedirs(f"{collision_source_dir}/{level}", exist_ok=True)
+
+    if not filename_to_edge_count:
+        print("未找到有效的碰撞数据文件")
+        return
+
+    # 从字典中提取edge_counts和problem_files
+    edge_counts = []
+    problem_files = []
+
+    base_filename = f"{robot_name}_{config_dim}"
+
+    for coll_filename_link, edge_count in filename_to_edge_count.items():
+        # 从文件名中提取问题索引
+        # 文件名格式: {robot_name}_{config_dim}_{num_obstacles:02d}obs_{index:04d}_link.pkl
+        parts = coll_filename_link.split("_")
+        if len(parts) >= 4:
+            try:
+                problem_idx = int(parts[-2])  # 提取XXXX部分
+                pair_filename = f"{base_filename}_{problem_idx:04d}.pkl"
+                edge_counts.append(edge_count)
+                problem_files.append(
+                    (
+                        problem_idx,
+                        pair_filename,
+                        coll_filename_link,
+                        coll_filename_link.replace("_link.pkl", "_sphere.pkl"),
+                    )
+                )
+            except (ValueError, IndexError):
+                continue
+
+    # 计算分位数 (五个难度级别)
+    edge_counts = np.array(edge_counts)
+    quantiles = np.percentile(edge_counts, [20, 40, 60, 80, 100])
+
+    print("Link edge count统计:")
+    print(f"  最小值: {np.min(edge_counts)}")
+    print(f"  最大值: {np.max(edge_counts)}")
+    print(f"  平均值: {np.mean(edge_counts):.2f}")
+    print(f"  中位数: {np.median(edge_counts):.2f}")
+    print(f"  20%分位数: {quantiles[0]:.2f}")
+    print(f"  40%分位数: {quantiles[1]:.2f}")
+    print(f"  60%分位数: {quantiles[2]:.2f}")
+    print(f"  80%分位数: {quantiles[3]:.2f}")
+    print(f"  100%分位数: {quantiles[4]:.2f}")
+
+    # 重新划分文件
+    level_counters = {level: 0 for level in difficulty_levels}
+
+    for idx, (problem_idx, pair_file, coll_file_link, coll_file_sphere) in enumerate(
+        problem_files
+    ):
+        edge_count = edge_counts[idx]
+
+        # 确定难度级别
+        if edge_count <= quantiles[0]:
+            level = difficulty_levels[0]
+        elif edge_count <= quantiles[1]:
+            level = difficulty_levels[1]
+        elif edge_count <= quantiles[2]:
+            level = difficulty_levels[2]
+        elif edge_count <= quantiles[3]:
+            level = difficulty_levels[3]
+        else:
+            level = difficulty_levels[4]
+
+        level_counters[level] += 1
+
+        # 生成新的文件名
+        new_pair_filename = f"{robot_name}_{config_dim}_{level_counters[level]:04d}.pkl"
+        new_coll_filename_link = (
+            f"{robot_name}_{config_dim}_{level_counters[level]:04d}_link.pkl"
+        )
+        new_coll_filename_sphere = (
+            f"{robot_name}_{config_dim}_{level_counters[level]:04d}_sphere.pkl"
+        )
+
+        # 移动障碍物-配置文件
+        src_path = os.path.join(source_dir, pair_file)
+        dst_path = os.path.join(source_dir, level, new_pair_filename)
+        shutil.move(src_path, dst_path)
+
+        # 移动link碰撞数据文件
+        src_path = os.path.join(collision_source_dir, coll_file_link)
+        dst_path = os.path.join(collision_source_dir, level, new_coll_filename_link)
+        if os.path.exists(src_path):
+            shutil.move(src_path, dst_path)
+
+        # 移动sphere碰撞数据文件
+        src_path = os.path.join(collision_source_dir, coll_file_sphere)
+        dst_path = os.path.join(collision_source_dir, level, new_coll_filename_sphere)
+        if os.path.exists(src_path):
+            shutil.move(src_path, dst_path)
+
+    print("\n重新划分完成:")
+    for level in difficulty_levels:
+        print(f"  {level}: {level_counters[level]} 个问题")
+
+
 def generate_problem_dataset(
     robot_file,
     robot_name,
@@ -201,6 +317,9 @@ def generate_problem_dataset(
 
     base_filename = f"{robot_name}_{config_dim}"
 
+    # 创建文件名到edge_count的映射字典
+    filename_to_edge_count = {}
+
     while success_count < num_problems:
         print(f"\n正在生成问题 {success_count + 1}/{num_problems} ...")
 
@@ -224,10 +343,7 @@ def generate_problem_dataset(
 
         obstacles, start, goal, path_link = problem
         link_edge_count = modular_env_link.collision_env.data_manager.edge_fp_call_count
-        if (
-            link_edge_count <= EDGE_COUNT_LIMIT
-            or link_edge_count > 500 + 400 * num_obstacles
-        ):
+        if link_edge_count <= EDGE_COUNT_LIMIT:
             continue
         # 使用sphere环境对同一问题重新规划
         print("  使用sphere模型重新规划...")
@@ -254,7 +370,11 @@ def generate_problem_dataset(
             modular_env_sphere.collision_env.data_manager.edge_fp_call_count
         )
 
-        # 只有两种模型都成功且edge调用数>EDGE_COUNT_LIMIT 才保存
+        # 当边调用数差异过大时，丢弃该问题
+        diff = abs(sphere_edge_count - link_edge_count)
+        if diff > min(link_edge_count, sphere_edge_count):
+            continue
+
         problems.append(problem)
         success_count += 1
 
@@ -280,6 +400,9 @@ def generate_problem_dataset(
             coll_filepath_link
         )
 
+        # 记录文件名到edge_count的映射
+        filename_to_edge_count[coll_filename_link] = link_edge_count
+
         # 保存sphere碰撞检测数据
         coll_filename_sphere = (
             f"{base_filename}_{num_obstacles:02d}obs_{success_count:04d}_sphere.pkl"
@@ -296,6 +419,11 @@ def generate_problem_dataset(
 
     with open(output_file, "wb") as f:
         pickle.dump(problems, f)
+
+    # 重新划分问题到不同难度级别
+    redistribute_problems_by_difficulty(
+        robot_name, config_dim, num_obstacles, filename_to_edge_count
+    )
 
     # 统计信息
     path_lengths = [len(prob[3]) for prob in problems]

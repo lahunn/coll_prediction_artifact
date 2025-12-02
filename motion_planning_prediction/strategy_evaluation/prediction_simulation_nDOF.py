@@ -20,10 +20,9 @@ Link级碰撞检测预测仿真程序（nDOF机器人）
 6. num_benchmarks: 基准测试数量
 7. robot_name: 机器人名称
 8. collision_model_type: 碰撞模型类型 ("link" 或 "sphere", 可选)
-9. num_obstacles: 障碍物数量 (可选，用于新文件名格式)
 
 使用示例:
-    python prediction_simulation_nDOF.py 0.5 0.1 8 ../../trace_files/scene_benchmarks/bit_collision_data iiwa_7 10 iiwa link 3
+    python prediction_simulation_nDOF.py 0.5 0.1 8 ../../trace_files/scene_benchmarks/bit_collision_data iiwa_7 10 iiwa link
 """
 
 import sys
@@ -55,10 +54,10 @@ total_oracle_noncoll_cycles = 0
 # --- Simulation Parameters from Command Line ---
 if len(sys.argv) < 8:
     print(
-        "Usage: python prediction_simulation_nDOF.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <num_benchmarks> <robot_name> [collision_model_type] [num_obstacles]"
+        "Usage: python prediction_simulation_nDOF.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <num_benchmarks> <robot_name> [collision_model_type]"
     )
     print(
-        "Example: python prediction_simulation_nDOF.py 0.5 0.1 8 ../../trace_files/scene_benchmarks/bit_collision_data iiwa_7 100 iiwa link 3"
+        "Example: python prediction_simulation_nDOF.py 0.5 0.1 8 ../../trace_files/scene_benchmarks/bit_collision_data iiwa_7 100 iiwa link"
     )
     sys.exit(1)
 
@@ -70,7 +69,6 @@ basename = sys.argv[5]
 num_benchmarks = int(sys.argv[6])
 robot_name = sys.argv[7]
 collision_model_type = sys.argv[8] if len(sys.argv) > 8 else "link"
-num_obstacles = int(sys.argv[9]) if len(sys.argv) > 9 else None
 
 # 获取机器人参数
 robot_params = get_robot_params(robot_name)
@@ -98,7 +96,6 @@ print(f"队列长度倍数: {qnoncoll_multiplier}")
 print(f"非碰撞队列长度: {qnoncoll_len}")
 print(f"数据文件夹: {data_folder}")
 print(f"基准测试数量: {num_benchmarks}")
-print(f"障碍物数量: {num_obstacles if num_obstacles is not None else '自动检测'}")
 print("=" * 50)
 
 # --- Benchmark Range ---
@@ -117,7 +114,6 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
         benchid,
         data_folder,
         collision_model_type=collision_model_type,
-        num_obstacles=num_obstacles,
     )
 
     if edge_link_data is None or edge_link_coll_data is None:
@@ -235,7 +231,6 @@ with open(csv_file, "a", newline="") as csvfile:
                 "basename",
                 "num_benchmarks",
                 "robot_name",
-                "num_obstacles",
                 "total_checks",
                 "fall_prediction",
                 "fall_oracle",
@@ -257,7 +252,6 @@ with open(csv_file, "a", newline="") as csvfile:
             basename,
             num_benchmarks,
             robot_name,
-            num_obstacles,
             total_checks,
             fall_prediction,
             fall_oracle,

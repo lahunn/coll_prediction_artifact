@@ -14,19 +14,23 @@
 """
 # 用法:
 #   python multi_copu_real_data_simulation.py <basename> <benchid|start-end> <data_folder> <num_copus> <threshold>
-#                                             [num_oocds] [sample_rate] [max_cycles]
+#                                             [num_oocds] [sample_rate]
 #                                             [--real-cycles] [--no-cht-conflict]
 #                                             [--cht-type {dual_port,multi_bank}] [--num-banks N]
+#                                             [--copus-per-edge N]
 #
 # 示例:
 #   1) 单个benchmark（双端口CHT，使用真实周期）
-#      python multi_copu_real_data_simulation.py iiwa_7 46 ../trace_files/scene_benchmarks/bit_collision_data 4 1.0 7 0.1 100000 --real-cycles
+#      python multi_copu_real_data_simulation.py iiwa_7 1-10 ../trace_files/scene_benchmarks/bit_collision_data/G5 4 1.0 7 0.1 --real-cycles
 #
 #   2) 范围benchmarks（多Bank CHT，8个bank，关闭冲突检测）
-#      python multi_copu_real_data_simulation.py iiwa_7 1-10 ../trace_files/scene_benchmarks/bit_collision_data 4 1.0 7 1.0 100000 --cht-type multi_bank --num-banks 8 --no-cht-conflict
+#      python multi_copu_real_data_simulation.py iiwa_7 1-10 ../trace_files/scene_benchmarks/bit_collision_data/G5 4 1.0 7 0.1 --cht-type multi_bank --num-banks 8 --no-cht-conflict
 #
-#   3) 最简参数（其余使用默认：OOCD=7, sample_rate=1.0, max_cycles=100000）
-#      python multi_copu_real_data_simulation.py iiwa_7 1 ../trace_files/scene_benchmarks/bit_collision_data 4 1.0
+#   3) 最简参数（其余使用默认：OOCD=7, sample_rate=1.0）
+#      python multi_copu_real_data_simulation.py iiwa_7 1 ../trace_files/scene_benchmarks/bit_collision_data/G5 4 1.0
+#
+#   4) 指定每Edge分配的COPU数量（例如4个COPU，每Edge用2个，即2组并行）
+#      python multi_copu_real_data_simulation.py iiwa_7 1 ../trace_files/scene_benchmarks/bit_collision_data/G5 4 1.0 --copus-per-edge 2
 
 import sys
 import os
@@ -34,7 +38,7 @@ import argparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from multi_copu_simulation import MultiCOPU_Scheduler
+from simulation_core.multi_copu_scheduler import MultiCOPU_Scheduler
 import simulation_utils as su
 
 # ============================================================================
@@ -45,92 +49,42 @@ QUANT_MAX = 1.5  # 量化最大值
 DEFAULT_CHECK_CYCLE = 45
 
 
-def simulate_single_edge(
-    edge_coords,
-    edge_colls,
-    edge_cycles,
-    num_copus,
-    num_oocds,
-    bins,
-    threshold,
-    sample_rate,
-    max_cycles,
-    enable_conflict_check=True,
-    cht_type="dual_port",
-    **cht_kwargs,
+def distribute_benchmark_data(
+    all_data, all_coll, all_cycles, num_copus, copus_per_edge
 ):
     """
-    执行单条edge的仿真
-
-    Args:
-        edge_coords: 该edge的pose坐标数据 List[List[coords]]
-        edge_colls: 该edge的碰撞标志 List[List[flags]]
-        edge_cycles: 该edge的周期数据 List[List[cycles]] (可为None)
-        num_copus: COPU数量
-        num_oocds: OOCD数量（CDU数量）
-        bins: 量化bin
-        threshold: 碰撞预测阈值
-        sample_rate: 采样率
-        max_cycles: 最大仿真周期
-        enable_conflict_check: 是否启用CHT冲突检测 (默认True)
-        cht_type: CHT类型 ('dual_port' 或 'multi_bank', 默认'dual_port')
-        **cht_kwargs: CHT类的额外参数
-
-    Returns:
-        dict: 该edge的仿真结果
+    将benchmark的所有edge数据分配给COPU组
     """
-    # 创建调度器
-    scheduler = MultiCOPU_Scheduler(
-        num_copus=num_copus,
-        num_oocds=num_oocds,
-        cht_size=4096,
-        enable_conflict_check=enable_conflict_check,
-        cht_type=cht_type,
-        **cht_kwargs,
-    )
+    if copus_per_edge is None or copus_per_edge <= 0:
+        copus_per_edge = num_copus
 
-    # 使用通用数据分配函数一次性为所有COPU分配数据
-    copus_coords, copus_colls, copus_cycles = su.allocate_edge_data_to_copus(
-        edge_coords,
-        edge_colls,
-        edge_cycles,
-        num_copus,
-    )
+    num_groups = max(1, num_copus // copus_per_edge)
 
-    # 为每个COPU加载其分配的数据
-    for copu_id in range(num_copus):
-        scheduler.copus[copu_id].load_data(
-            copus_coords[copu_id], copus_colls[copu_id], copus_cycles[copu_id]
+    copu_data_list = [[] for _ in range(num_copus)]
+    copu_coll_list = [[] for _ in range(num_copus)]
+    copu_cycle_list = [[] for _ in range(num_copus)]
+
+    for edge_idx, (edge_data, edge_coll) in enumerate(zip(all_data, all_coll)):
+        edge_cycle = all_cycles[edge_idx] if all_cycles else None
+
+        group_idx = edge_idx % num_groups
+        start_copu = group_idx * copus_per_edge
+
+        if start_copu + copus_per_edge > num_copus:
+            continue
+
+        sub_coords, sub_colls, sub_cycles = su.allocate_edge_data_to_copus(
+            edge_data, edge_coll, edge_cycle, copus_per_edge
         )
 
-    # 执行仿真
-    result = scheduler.simulate(
-        bins, threshold=threshold, sample_rate=sample_rate, max_cycles=max_cycles
-    )
+        for i in range(copus_per_edge):
+            global_copu_id = start_copu + i
+            copu_data_list[global_copu_id].extend(sub_coords[i])
+            copu_coll_list[global_copu_id].extend(sub_colls[i])
+            if sub_cycles[i] is not None:
+                copu_cycle_list[global_copu_id].extend(sub_cycles[i])
 
-    return result
-
-
-def aggregate_edge_results(result):
-    """
-    聚合单条edge的仿真结果
-
-    Args:
-        result: 单条edge的仿真结果
-
-    Returns:
-        dict: 聚合后的结果
-    """
-    total_queries = sum(c["total_queries"] for c in result["copus"])
-    copu_utilizations = [c["oocd_utilization"] for c in result["copus"]]
-    cht_conflicts = result["cht_stats"].get("total_conflicts", 0)
-
-    return {
-        "cycles": result["total_cycles"],
-        "queries": total_queries,
-        "copu_utilizations": copu_utilizations,
-        "cht_conflicts": cht_conflicts,
-    }
+    return copu_data_list, copu_coll_list, copu_cycle_list
 
 
 def run_multi_copu_simulation(
@@ -142,13 +96,13 @@ def run_multi_copu_simulation(
     quant_bits=3,
     threshold=1.0,
     sample_rate=1.0,
-    max_cycles=100000,
     enable_conflict_check=True,
     cht_type="dual_port",
+    copus_per_edge=None,
     **cht_kwargs,
 ):
     """
-    执行多COPU协同仿真（以edge为单位）
+    执行多COPU协同仿真（以benchmark为单位）
 
     Args:
         all_data: 所有edge的pose数据 List[List[List[coords]]]
@@ -159,8 +113,8 @@ def run_multi_copu_simulation(
         quant_bits: 量化位数，分桶数 = 2^quant_bits（默认3，即8个桶）
         threshold: 碰撞预测阈值
         sample_rate: 采样率
-        max_cycles: 最大仿真周期
         cht_class: CHT类
+        copus_per_edge: 每个edge分配的COPU数量 (默认None, 即num_copus)
         **cht_kwargs: CHT类的额外参数
 
     Returns:
@@ -171,64 +125,58 @@ def run_multi_copu_simulation(
     # 使用工具函数计算bins
     bins = su.calculate_bins_from_workspace(robot_name, quant_bits)
 
-    # 统计聚合变量
-    total_cycles = 0
-    total_queries = 0
-    total_cht_conflicts = 0
-    all_edge_results = []
+    # 1. 分配数据
+    # copu_data, copu_coll, copu_cycles = distribute_benchmark_data(
+    #     all_data, all_coll, all_cycles, num_copus, copus_per_edge
+    # )
 
-    print(f"\n开始按edge仿真 ({len(all_data)} edges, {num_copus} COPU)...")
-
-    # 按edge进行仿真
-    for edge_idx, (edge_coords, edge_colls) in enumerate(zip(all_data, all_coll)):
-        # 获取该edge的周期数据（如果有）
-        edge_cycles = all_cycles[edge_idx] if all_cycles is not None else None
-
-        # 执行单条edge的仿真
-        result = simulate_single_edge(
-            edge_coords,
-            edge_colls,
-            edge_cycles,
-            num_copus,
-            num_oocds,
-            bins,
-            threshold,
-            sample_rate,
-            max_cycles,
-            enable_conflict_check=enable_conflict_check,
-            cht_type=cht_type,
-            **cht_kwargs,
-        )
-
-        # 聚合该edge的结果
-        edge_agg = aggregate_edge_results(result)
-
-        # 累计到总体指标
-        total_cycles += edge_agg["cycles"]
-        total_queries += edge_agg["queries"]
-        total_cht_conflicts += edge_agg["cht_conflicts"]
-
-        # 保存到结果列表
-        edge_agg["edge_idx"] = edge_idx
-        all_edge_results.append(edge_agg)
-
-    # 计算平均COPU占用率（跨所有edge）
-    all_copu_utils = []
-    for edge_result in all_edge_results:
-        all_copu_utils.extend(edge_result["copu_utilizations"])
-
-    avg_copu_utilization = (
-        sum(all_copu_utils) / len(all_copu_utils) if all_copu_utils else 0.0
+    # 2. 创建调度器
+    scheduler = MultiCOPU_Scheduler(
+        num_copus=num_copus,
+        num_oocds=num_oocds,
+        cht_size=4096,
+        enable_conflict_check=enable_conflict_check,
+        cht_type=cht_type,
+        copus_per_edge=copus_per_edge,
+        **cht_kwargs,
     )
 
-    # 构建聚合结果
+    # 3. 加载数据
+    scheduler.set_benchmark_data(all_data, all_coll, all_cycles)
+    # for copu_id in range(num_copus):
+    #     scheduler.copus[copu_id].load_data(
+    #         copu_data[copu_id], copu_coll[copu_id], copu_cycles[copu_id]
+    #     )
+
+    # 4. 执行仿真
+    print(
+        f"\n开始仿真 ({len(all_data)} edges, {num_copus} COPU, {copus_per_edge if copus_per_edge else num_copus} COPU/edge)..."
+    )
+    result = scheduler.simulate(bins, threshold=threshold, sample_rate=sample_rate)
+
+    # 5. 聚合结果
+    total_queries = sum(c["total_queries"] for c in result["copus"])
+    copu_utilizations = [c["oocd_utilization"] for c in result["copus"]]
+    avg_copu_utilization = (
+        sum(copu_utilizations) / len(copu_utilizations) if copu_utilizations else 0.0
+    )
+    cht_conflicts = result["cht_stats"].get("total_conflicts", 0)
+
+    # 统计碰撞和安全边的数量
+    edge_results = result.get("edge_results", {})
+    num_collisions = sum(1 for res in edge_results.values() if res == "collision")
+    num_safe = sum(1 for res in edge_results.values() if res == "safe")
+
     aggregated_result = {
-        "total_cycles": total_cycles,
+        "total_cycles": result["total_cycles"],
         "total_queries": total_queries,
         "num_edges": len(all_data),
-        "edge_results": all_edge_results,
         "avg_copu_utilization": avg_copu_utilization,
-        "total_cht_conflicts": total_cht_conflicts,
+        "total_cht_conflicts": cht_conflicts,
+        "collision_found": result["collision_found"],
+        "num_collisions": num_collisions,
+        "num_safe": num_safe,
+        "copu_utilizations": copu_utilizations,
     }
 
     return aggregated_result
@@ -243,10 +191,10 @@ def simulate_single_benchmark(
     quant_bits=3,
     threshold=1.0,
     sample_rate=1.0,
-    max_cycles=100000,
     use_real_cycles=False,
     enable_conflict_check=True,
     cht_type="dual_port",
+    copus_per_edge=None,
     **cht_kwargs,
 ):
     """
@@ -261,9 +209,9 @@ def simulate_single_benchmark(
         quant_bits: 量化位数
         threshold: 碰撞预测阈值
         sample_rate: 采样率
-        max_cycles: 最大仿真周期
         use_real_cycles: 是否使用真实周期数据
         cht_class: CHT类
+        copus_per_edge: 每个edge分配的COPU数量
         **cht_kwargs: CHT类的额外参数
 
     Returns:
@@ -293,9 +241,9 @@ def simulate_single_benchmark(
         quant_bits=quant_bits,
         threshold=threshold,
         sample_rate=sample_rate,
-        max_cycles=max_cycles,
         enable_conflict_check=enable_conflict_check,
         cht_type=cht_type,
+        copus_per_edge=copus_per_edge,
         **cht_kwargs,
     )
 
@@ -312,10 +260,10 @@ def run_benchmark_range_simulation(
     quant_bits=3,
     threshold=1.0,
     sample_rate=1.0,
-    max_cycles=100000,
     use_real_cycles=False,
     enable_conflict_check=True,
     cht_type="dual_port",
+    copus_per_edge=None,
     **cht_kwargs,
 ):
     """
@@ -331,9 +279,9 @@ def run_benchmark_range_simulation(
         quant_bits: 量化位数
         threshold: 碰撞预测阈值
         sample_rate: 采样率
-        max_cycles: 最大仿真周期
         use_real_cycles: 是否使用真实周期数据
         cht_class: CHT类
+        copus_per_edge: 每个edge分配的COPU数量
         **cht_kwargs: CHT类的额外参数
 
     Returns:
@@ -342,6 +290,8 @@ def run_benchmark_range_simulation(
     total_cycles_all = 0
     total_queries_all = 0
     total_cht_conflicts_all = 0
+    total_collisions_all = 0
+    total_safe_all = 0
     all_copu_utils_all = []
     num_benchmarks_processed = 0
 
@@ -362,10 +312,10 @@ def run_benchmark_range_simulation(
             quant_bits=quant_bits,
             threshold=threshold,
             sample_rate=sample_rate,
-            max_cycles=max_cycles,
             use_real_cycles=use_real_cycles,
             enable_conflict_check=enable_conflict_check,
             cht_type=cht_type,
+            copus_per_edge=copus_per_edge,
             **cht_kwargs,
         )
 
@@ -379,10 +329,12 @@ def run_benchmark_range_simulation(
         total_cycles_all += result["total_cycles"]
         total_queries_all += result["total_queries"]
         total_cht_conflicts_all += result.get("total_cht_conflicts", 0)
+        total_collisions_all += result.get("num_collisions", 0)
+        total_safe_all += result.get("num_safe", 0)
 
         # 累计COPU占用率样本
-        for edge_result in result["edge_results"]:
-            all_copu_utils_all.extend(edge_result["copu_utilizations"])
+        if "copu_utilizations" in result:
+            all_copu_utils_all.extend(result["copu_utilizations"])
 
         num_benchmarks_processed += 1
 
@@ -401,6 +353,8 @@ def run_benchmark_range_simulation(
         "total_queries": total_queries_all,
         "avg_copu_utilization": avg_copu_utilization_all,
         "total_cht_conflicts": total_cht_conflicts_all,
+        "num_collisions": total_collisions_all,
+        "num_safe": total_safe_all,
     }
 
     return batch_result
@@ -439,6 +393,11 @@ def print_results(results, is_range=False):
 
     print(f"  平均COPU占用率: {results.get('avg_copu_utilization', 0.0):.2%}")
     print(f"  CHT冲突数: {results.get('total_cht_conflicts', 0)}")
+
+    if "num_collisions" in results:
+        print(f"  碰撞Edge数: {results['num_collisions']}")
+        print(f"  安全Edge数: {results['num_safe']}")
+
     print("\n" + "=" * 80)
 
 
@@ -460,7 +419,7 @@ def main():
     parser.add_argument("num_copus", type=int, help="number of COPUs")
     parser.add_argument("threshold", type=float, help="collision threshold")
 
-    # 兼容原位置可选参数: num_oocds, sample_rate, max_cycles
+    # 兼容原位置可选参数: num_oocds, sample_rate
     parser.add_argument(
         "num_oocds",
         type=int,
@@ -472,15 +431,8 @@ def main():
         "sample_rate",
         type=float,
         nargs="?",
-        default=1.0,
+        default=0.1,
         help="sampling rate for free samples",
-    )
-    parser.add_argument(
-        "max_cycles",
-        type=int,
-        nargs="?",
-        default=100000,
-        help="max simulation cycles",
     )
 
     # 可选开关与配置
@@ -506,6 +458,12 @@ def main():
         default=8,
         help="number of banks for multi_bank CHT",
     )
+    parser.add_argument(
+        "--copus-per-edge",
+        type=int,
+        default=None,
+        help="number of COPUs assigned to each edge (default: num_copus)",
+    )
 
     args = parser.parse_args()
 
@@ -517,11 +475,11 @@ def main():
     threshold = args.threshold
     num_oocds = args.num_oocds
     sample_rate = args.sample_rate
-    max_cycles = args.max_cycles
     use_real_cycles = args.real_cycles
     enable_conflict_check = not args.no_cht_conflict
     cht_type = args.cht_type
     num_banks = args.num_banks
+    copus_per_edge = args.copus_per_edge
 
     is_range_mode = "-" in benchid_arg
 
@@ -545,10 +503,10 @@ def main():
     print(f"  碰撞阈值: {threshold}")
     print(f"  CDU数量(OOCD): {num_oocds}")
     print(f"  采样率: {sample_rate}")
-    print(f"  最大周期: {max_cycles}")
     print(f"  使用真实周期: {use_real_cycles}")
     print(f"  CHT冲突检测: {enable_conflict_check}")
     print(f"  CHT类型: {cht_type}")
+    print(f"  每Edge COPU数: {copus_per_edge if copus_per_edge else num_copus}")
     if cht_type == "multi_bank":
         print(f"  Bank数量: {num_banks}")
 
@@ -565,10 +523,10 @@ def main():
             quant_bits=3,
             threshold=threshold,
             sample_rate=sample_rate,
-            max_cycles=max_cycles,
             use_real_cycles=use_real_cycles,
             enable_conflict_check=enable_conflict_check,
             cht_type=cht_type,
+            copus_per_edge=copus_per_edge,
             **cht_kwargs,
         )
     else:
@@ -582,10 +540,10 @@ def main():
             quant_bits=3,
             threshold=threshold,
             sample_rate=sample_rate,
-            max_cycles=max_cycles,
             use_real_cycles=use_real_cycles,
             enable_conflict_check=enable_conflict_check,
             cht_type=cht_type,
+            copus_per_edge=copus_per_edge,
             **cht_kwargs,
         )
 

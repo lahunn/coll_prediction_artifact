@@ -12,7 +12,7 @@ ROBOT_NAME="iiwa"
 
 # 默认范围
 START=1
-END=50
+END=2
 
 # 新增：检测器类型和周期计数选项
 DETECTOR_TYPE="geometric"  # 默认使用geometric

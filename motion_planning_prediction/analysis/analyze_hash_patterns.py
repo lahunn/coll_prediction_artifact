@@ -1,534 +1,398 @@
 #!/usr/bin/env python3
 """
-Hash编码差异分析工具
+Hash编码分布与Bank划分方案分析工具
 
-分析重排后相邻pose的unit coord的hash编码差异：
-- 对于重排序列中相邻的两个pose对，比较它们对应的每个unit的coord hash编码
-- 统计bit位级别的差异分布
-- 用于评估重排策略对hash冲突率的影响
-- 支持多种碰撞模型: sphere, link 等
+功能：
+1. 加载实际机器人运动轨迹数据
+2. 生成所有Link的Hash Key
+3. 分析Hash Key的分布情况
+4. 评估不同的Bank划分方案（即选择哪些Bit作为Bank ID），寻找负载最均衡的方案
 """
-# python analyze_hash_patterns.py iiwa_7 1-20 ../../trace_files/scene_benchmarks/bit_collision_data iiwa --collision-model link
 
 import sys
 import os
-from collections import defaultdict
+import argparse
+import numpy as np
+# import itertools
+# from collections import Counter
+# import matplotlib.pyplot as plt
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
+# 添加父目录到sys.path以导入模块
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.insert(0, parent_dir)
 import simulation_utils as su
-
-# 全局参数配置
-QUANT_MIN = -1.5  # 量化最小值
-QUANT_MAX = 1.5  # 量化最大值
-QUANT_BITS = 4  # 量化位数
-
-# 从命令行参数中获取机器人名称并计算bins
-def get_global_bins(robot_name):
-    return su.calculate_bins_from_workspace(robot_name, QUANT_BITS)
-
-# 全局变量将在main函数中初始化
-BINS = None
-
-# 全局变量
-collision_model_type = "link"  # 碰撞模型类型: "sphere" 或 "link"
+from simulation_core import hash_utils
 
 
-def count_bit_differences_from_keys(key1, key2, quant_bits):
+def load_all_hash_keys(basename, benchid_range, data_folder, quant_bits):
     """
-    比较两个hash key字符串的bit位差异
-
-    Args:
-        key1, key2: 两个hash key字符串
-        quant_bits: 每个维度的量化位数
-
-    Returns:
-        diff_bits: 差异的bit位位置列表 (dim, bit_pos)
-        diff_count: 差异的bit总数
-        diff_dimensions: 差异涉及的维度列表
-        bit_level_diffs: 按bit位统计的差异数字典 {(dim, bit_pos): count}
+    加载数据并计算所有Hash Keys
     """
-    if len(key1) != len(key2):
-        raise ValueError("Hash keys must have the same length")
+    print(f"正在加载数据 {basename} (Benchmarks: {benchid_range})...")
 
-    diff_bits = []
-    diff_dimensions = []
-    diff_count = 0
-    bit_level_diffs = defaultdict(int)
-
-    bits_per_dim = quant_bits
-
-    for i in range(len(key1)):
-        if key1[i] != key2[i]:
-            diff_count += 1
-            # 计算维度和bit位置
-            dim = i // bits_per_dim
-            bit_pos = bits_per_dim - 1 - (i % bits_per_dim)  # bit_pos=0为最低位
-            diff_bits.append((dim, bit_pos))
-            bit_level_diffs[(dim, bit_pos)] += 1
-
-    # 找出有差异的维度
-    diff_dimensions = list(set(dim for dim, _ in diff_bits))
-
-    return diff_bits, diff_count, diff_dimensions, bit_level_diffs
-
-
-def analyze_pose_pair_hashes(edge_coords, reorder_sequence, bins, bit_balance_stats=None):
-    """
-    分析重排后相邻pose对的hash差异
-
-    Args:
-        edge_coords: edge的坐标数据 List[List[link_coords]]
-        reorder_sequence: 重排后的pose索引序列
-        bins: 量化bin边界数组
-        bit_balance_stats: 可选，用于统计所有unit的bit分布 defaultdict
-
-    Returns:
-        analysis_results: 包含详细分析数据的字典
-    """
-    num_poses = len(edge_coords)
-    num_links_per_pose = len(edge_coords[0]) if num_poses > 0 else 0
-
-    # 计算量化位数
-    quant_bits = (len(bins[0]) - 1).bit_length()
-
-    # 统计所有unit的bit分布
-    if bit_balance_stats is not None:
-        for pose in edge_coords:
-            for link_coords in pose:
-                key = su.compute_hash_keyy(link_coords[0:3], bins)
-                for i in range(len(key)):
-                    dim = i // quant_bits
-                    bit_pos = quant_bits - 1 - (i % quant_bits)  # bit_pos=0为最低位
-                    bit_balance_stats[(dim, bit_pos)][f"count_{key[i]}"] += 1
-
-    # 初始化统计数据结构
-    analysis_results = {
-        "num_poses": num_poses,
-        "num_links_per_pose": num_links_per_pose,
-        "pose_pairs": [],  # 相邻pose对的详细信息
-        "link_level_stats": defaultdict(
-            lambda: {
-                "total_comparisons": 0,
-                "same_hash_count": 0,
-                "diff_hash_count": 0,
-                "avg_bit_diff": 0.0,
-                "bit_diff_distribution": defaultdict(int),  # {diff_count: frequency}
-            }
-        ),
-        "dimension_level_stats": defaultdict(
-            lambda: {
-                "total_diffs": 0,
-                "dimension_diff_count": defaultdict(int),  # {dim: count}
-            }
-        ),
-        "bit_level_stats": defaultdict(int),  # {(dim, bit_pos): count}
-        "overall_stats": {
-            "total_pose_pairs": len(reorder_sequence) - 1,
-            "total_link_comparisons": 0,
-            "total_same_hash": 0,
-            "total_diff_hash": 0,
-            "avg_bit_diffs_per_link": 0.0,
-        },
-    }
-
-    # 遍历相邻pose对
-    for pair_idx in range(len(reorder_sequence) - 1):
-        pose_idx1 = reorder_sequence[pair_idx]
-        pose_idx2 = reorder_sequence[pair_idx + 1]
-
-        pose_pair_info = {"pose_indices": (pose_idx1, pose_idx2), "links": []}
-
-        # 比较每条link的hash编码
-        for link_idx in range(num_links_per_pose):
-            link_coords1 = edge_coords[pose_idx1][link_idx]
-            link_coords2 = edge_coords[pose_idx2][link_idx]
-
-            # 计算hash编码
-            key1 = su.compute_hash_keyy(link_coords1[0:3], bins)
-            key2 = su.compute_hash_keyy(link_coords2[0:3], bins)
-
-            # 比较差异
-            diff_bits, diff_count, diff_dims, bit_level_diffs = count_bit_differences_from_keys(
-                key1, key2, quant_bits
-            )
-
-            is_same_hash = diff_count == 0
-
-            link_info = {
-                "link_idx": link_idx,
-                "key1": key1,
-                "key2": key2,
-                "is_same_hash": is_same_hash,
-                "diff_bit_count": diff_count,
-                "diff_dimensions": diff_dims,
-                "diff_bits": diff_bits,
-            }
-            pose_pair_info["links"].append(link_info)
-
-            # 更新统计
-            analysis_results["link_level_stats"][link_idx]["total_comparisons"] += 1
-            analysis_results["overall_stats"]["total_link_comparisons"] += 1
-
-            if is_same_hash:
-                analysis_results["link_level_stats"][link_idx]["same_hash_count"] += 1
-                analysis_results["overall_stats"]["total_same_hash"] += 1
-            else:
-                analysis_results["link_level_stats"][link_idx]["diff_hash_count"] += 1
-                analysis_results["overall_stats"]["total_diff_hash"] += 1
-                analysis_results["link_level_stats"][link_idx]["bit_diff_distribution"][
-                    diff_count
-                ] += 1
-
-            # 统计维度级别差异
-            for dim in diff_dims:
-                analysis_results["dimension_level_stats"][link_idx][
-                    "dimension_diff_count"
-                ][dim] += 1
-                analysis_results["dimension_level_stats"][link_idx]["total_diffs"] += 1
-
-            # 统计bit位级别差异
-            for (dim, bit_pos), count in bit_level_diffs.items():
-                analysis_results["bit_level_stats"][(dim, bit_pos)] += count
-
-        analysis_results["pose_pairs"].append(pose_pair_info)
-
-    # 计算平均值
-    if analysis_results["overall_stats"]["total_link_comparisons"] > 0:
-        total_bit_diffs = sum(
-            diff_count * freq
-            for link_stats in analysis_results["link_level_stats"].values()
-            for diff_count, freq in link_stats["bit_diff_distribution"].items()
-        )
-        analysis_results["overall_stats"]["avg_bit_diffs_per_link"] = (
-            total_bit_diffs
-            / analysis_results["overall_stats"]["total_link_comparisons"]
-        )
-
-    # 计算每条link的平均bit差异
-    for link_idx, link_stats in analysis_results["link_level_stats"].items():
-        if link_stats["total_comparisons"] > 0:
-            total_bits = sum(
-                diff_count * freq
-                for diff_count, freq in link_stats["bit_diff_distribution"].items()
-            )
-            link_stats["avg_bit_diff"] = total_bits / link_stats["total_comparisons"]
-
-    return analysis_results
-
-
-def print_analysis_report(analysis_results, verbose=False):
-    """打印分析报告"""
-
-    print("\n" + "=" * 70)
-    print("Hash编码差异分析报告")
-    print("=" * 70)
-
-    overall = analysis_results["overall_stats"]
-    print("\n总体统计:")
-    print(f"  Pose对数: {overall['total_pose_pairs']}")
-    print(f"  总Link比较数: {overall['total_link_comparisons']}")
-    print(
-        f"  Hash相同的Link数: {overall['total_same_hash']} ({overall['total_same_hash'] / max(1, overall['total_link_comparisons']) * 100:.1f}%)"
-    )
-    print(
-        f"  Hash不同的Link数: {overall['total_diff_hash']} ({overall['total_diff_hash'] / max(1, overall['total_link_comparisons']) * 100:.1f}%)"
-    )
-    print(f"  平均bit差异数: {overall['avg_bit_diffs_per_link']:.2f}")
-
-    print("\nLink级别统计:")
-    print(
-        f"{'Link':>6} {'总比较':>8} {'Hash相同':>10} {'Hash不同':>10} {'平均Bit差':>12} {'Bit差分布':>20}"
-    )
-    print("-" * 70)
-
-    for link_idx in sorted(analysis_results["link_level_stats"].keys()):
-        link_stats = analysis_results["link_level_stats"][link_idx]
-
-        # 构造bit差分布字符串
-        bit_dist_str = "{"
-        for bit_diff in sorted(link_stats["bit_diff_distribution"].keys()):
-            freq = link_stats["bit_diff_distribution"][bit_diff]
-            bit_dist_str += f"{bit_diff}:{freq},"
-        bit_dist_str = bit_dist_str.rstrip(",") + "}"
-
-        print(
-            f"{link_idx:6d} {link_stats['total_comparisons']:8d} "
-            f"{link_stats['same_hash_count']:10d} {link_stats['diff_hash_count']:10d} "
-            f"{link_stats['avg_bit_diff']:12.2f} {bit_dist_str:>20}"
-        )
-
-    if verbose:
-        print("\n维度级别差异统计:")
-        for link_idx in sorted(analysis_results["dimension_level_stats"].keys()):
-            dim_stats = analysis_results["dimension_level_stats"][link_idx]
-            print(f"  Link {link_idx}: 总差异数={dim_stats['total_diffs']}")
-            for dim in sorted(dim_stats["dimension_diff_count"].keys()):
-                count = dim_stats["dimension_diff_count"][dim]
-                print(f"    维度{dim}: {count}次差异")
-
-        print("\n详细Pose对信息 (前10对):")
-        for pair_idx, pose_pair in enumerate(analysis_results["pose_pairs"][:10]):
-            pose_indices = pose_pair["pose_indices"]
-            print(f"  Pose对 {pair_idx}: ({pose_indices[0]} -> {pose_indices[1]})")
-
-            same_count = sum(1 for link in pose_pair["links"] if link["is_same_hash"])
-            print(f"    相同hash的link数: {same_count}/{len(pose_pair['links'])}")
-
-            for link in pose_pair["links"][:3]:  # 只显示前3条link
-                status = (
-                    "相同"
-                    if link["is_same_hash"]
-                    else f"差异{link['diff_bit_count']}bit"
-                )
-                print(f"      Link{link['link_idx']}: {status}")
-
-
-def print_bit_statistics(bit_diffs):
-    """打印Bit位差异统计"""
-    sorted_bit_diffs = sorted(bit_diffs.items(), key=lambda x: x[1], reverse=True)
-    if sorted_bit_diffs:
-        print("\nBit位差异统计 (按差异数降序):")
-        print(f"{'维度':>6} {'Bit位':>8} {'差异数':>10}")
-        print("-" * 30)
-        for (dim, bit_pos), count in sorted_bit_diffs:
-            print(f"{dim:6d} {bit_pos:8d} {count:10d}")
-
-
-def print_bit_balance_statistics(bit_balance_stats):
-    """打印Bit位平衡统计"""
-    if not bit_balance_stats:
-        return
-
-    print("\n" + "=" * 70)
-    print("Bit位平衡统计 (按均衡度降序)")
-    print("=" * 70)
-    print(f"{'维度':>6} {'Bit位':>8} {'Count_0':>10} {'Count_1':>10} {'总计':>8} {'均衡度':>10}")
-    print("-" * 60)
-
-    balance_list = []
-    for (dim, bit_pos), counts in bit_balance_stats.items():
-        c0 = counts["count_0"]
-        c1 = counts["count_1"]
-        total = c0 + c1
-        if total > 0:
-            balance = 1 - abs(c0 - c1) / total  # 均衡度：1为完全平衡，0为完全不平衡
-        else:
-            balance = 0
-        balance_list.append((dim, bit_pos, c0, c1, total, balance))
-
-    balance_list.sort(key=lambda x: x[5], reverse=True)  # 按均衡度降序
-
-    for dim, bit_pos, c0, c1, total, balance in balance_list:
-        print(f"{dim:6d} {bit_pos:8d} {c0:10d} {c1:10d} {total:8d} {balance:10.3f}")
-
-
-def print_benchmark_statistics(all_analysis_results):
-    """打印按Benchmark统计"""
-    print("\n" + "=" * 70)
-    print("按Benchmark统计")
-    print("=" * 70)
-    print(f"{'Bench':>6} {'Edge数':>8} {'Hash相同':>12} {'比例':>10} {'平均bit差':>12}")
-    print("-" * 60)
-
-    benchmark_stats = defaultdict(
-        lambda: {
-            "edge_count": 0,
-            "same_hash": 0,
-            "total_comparisons": 0,
-            "bit_diffs_sum": 0,
-        }
-    )
-
-    for r in all_analysis_results:
-        benchid = r["benchid"]
-        stats = r["results"]["overall_stats"]
-        benchmark_stats[benchid]["edge_count"] += 1
-        benchmark_stats[benchid]["same_hash"] += stats["total_same_hash"]
-        benchmark_stats[benchid]["total_comparisons"] += stats["total_link_comparisons"]
-        benchmark_stats[benchid]["bit_diffs_sum"] += (
-            stats["avg_bit_diffs_per_link"] * stats["total_link_comparisons"]
-        )
-
-    for benchid in sorted(benchmark_stats.keys()):
-        stats = benchmark_stats[benchid]
-        same_ratio = stats["same_hash"] / max(1, stats["total_comparisons"]) * 100
-        avg_bit = stats["bit_diffs_sum"] / max(1, stats["total_comparisons"])
-        print(
-            f"{benchid:6d} {stats['edge_count']:8d} {stats['same_hash']:12d} "
-            f"{same_ratio:9.1f}% {avg_bit:12.2f}"
-        )
-
-
-def process_edge(edge, edge_coll, benchid, bit_balance_stats=None):
-    """处理单条边的hash差异分析"""
-    if not edge_coll:
-        return None
-
-    num_poses = len(edge)
-    reorder_sequence = su.generate_recursive_reorder(num_poses, step_size=8)
-
-    analysis_results = analyze_pose_pair_hashes(edge, reorder_sequence, BINS, bit_balance_stats)
-    return {"benchid": benchid, "edge_idx": 0, "results": analysis_results}
-
-
-def process_benchmark(
-    basename, benchid, data_folder, collision_model_type, load_with_cycles, bit_balance_stats=None
-):
-    """处理单个benchmark的所有边"""
-    # 加载数据
-    if load_with_cycles:
-        unit_link_data, unit_link_coll_data, _ = su.load_data_with_cycles(
-            basename, benchid, data_folder, collision_model_type=collision_model_type
-        )
-    else:
-        unit_link_data, unit_link_coll_data = su.load_data(
-            basename, benchid, data_folder, collision_model_type=collision_model_type
-        )
-
-    if unit_link_data is None or unit_link_coll_data is None:
-        print(f"  警告: 无法加载benchmark {benchid}的数据，跳过")
+    # 获取Workspace Bins
+    robot_name = basename.split("_")[0]  # 假设命名规则为 name_dof
+    try:
+        bins = hash_utils.calculate_bins_from_workspace(robot_name, quant_bits)
+    except Exception as e:
+        print(f"Error calculating bins: {e}")
         return []
 
-    print(f"  成功加载数据，共{len(unit_link_data)}条边")
-
-    results = []
-    for edge_idx, (edge, edge_coll) in enumerate(
-        zip(unit_link_data, unit_link_coll_data)
-    ):
-        if not edge_coll:
-            continue
-
-        reorder_sequence = su.generate_recursive_reorder(len(edge), step_size=8)
-        analysis_results = analyze_pose_pair_hashes(edge, reorder_sequence, BINS, bit_balance_stats)
-        results.append(
-            {
-                "benchid": benchid,
-                "edge_idx": edge_idx,
-                "results": analysis_results,
-                "edge_coords": edge,
-            }
-        )
-
-    return results
-
-
-def parse_arguments():
-    """解析命令行参数"""
-    global collision_model_type
-
-    if len(sys.argv) < 5:
-        print(
-            "Usage: python analyze_hash_patterns.py <basename> <benchid_range> <data_folder> "
-            "<robot_name> [--collision-model TYPE] [--with-cycles]"
-        )
-        print(
-            "Example: python analyze_hash_patterns.py iiwa_7 1-20 ../../trace_files/scene_benchmarks/bit_collision_data iiwa --collision-model link"
-        )
-        sys.exit(1)
-
-    basename = sys.argv[1]
-    benchid_arg = sys.argv[2]
-    data_folder = sys.argv[3]
-    robot_name = sys.argv[4]
+    all_hash_keys = []
 
     # 解析benchid范围
-    if "-" in benchid_arg:
-        start_id, end_id = map(int, benchid_arg.split("-"))
-        benchid_list = list(range(start_id, end_id + 1))
+    if "-" in benchid_range:
+        start, end = map(int, benchid_range.split("-"))
+        bench_ids = range(start, end + 1)
     else:
-        benchid_list = [int(benchid_arg)]
+        bench_ids = [int(benchid_range)]
 
-    # 解析可选参数
-    if "--collision-model" in sys.argv:
-        idx = sys.argv.index("--collision-model")
-        if idx + 1 < len(sys.argv):
-            collision_model_type = sys.argv[idx + 1]
-    load_with_cycles = "--with-cycles" in sys.argv
+    total_edges = 0
 
-    return basename, benchid_list, data_folder, robot_name, load_with_cycles
+    for bid in bench_ids:
+        # 加载单个Benchmark数据
+        # 注意：这里只加载数据，不需要碰撞检测结果
+        data, _ = su.load_data(basename, bid, data_folder, collision_model_type="link")
+
+        if data is None:
+            continue
+
+        # data结构: [edge1, edge2, ...]
+        # edge结构: [pose1, pose2, ...]
+        # pose结构: [link1_coords, link2_coords, ...]
+
+        for edge in data:
+            total_edges += 1
+            for pose in edge:
+                for link_coords in pose:
+                    # 计算Hash Key
+                    key = hash_utils.compute_hash_keyy(link_coords, bins)
+                    all_hash_keys.append(key)
+
+    print(f"数据加载完成: 处理了 {len(bench_ids)} 个Benchmarks, {total_edges} 个Edges")
+    print(f"生成的Hash Key总数: {len(all_hash_keys)}")
+
+    return all_hash_keys
+
+
+def evaluate_bank_schemes(all_hash_keys, num_banks, quant_bits):
+    """
+    评估特定的Bank Bit选择方案 (0, 1, 2)
+    """
+    if not all_hash_keys:
+        return
+
+    key_len = len(all_hash_keys[0])
+
+    print("\n=== Bank方案评估 ===")
+    print(f"Hash Key长度: {key_len} bits")
+
+    # 仅评估 0, 1, 2 方案
+    combo = (0, 1, 2)
+    print(f"评估方案: Bits {combo}")
+
+    # 计算每个key对应的bank id
+    bank_counts = np.zeros(num_banks, dtype=int)
+
+    for key_str in all_hash_keys:
+        bank_id = 0
+        for i, bit_idx in enumerate(combo):
+            # bit_idx 是字符串中的索引
+            if key_str[bit_idx] == "1":
+                bank_id |= 1 << i
+        bank_counts[bank_id] += 1
+
+    # 计算统计指标
+    std_dev = np.std(bank_counts)
+    max_load = np.max(bank_counts)
+    min_load = np.min(bank_counts)
+    range_ratio = max_load / min_load if min_load > 0 else float("inf")
+
+    print("结果:")
+    print(f"  Std Dev: {std_dev:.2f}")
+    print(f"  Max/Min Ratio: {range_ratio:.2f}")
+    print(f"  Counts: {bank_counts}")
+    print_bit_meaning(combo, quant_bits)
+    print("-" * 40)
+
+
+def print_bit_meaning(combo, quant_bits):
+    """解释位的含义"""
+    # 假设3维
+    dims = ["X", "Y", "Z"]
+    num_dims = 3
+
+    desc = []
+    for bit_idx in combo:
+        # bit_idx = bit_level * num_dims + dim_index
+        bit_level = bit_idx // num_dims
+        dim_index = bit_idx % num_dims
+        desc.append(f"{dims[dim_index]}_bit{bit_level}")
+
+    print(f"  含义: {', '.join(desc)}")
 
 
 def main():
-    """主函数"""
-    global collision_model_type, BINS
+    parser = argparse.ArgumentParser(description="Hash Pattern Analysis")
+    parser.add_argument("basename", help="Dataset basename (e.g., iiwa_7)")
+    parser.add_argument("benchid", help="Benchmark ID range (e.g., 1-10)")
+    parser.add_argument("data_folder", help="Path to data folder")
+    parser.add_argument("--quant-bits", type=int, default=4, help="Quantization bits")
+    parser.add_argument("--num-banks", type=int, default=8, help="Number of banks")
 
-    basename, benchid_list, data_folder, robot_name, load_with_cycles = (
-        parse_arguments()
+    args = parser.parse_args()
+
+    # 1. 加载并生成Hash
+    keys = load_all_hash_keys(
+        args.basename, args.benchid, args.data_folder, args.quant_bits
     )
 
-    # 初始化全局bins
-    BINS = get_global_bins(robot_name)
+    # 2. 评估方案
+    evaluate_bank_schemes(keys, args.num_banks, args.quant_bits)
 
-    print("Hash编码差异分析")
-    print(
-        f"Basename: {basename}, Benchmark IDs: {benchid_list[0]}-{benchid_list[-1]} ({len(benchid_list)}个)"
-    )
-    print(f"数据文件夹: {data_folder}")
-    print(f"机器人: {robot_name}")
-    print(f"碰撞模型: {collision_model_type}")
-    print(f"加载带cycles数据: {load_with_cycles}")
-    print("=" * 70)
+    # 3. 评估XOR方案
+    # evaluate_xor_schemes(keys, args.num_banks)
 
-    # 初始化bit平衡统计
-    bit_balance_stats = defaultdict(lambda: {"count_0": 0, "count_1": 0})
+    # 4. 评估乘法Hash方案
+    evaluate_prime_hash_schemes(keys, args.num_banks)
 
-    # 处理所有benchid
-    all_analysis_results = []
-    for benchid in benchid_list:
-        print(f"\n正在处理 Benchmark {benchid}...")
-        results = process_benchmark(
-            basename, benchid, data_folder, collision_model_type, load_with_cycles, bit_balance_stats
-        )
-        all_analysis_results.extend(results)
+    # 5. 评估H3 Hash方案 (Universal Hashing)
+    evaluate_h3_hash_schemes(keys, args.num_banks)
 
-    # 汇总统计
-    if not all_analysis_results:
-        print("错误: 未能处理任何数据")
-        sys.exit(1)
+    # 6. 评估强混淆Hash方案 (Murmur3/Wang)
+    evaluate_strong_mix_schemes(keys, args.num_banks)
 
-    print("\n" + "=" * 70)
-    print("汇总统计")
-    print("=" * 70)
 
-    total_same_hash = sum(
-        r["results"]["overall_stats"]["total_same_hash"] for r in all_analysis_results
-    )
-    total_comparisons = sum(
-        r["results"]["overall_stats"]["total_link_comparisons"]
-        for r in all_analysis_results
-    )
-    total_pose_pairs = sum(
-        r["results"]["overall_stats"]["total_pose_pairs"] for r in all_analysis_results
-    )
-    avg_bit_diffs = sum(
-        r["results"]["overall_stats"]["avg_bit_diffs_per_link"]
-        * r["results"]["overall_stats"]["total_link_comparisons"]
-        for r in all_analysis_results
-    ) / max(1, total_comparisons)
+def evaluate_strong_mix_schemes(all_hash_keys, num_banks):
+    """
+    评估强混淆Hash方案 (Murmur3 Finalizer / Wang Hash)
+    原理: 使用一系列位运算(XOR, Shift, Mult)彻底打散输入位的相关性。
+    """
+    if not all_hash_keys:
+        return
 
-    print(f"分析的Benchmark数量: {len(benchid_list)}")
-    print(f"分析的Edge数量: {len(all_analysis_results)}")
-    print(f"总Pose对数: {total_pose_pairs}")
-    print(f"总Unit比较数: {total_comparisons}")
-    print(f"Hash相同比例: {total_same_hash / max(1, total_comparisons) * 100:.1f}%")
-    print(f"平均bit差异数: {avg_bit_diffs:.2f}")
+    print("\n=== 强混淆Hash方案评估 (Strong Mixing) ===")
 
-    # 统计bit位差异
-    bit_diffs = defaultdict(int)
-    for r in all_analysis_results:
-        for (dim, bit_pos), count in r["results"]["bit_level_stats"].items():
-            bit_diffs[(dim, bit_pos)] += count
+    # 预处理
+    int_keys = [int(k, 2) for k in all_hash_keys]
 
-    print_bit_statistics(bit_diffs)
-    print_benchmark_statistics(all_analysis_results)
-    print_bit_balance_statistics(bit_balance_stats)
+    # 1. Murmur3 32-bit Finalizer
+    # 这是一个非常优秀的Avalanche Mixer
+    def murmur3_mix(k):
+        k ^= k >> 16
+        k = (k * 0x85EBCA6B) & 0xFFFFFFFF
+        k ^= k >> 13
+        k = (k * 0xC2B2AE35) & 0xFFFFFFFF
+        k ^= k >> 16
+        return k & 0xFFFFFFFF
 
-    # # Hash多样性分析
-    # print("\n" + "=" * 70)
-    # print("Hash编码多样性分析")
-    # print("=" * 70)
-    # diversity_report = analyze_hash_diversity_multi_benchmark(all_analysis_results, BINS)
-    # print_multi_benchmark_diversity_report(diversity_report)
+    # 2. Thomas Wang's 32-bit Integer Hash
+    def wang_hash(key):
+        key = (~key) + (key << 21)
+        key = key & 0xFFFFFFFF
+        key = key ^ (key >> 24)
+        key = (key + (key << 3)) + (key << 8)
+        key = key & 0xFFFFFFFF
+        key = key ^ (key >> 14)
+        key = (key + (key << 2)) + (key << 4)
+        key = key & 0xFFFFFFFF
+        key = key ^ (key >> 28)
+        key = (key + (key << 31)) & 0xFFFFFFFF
+        return key
+
+    schemes = [("Murmur3 Mixer", murmur3_mix), ("Wang Hash", wang_hash)]
+
+    for name, func in schemes:
+        bank_counts = np.zeros(num_banks, dtype=int)
+
+        # Mask for bank mapping
+        # 如果num_banks是2的幂，直接与掩码
+        # 否则取模
+        is_power_of_2 = (num_banks & (num_banks - 1) == 0) and num_banks > 0
+        mask = num_banks - 1
+
+        for val in int_keys:
+            hashed = func(val)
+            if is_power_of_2:
+                bank_id = hashed & mask
+            else:
+                bank_id = hashed % num_banks
+            bank_counts[bank_id] += 1
+
+        # 计算统计指标
+        std_dev = np.std(bank_counts)
+        max_load = np.max(bank_counts)
+        min_load = np.min(bank_counts)
+        range_ratio = max_load / min_load if min_load > 0 else float("inf")
+
+        print(f"Scheme: {name}")
+        print(f"  Std Dev: {std_dev:.2f}")
+        print(f"  Max/Min Ratio: {range_ratio:.2f}")
+        print(f"  Counts: {bank_counts}")
+        print("-" * 20)
+
+
+def evaluate_h3_hash_schemes(all_hash_keys, num_banks):
+    """
+    评估H3 Hash方案 (Universal Hashing)
+    原理: 每一个输入位对应一个随机数。如果输入位为1，则将对应的随机数异或到结果中。
+    这是硬件CHT/Cache中常用的消除冲突的方法。
+    """
+    if not all_hash_keys:
+        return
+
+    print("\n=== H3 Hash方案评估 (Universal Hashing) ===")
+
+    key_len = len(all_hash_keys[0])
+    int(np.log2(num_banks))
+
+    # 预处理：将所有key转换为int列表
+    int_keys = [int(k, 2) for k in all_hash_keys]
+
+    # 尝试不同的随机种子
+    seeds = [42, 123, 999, 2024, 7]
+
+    best_ratio = float("inf")
+    best_seed = -1
+
+    for seed in seeds:
+        np.random.seed(seed)
+        # 为每一位生成一个随机的Mask (范围 0 到 num_banks-1)
+        # H3矩阵: key_len 行, num_select_bits 列
+        # 这里直接用整数表示每一行
+        h3_matrix = np.random.randint(0, num_banks, size=key_len)
+
+        bank_counts = np.zeros(num_banks, dtype=int)
+
+        for val in int_keys:
+            bank_id = 0
+            temp_val = val
+            bit_idx = 0
+
+            # 遍历每一位
+            # 注意：这里假设key_len足够覆盖val的所有位
+            # 由于val是int_keys中的值，其位数由key_len决定
+            # 但为了效率，我们直接位移
+            while temp_val > 0:
+                if temp_val & 1:
+                    bank_id ^= h3_matrix[bit_idx]
+                temp_val >>= 1
+                bit_idx += 1
+
+            bank_counts[bank_id] += 1
+
+        # 计算统计指标
+        std_dev = np.std(bank_counts)
+        max_load = np.max(bank_counts)
+        min_load = np.min(bank_counts)
+        range_ratio = max_load / min_load if min_load > 0 else float("inf")
+
+        print(f"Seed {seed}:")
+        print(f"  Std Dev: {std_dev:.2f}")
+        print(f"  Max/Min Ratio: {range_ratio:.2f}")
+        print(f"  Counts: {bank_counts}")
+
+        if range_ratio < best_ratio:
+            best_ratio = range_ratio
+            best_seed = seed
+
+    print("-" * 20)
+    print(f"H3 最佳 Seed: {best_seed}, Ratio: {best_ratio:.2f}")
+
+
+def evaluate_xor_schemes(all_hash_keys, num_banks):
+    """
+    评估XOR Hash方案 (Folding)
+    """
+    if not all_hash_keys:
+        return
+
+    key_len = len(all_hash_keys[0])
+    num_select_bits = int(np.log2(num_banks))
+
+    print("\n=== XOR Hash方案评估 (Folding) ===")
+    print(f"原理: 将 {key_len} bits 的 Key 分割成 {num_select_bits} bits 的段进行异或")
+
+    # 预处理：将所有key转换为int列表
+    int_keys = [int(k, 2) for k in all_hash_keys]
+
+    bank_counts = np.zeros(num_banks, dtype=int)
+
+    # 掩码，用于提取 num_select_bits
+    mask = (1 << num_select_bits) - 1
+
+    for val in int_keys:
+        bank_id = 0
+        temp_val = val
+
+        # Folding XOR
+        while temp_val > 0:
+            bank_id ^= temp_val & mask
+            temp_val >>= num_select_bits
+
+        bank_counts[bank_id] += 1
+
+    # 计算统计指标
+    std_dev = np.std(bank_counts)
+    max_load = np.max(bank_counts)
+    min_load = np.min(bank_counts)
+    range_ratio = max_load / min_load if min_load > 0 else float("inf")
+
+    print("XOR Folding 结果:")
+    print(f"  Std Dev: {std_dev:.2f}")
+    print(f"  Max/Min Ratio: {range_ratio:.2f}")
+    print(f"  Counts: {bank_counts}")
+    print("-" * 40)
+
+
+def evaluate_prime_hash_schemes(all_hash_keys, num_banks):
+    """
+    评估乘法Hash方案 (Multiplicative Hash)
+    原理: (Key * Prime) >> Shift
+    这是最常用的打散规律性数据的低成本Hash方法
+    """
+    if not all_hash_keys:
+        return
+
+    print("\n=== 乘法Hash方案评估 (Multiplicative) ===")
+
+    # 预处理：将所有key转换为int列表
+    int_keys = [int(k, 2) for k in all_hash_keys]
+
+    # 尝试几个著名的素数
+    primes = [
+        2654435761,  # Knuth's Multiplicative Hash (Golden Ratio for 32bit)
+        3632628803,  # Another good prime
+        16777619,  # FNV prime
+    ]
+
+    num_select_bits = int(np.log2(num_banks))
+    # 我们在一个32位的空间内做乘法，然后取高位
+    # Shift amount to get the top N bits from a 32-bit result
+    shift_amount = 32 - num_select_bits
+
+    for prime in primes:
+        bank_counts = np.zeros(num_banks, dtype=int)
+
+        for val in int_keys:
+            # 模拟32位无符号整数溢出截断
+            hashed_val = (val * prime) & 0xFFFFFFFF
+            # 取高位作为Bank ID
+            bank_id = hashed_val >> shift_amount
+            bank_counts[bank_id] += 1
+
+        # 计算统计指标
+        std_dev = np.std(bank_counts)
+        max_load = np.max(bank_counts)
+        min_load = np.min(bank_counts)
+        range_ratio = max_load / min_load if min_load > 0 else float("inf")
+
+        print(f"Prime {prime}:")
+        print(f"  Std Dev: {std_dev:.2f}")
+        print(f"  Max/Min Ratio: {range_ratio:.2f}")
+        print(f"  Counts: {bank_counts}")
+        print("-" * 20)
 
 
 if __name__ == "__main__":

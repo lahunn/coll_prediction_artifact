@@ -137,3 +137,45 @@ def enqueue_predictions(
                     qnoncoll.append([keyy, linkcoll])
                 del linklist[0]
                 del linklist_coll[0]
+
+
+def predict_next_config(
+    linklist,
+    linklist_coll,
+    qcoll,
+    qnoncoll,
+    bins,
+    threshold,
+    cht_scheduler,
+    qcoll_size,
+    qnoncoll_size,
+):
+    """预测下一个配置并入队"""
+    if len(linklist) > 0:
+        link = linklist[0]
+        linkcoll = linklist_coll[0]
+
+        keyy = compute_hash_keyy(link, bins)
+
+        # 查询CHT
+        is_ready = False
+        coll_count, noncoll_count = 0, 0
+
+        is_ready, data = cht_scheduler.get_read_result(keyy)
+        if is_ready:
+            coll_count, noncoll_count = data
+
+        if is_ready:
+            is_collision_predicted = coll_count > noncoll_count * threshold
+
+            # 入队
+            if is_collision_predicted:
+                if len(qcoll) < qcoll_size:
+                    qcoll.append([keyy, linkcoll])
+                    del linklist[0]
+                    del linklist_coll[0]
+            else:
+                if len(qnoncoll) < qnoncoll_size:
+                    qnoncoll.append([keyy, linkcoll])
+                    del linklist[0]
+                    del linklist_coll[0]

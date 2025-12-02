@@ -7,7 +7,6 @@ import json
 import os
 
 
-
 def calculate_bins(quant_min, quant_max, quant_bits):
     """
     计算量化分箱的边界
@@ -28,27 +27,28 @@ def calculate_bins(quant_min, quant_max, quant_bits):
 
 def return_keyy(code, quant_bits):
     """
-    将量化编码转换为二进制字符串
+    将量化编码转换为二进制字符串，使用bit interleaving方式
 
     Args:
         code: 量化编码数组，例如 [3, 5, 2]（每个元素是量化值）
         quant_bits: 每个量化值的比特宽度（例如4表示每个值用4位表示）
 
     Returns:
-        keyy: 二进制编码字符串，例如 "001101010010"（每个元素转为二进制后拼接）
+        keyy: 二进制编码字符串，使用bit interleaving：对于每个bit位置，从每个维度取该bit位置的bit
 
     说明：
-        假定 quant_bits=4，则每个量化值用4个比特表示
-        例如：code=[3, 5, 2], quant_bits=4 -> "0011" + "0101" + "0010" = "001101010010"
-        最终返回的二进制字符串长度为 len(code) * quant_bits
+        对于3个维度，每个4bit，bit interleaving顺序为：
+        bit0_dim0, bit0_dim1, bit0_dim2, bit1_dim0, bit1_dim1, bit1_dim2, ...
+        例如：code=[3, 5, 2], quant_bits=4 -> "110101001000"
     """
     bitsize = len(code)
     keyy = ""
 
-    for j in range(bitsize):
-        # 将每个量化值转为二进制，用零补齐到quant_bits位
-        binary_str = format(int(code[j]), f"0{quant_bits}b")
-        keyy = keyy + binary_str
+    for bit_pos in range(quant_bits):
+        for dim in range(bitsize):
+            # 从每个维度的当前bit位置提取bit
+            bit = (int(code[dim]) >> bit_pos) & 1
+            keyy += str(bit)
 
     return keyy
 
@@ -97,16 +97,16 @@ def calculate_bins_from_workspace(robot_name, quant_bits):
         raise FileNotFoundError(f"Workspace file not found: {workspace_file}")
 
     # 读取workspace信息
-    with open(workspace_file, 'r') as f:
+    with open(workspace_file, "r") as f:
         workspace_data = json.load(f)
 
     # 提取各维度的范围
-    x_min = workspace_data['x_start']
-    x_max = workspace_data['x_end']
-    y_min = workspace_data['y_start']
-    y_max = workspace_data['y_end']
-    z_min = workspace_data['z_start']
-    z_max = workspace_data['z_end']
+    x_min = workspace_data["x_start"]
+    x_max = workspace_data["x_end"]
+    y_min = workspace_data["y_start"]
+    y_max = workspace_data["y_end"]
+    z_min = workspace_data["z_start"]
+    z_max = workspace_data["z_end"]
 
     # 计算每个维度的bins
     num_bins = 2**quant_bits

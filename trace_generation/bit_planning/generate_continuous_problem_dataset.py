@@ -153,14 +153,6 @@ def generate_problem_dataset(
     modular_env_link.load_obstacles(current_obstacles)
     modular_env_sphere.load_obstacles(current_obstacles)
 
-    # 固定起点
-    fixed_start = uniform_sample(
-        modular_env_link.robot_env.lower_bounds,
-        modular_env_link.robot_env.upper_bounds,
-        modular_env_link.robot_env.config_dim,
-    )
-    print(f"固定起点: {fixed_start}")
-
     problems = []
     success_count = 0
 
@@ -175,28 +167,33 @@ def generate_problem_dataset(
     while success_count < num_problems:
         print(f"\n正在生成问题 {success_count + 1}/{num_problems} ...")
 
-        # 生成不同的终点
+        # 生成起点和终点
+        start = uniform_sample(
+            modular_env_link.robot_env.lower_bounds,
+            modular_env_link.robot_env.upper_bounds,
+            modular_env_link.robot_env.config_dim,
+        )
         goal = uniform_sample(
             modular_env_link.robot_env.lower_bounds,
             modular_env_link.robot_env.upper_bounds,
             modular_env_link.robot_env.config_dim,
         )
-        dist = distance(fixed_start, goal)
+        dist = distance(start, goal)
         if dist < 1.0:
             continue  # 距离太近，重新生成
 
         # 检查起点和终点无碰撞
-        if not modular_env_link._state_fp(
-            fixed_start
-        ) or not modular_env_link._state_fp(goal):
+        if not modular_env_link._state_fp(start) or not modular_env_link._state_fp(
+            goal
+        ):
             continue
 
-        print(f"  终点距离: {dist:.2f}")
+        print(f"  起点-终点距离: {dist:.2f}")
 
         # 使用link环境规划
         modular_env_link.collision_env.config_list = []
         modular_env_link.collision_env.data_manager.reset()
-        modular_env_link.init_state = fixed_start
+        modular_env_link.init_state = start
         modular_env_link.goal_state = goal
         planner_link = BITStar(modular_env_link)
 
@@ -209,19 +206,19 @@ def generate_problem_dataset(
         if cost >= float("inf"):
             continue
 
-        path_link = reconstruct_path(edges, fixed_start, goal)
+        path_link = reconstruct_path(edges, start, goal)
         if path_link is None or len(path_link) <= 1:
             continue
 
         link_edge_count = modular_env_link.collision_env.data_manager.edge_fp_call_count
-        if link_edge_count <= EDGE_COUNT_LIMIT:
+        if link_edge_count <= EDGE_COUNT_LIMIT or link_edge_count >= 200:
             continue
 
         # 使用sphere环境重新规划
         print("  使用sphere模型重新规划...")
         modular_env_sphere.collision_env.config_list = []
         modular_env_sphere.collision_env.data_manager.reset()
-        modular_env_sphere.init_state = fixed_start
+        modular_env_sphere.init_state = start
         modular_env_sphere.goal_state = goal
         planner_sphere = BITStar(modular_env_sphere)
         _, edges_sphere, _, cost_sphere, _, _ = planner_sphere.plan(
@@ -231,16 +228,20 @@ def generate_problem_dataset(
         if cost_sphere >= float("inf"):
             continue
 
-        path_sphere = reconstruct_path(edges_sphere, fixed_start, goal)
+        path_sphere = reconstruct_path(edges_sphere, start, goal)
         if path_sphere is None or len(path_sphere) <= 1:
             continue
 
         sphere_edge_count = (
             modular_env_sphere.collision_env.data_manager.edge_fp_call_count
         )
+        # 当边调用数差异过大时，丢弃该问题
+        diff = abs(sphere_edge_count - link_edge_count)
+        if diff > min(link_edge_count, sphere_edge_count):
+            continue
 
         # 保存问题
-        problem = (current_obstacles, fixed_start, goal, path_link)
+        problem = (current_obstacles, start, goal, path_link)
         problems.append(problem)
         success_count += 1
 

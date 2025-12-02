@@ -52,7 +52,7 @@ echo "生成 $ROBOT_NAME 数据集 (双模型: Link + Sphere)"
 echo "========================================================================"
 
 # 遍历不同的障碍物数量
-for NUM_OBSTACLES in 3 6 9 12; do
+for NUM_OBSTACLES in 10; do
     echo ""
     echo "----------------------------------------------------------------"
     echo "生成障碍物数量: $NUM_OBSTACLES"
@@ -60,9 +60,9 @@ for NUM_OBSTACLES in 3 6 9 12; do
 
     python generate_problem_dataset.py \
         --robot-name "$ROBOT_NAME" \
-        --num-problems 200 \
+        --num-problems 1000 \
         --num-obstacles "$NUM_OBSTACLES" \
-        --max-time 5.0 \
+        --max-time 10.0 \
         --workspace-min "$X_START" \
         --workspace-max "$X_END" \
         --safe-zone-radius 0.15 \

@@ -530,8 +530,8 @@ def simulate_parallel_collision_detection_double_buffer(
         else:
             total_noncoll_edge_cycles += edge_cycles
 
-        for oocd_id in range(num_oocds):
-            oocds[oocd_id] = OOCDState(hash_key=0, result=1, busy=0, free_cycle=0)
+        for oocd in oocds:
+            oocd.reset()
         active_pred.qcoll.clear()
         active_pred.qnoncoll.clear()
 

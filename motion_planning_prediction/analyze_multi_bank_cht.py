@@ -22,7 +22,7 @@ import os
 import argparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from multi_copu_simulation import MultiCOPU_Scheduler
+from simulation_core.multi_copu_scheduler import MultiCOPU_Scheduler
 import simulation_utils as su
 
 QUANT_MIN = -1.5
@@ -47,9 +47,9 @@ def print_bank_stats(cht_stats):
             # 将bank_id转换为二进制，长度为len(bank_config)
             bin_str = format(bank_id, f"0{len(bank_config)}b")
             mapping = []
-            for i, (dim, bit) in enumerate(bank_config):
+            for i, bit_pos in enumerate(bank_config):
                 bit_val = int(bin_str[i])
-                mapping.append(f"第{dim}维度第{bit}位:{bit_val}")
+                mapping.append(f"HashKey第{bit_pos}位:{bit_val}")
             print(f"  bank{bank_id} 对应 {' '.join(mapping)}")
 
 
@@ -110,7 +110,6 @@ def run_simulation(
                 bins,
                 threshold=threshold,
                 sample_rate=sample_rate,
-                max_cycles=max_cycles,
             )
             # 只聚合bank相关统计
             edge_bank_stats = result["cht_stats"]
@@ -182,8 +181,12 @@ def run_simulation(
                 total_edges += stats["num_edges"]
 
             # 计算平均冲突率和负载均衡标准差
-            avg_conflict = sum(s["conflict_rate"] for s in all_bank_stats) / len(all_bank_stats)
-            avg_std = sum(s["load_balance_std"] for s in all_bank_stats) / len(all_bank_stats)
+            avg_conflict = sum(s["conflict_rate"] for s in all_bank_stats) / len(
+                all_bank_stats
+            )
+            avg_std = sum(s["load_balance_std"] for s in all_bank_stats) / len(
+                all_bank_stats
+            )
 
             # 构造汇总统计字典
             summary_stats = {

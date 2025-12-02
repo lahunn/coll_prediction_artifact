@@ -52,7 +52,7 @@ echo "生成 $ROBOT_NAME 连续变化障碍物数据集 (双模型: Link + Spher
 echo "========================================================================"
 python generate_continuous_problem_dataset.py \
     --robot-name "$ROBOT_NAME" \
-    --num-problems 50 \
+    --num-problems 200 \
     --num-obstacles 10 \
     --max-time 5.0 \
     --workspace-min "$X_START" \
@@ -60,7 +60,7 @@ python generate_continuous_problem_dataset.py \
     --safe-zone-radius 0.15 \
     --voxel-size-min 0.12 \
     --voxel-size-max 0.20 \
-    --move-step 0.01 \
+    --move-step 0.005 \
     --move-direction "0.7,0.7,0"
 
 if [ $? -eq 0 ]; then

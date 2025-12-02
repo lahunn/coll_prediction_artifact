@@ -32,7 +32,7 @@ def generate_recursive_reorder(num_poses, step_size=8):
     """
     group_count = min(step_size, (num_poses + step_size - 1) // step_size)
     group_order = recursive_binary_reorder(group_count)
-    
+
     reorder = []
     for group_id in group_order:
         pose_idx = group_id
