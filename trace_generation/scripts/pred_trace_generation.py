@@ -106,7 +106,7 @@ def sample_and_generate_data(
             obstacles = pickle.load(pf)
 
         modular_env.obstacle_manager.load_obstacles(obstacles)
-        collision_env.load_obstacle_body_ids(
+        collision_env.load_obstacle_body_ids( # type: ignore
             modular_env.obstacle_manager.obstacle_body_ids
         )
 

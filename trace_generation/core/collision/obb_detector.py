@@ -30,12 +30,11 @@ class OBBCollisionEnv:
     使用OBB（有向包围盒）表示机器人连杆，AABB表示障碍物
     """
 
-    RRT_EPS = 0.25
-
     def __init__(
         self,
         robot_name: str,
         config_output_file: Optional[str] = None,
+        return_cycles: bool = False,
     ):
         """
         初始化OBB碰撞检测环境
@@ -43,6 +42,7 @@ class OBBCollisionEnv:
         Args:
             robot_name: 机器人名称（如 'franka', 'iiwa'）
             config_output_file: 配置输出文件路径（可选）
+            return_cycles: 是否返回周期数（默认False保持向后兼容）
         """
         self.robot_name = robot_name
         self.obstacle_aabbs: List[AABB] = []
@@ -50,6 +50,9 @@ class OBBCollisionEnv:
         # config_output_file 相关逻辑
         self.config_output_file = config_output_file
         self.config_list = []
+
+        # 是否返回周期数
+        self.return_cycles = return_cycles
 
         # 初始化碰撞数据管理器（简化版）
         self.collision_check_count = 0
@@ -62,11 +65,16 @@ class OBBCollisionEnv:
         # 机器人状态相关
         self.valid_collision_links = []  # 有效的碰撞检测连杆索引
         self._initialize_robot_links()
-        
+
         # 初始化PyBullet和正向运动学（用于计算OBB位姿）
         self.physics_client = p.connect(p.DIRECT)  # 无GUI模式
         self.robot_id = self._load_robot_urdf(robot_name)
-        self.obb_fk = OBBForwardKinematics(self.robot_id) if self.robot_id is not None else None
+        self.obb_fk = (
+            OBBForwardKinematics(self.robot_id) if self.robot_id is not None else None
+        )
+
+        if self.return_cycles:
+            print("✓ [OBBCollisionEnv] 周期计数已启用")
 
     def _load_robot_urdf(self, robot_name: str) -> Optional[int]:
         """
@@ -79,7 +87,7 @@ class OBBCollisionEnv:
             机器人ID，如果加载失败则返回None
         """
         import os
-        
+
         # 机器人URDF映射（从environment.py复制）
         robot_urdf_mapping = {
             "franka": "data/robots/franka_description/franka_panda.urdf",
@@ -87,22 +95,22 @@ class OBBCollisionEnv:
             "kinova_gen3": "data/robots/kinova/kinova_gen3_7dof.urdf",
             "ur5e": "data/robots/ur_description/ur5e.urdf",
         }
-        
+
         rel_path = robot_urdf_mapping.get(robot_name)
         if rel_path is None:
             print(f"警告: 未找到机器人 {robot_name} 的URDF路径")
             return None
-        
+
         # 计算URDF文件路径
         # 从当前文件位置向上找到trace_generation目录，再找项目根目录
         current_dir = os.path.dirname(os.path.abspath(__file__))
         trace_gen_dir = os.path.abspath(os.path.join(current_dir, "../.."))
         project_root = os.path.dirname(trace_gen_dir)
-        
+
         # 尝试两个可能的路径
         robot_file_trace = os.path.join(trace_gen_dir, rel_path)
         robot_file_root = os.path.join(project_root, rel_path)
-        
+
         robot_file = None
         if os.path.exists(robot_file_trace):
             robot_file = robot_file_trace
@@ -113,7 +121,7 @@ class OBBCollisionEnv:
             print(f"  尝试路径1: {robot_file_trace}")
             print(f"  尝试路径2: {robot_file_root}")
             return None
-        
+
         try:
             robot_id = p.loadURDF(
                 robot_file,
@@ -248,7 +256,7 @@ class OBBCollisionEnv:
         """关闭碰撞检测环境"""
         self.cleanup_obstacles()
         # 断开PyBullet连接
-        if hasattr(self, 'physics_client') and self.physics_client is not None:
+        if hasattr(self, "physics_client") and self.physics_client is not None:
             try:
                 p.disconnect(self.physics_client)
             except Exception:
@@ -274,7 +282,7 @@ class OBBCollisionEnv:
         if self.obb_fk is None or joint_config is None:
             if "transform" in obb_info:
                 return obb_info["transform"].copy()
-            
+
             # 否则，从position和rotation_matrix构造
             transform = np.eye(4)
             if "position" in obb_info:
@@ -282,14 +290,14 @@ class OBBCollisionEnv:
             if "rotation_matrix" in obb_info:
                 transform[:3, :3] = obb_info["rotation_matrix"]
             return transform
-        
+
         # 使用正向运动学计算OBB的世界变换
         # 1. 设置机器人关节配置
         self.obb_fk.set_joint_configuration(joint_config.tolist())
-        
+
         # 2. 计算OBB在当前配置下的世界位姿
         obb_poses = self.obb_fk.compute_obb_poses([obb_info], joint_config.tolist())
-        
+
         if len(obb_poses) > 0:
             return obb_poses[0]["transform"]
         else:
@@ -340,9 +348,7 @@ class OBBCollisionEnv:
 
         return cuboid
 
-    def _get_link_collisions(
-        self, joint_config: Optional[np.ndarray] = None
-    ) -> Tuple[bool, List[int]]:
+    def _get_link_collisions(self, joint_config: Optional[np.ndarray] = None) -> Tuple:
         """
         获取各个valid link的碰撞结果
 
@@ -350,12 +356,17 @@ class OBBCollisionEnv:
             joint_config: 关节配置（可选）
 
         Returns:
-            tuple: (any_coll, link_colls)
-                   any_coll: 是否有任何碰撞
-                   link_colls: 各连杆碰撞状态列表（0=碰撞，1=无碰撞）
+            如果 self.return_cycles=False: (any_coll, link_colls)
+                - any_coll: 是否有任何碰撞
+                - link_colls: 各连杆碰撞状态列表（0=碰撞，1=无碰撞）
+            如果 self.return_cycles=True: (any_coll, link_colls, link_cycles)
+                - any_coll: 是否有任何碰撞
+                - link_colls: 各连杆碰撞状态列表（0=碰撞，1=无碰撞）
+                - link_cycles: 各连杆的周期数列表
         """
         any_coll = False
         link_colls = []
+        link_cycles = []
 
         for link_idx in self.valid_collision_links:
             obb_info = self.obb_data[link_idx]
@@ -365,8 +376,10 @@ class OBBCollisionEnv:
 
             # 检查与所有障碍物的碰撞
             link_collision = False
+            link_total_cycles = 0
             for aabb in self.obstacle_aabbs:
-                collision_result, _ = cuboid_aabb(cuboid, aabb)
+                collision_result, cycles = cuboid_aabb(cuboid, aabb)
+                link_total_cycles += cycles  # 累加该连杆的周期
                 if collision_result == 0:  # 0表示碰撞
                     link_collision = True
                     break
@@ -377,11 +390,13 @@ class OBBCollisionEnv:
             else:
                 link_colls.append(1)  # 1表示无碰撞
 
+            link_cycles.append(link_total_cycles)
+
+        if self.return_cycles:
+            return any_coll, link_colls, link_cycles
         return any_coll, link_colls
 
-    def _point_in_free_space(
-        self, state: np.ndarray
-    ) -> Tuple[bool, List[np.ndarray], List[int]]:
+    def check_pose(self, state: np.ndarray) -> Tuple[bool, List, List]:
         """
         检查单个配置点的碰撞数据
 
@@ -389,7 +404,10 @@ class OBBCollisionEnv:
             state: 配置状态
 
         Returns:
-            tuple: (is_free, link_coords, link_colls)
+            (is_free, link_coords, link_colls):
+                - is_free (bool): True表示无碰撞，False表示有碰撞
+                - link_coords (List): 连杆坐标列表
+                - link_colls (List): 连杆碰撞信息列表
         """
         start_time = time.time()
         self.collision_check_count += 1
@@ -399,7 +417,13 @@ class OBBCollisionEnv:
 
         # 收集Link坐标和碰撞状态
         link_coords = []
-        link_collision, link_colls = self._get_link_collisions(state)
+        result = self._get_link_collisions(state)
+
+        if self.return_cycles:
+            link_collision, link_colls, link_cycles = result
+        else:
+            link_collision, link_colls = result
+
         for link_idx in self.valid_collision_links:
             obb_info = self.obb_data[link_idx]
             cuboid = self._create_cuboid_from_obb(obb_info, state)
@@ -410,137 +434,10 @@ class OBBCollisionEnv:
         is_free = not link_collision
 
         self.collision_time += time.time() - start_time
+
+        # 与sphere_detector保持一致，check_pose不返回cycles
         return is_free, link_coords, link_colls
 
-    def _state_fp(self, state: np.ndarray) -> bool:
-        """检查单个状态并收集数据 (作为单条边)"""
-        is_free, link_coords, link_colls = self._point_in_free_space(state)
-
-        # 单点作为一条边 - 数据结构: [edge][pose][link][coord]
-        # 这里简化实现，不存储详细数据
-
-        edge_configs = [state.copy()]
-        self.config_list.append(np.array(edge_configs))
-
-        return is_free
-
-    def _discretize_edge(
-        self, state: np.ndarray, new_state: np.ndarray, RRT_EPS: float = 0.25
-    ) -> List[np.ndarray]:
-        """
-        将边离散化为多个配置点
-
-        Args:
-            state: 起点配置
-            new_state: 终点配置
-            RRT_EPS: 离散化步长
-
-        Returns:
-            list: 离散化的配置列表 [起点, 中间点..., 终点]
-        """
-        disp = new_state - state
-        d = np.linalg.norm(disp)
-        K = int(d / RRT_EPS)
-
-        edge_configs = [state.copy()]
-
-        # 生成中间点
-        for k in range(1, K + 1):
-            c = state + k * 1.0 / K * disp
-            edge_configs.append(c.copy())
-
-        edge_configs.append(new_state.copy())
-        return edge_configs
-
-    def _collect_edge_collision_data(
-        self, edge_configs: List[np.ndarray]
-    ) -> Tuple[bool, List[List[np.ndarray]], List[List[int]]]:
-        """
-        对边上的配置点进行碰撞检查并收集数据
-
-        Args:
-            edge_configs: 配置列表
-
-        Returns:
-            tuple: (edge_free, edge_link_coords, edge_link_colls)
-        """
-        edge_free = True
-        edge_link_coords = []  # [pose][link][coord]
-        edge_link_colls = []  # [pose][link]
-
-        for config in edge_configs:
-            is_free, link_coords, link_colls = self._point_in_free_space(config)
-
-            if not is_free:
-                edge_free = False
-
-            # 收集数据
-            if link_coords:
-                edge_link_coords.append(link_coords)
-                edge_link_colls.append(link_colls)
-
-        return edge_free, edge_link_coords, edge_link_colls
-
-    def _edge_fp(
-        self, state: np.ndarray, new_state: np.ndarray, RRT_EPS: float = RRT_EPS
-    ) -> Tuple[bool, List[List[np.ndarray]], List[List[int]]]:
-        """检查边并收集数据"""
-        assert state.size == new_state.size
-        # 离散化边
-        edge_configs = self._discretize_edge(state, new_state, RRT_EPS)
-
-        # 收集碰撞数据（包括所有配置点）
-        edge_free, edge_link_coords, edge_link_colls = (
-            self._collect_edge_collision_data(edge_configs)
-        )
-
-        self.config_list.append(np.array(edge_configs))
-        return edge_free, edge_link_coords, edge_link_colls
-
-    def in_goal_region(
-        self,
-        state: np.ndarray,
-        goal_state: Optional[np.ndarray] = None,
-        threshold: Optional[float] = None,
-    ) -> bool:
-        """
-        判断某一配置是否在目标区域（距离小于阈值且无碰撞）
-
-        Args:
-            state: 当前配置
-            goal_state: 目标配置（可选）
-            threshold: 距离阈值（可选）
-
-        Returns:
-            bool: 是否在目标区域
-        """
-        if goal_state is None:
-            # 在几何实现中，我们没有存储goal_state，使用默认检查
-            return self._state_fp(state)
-
-        if threshold is None:
-            threshold = self.RRT_EPS
-
-        distance = np.linalg.norm(state - goal_state)
-        return bool(distance < threshold) and self._state_fp(state)
-
-    def _iterative_check_segment(self, left: np.ndarray, right: np.ndarray) -> bool:
-        """
-        递归检查路径段的可行性（用于高精度碰撞检测）
-
-        Args:
-            left: 起点配置
-            right: 终点配置
-
-        Returns:
-            bool: 路径段是否可行
-        """
-        # 简单的离散化检查
-        edge_configs = self._discretize_edge(left, right, self.RRT_EPS)
-        for config in edge_configs:
-            if not self._state_fp(config):
-                return False
-        return True
 
     def get_collision_stats(self) -> Dict[str, Any]:
         """

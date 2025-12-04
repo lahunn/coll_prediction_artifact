@@ -22,11 +22,6 @@
 5. basename: 数据文件基础名称（如 iiwa_7）
 6. num_benchmarks: 基准测试数量 或 单个benchid 或 范围如 "2-10"
 7. robot_name: 机器人名称
-
-使用示例:
-    python prediction_simulation_nDOF_double_buffer.py 0.5 0.1 8 ../../trace_files/scene_benchmarks/bit_collision_data iiwa_7 10 iiwa link
-    python prediction_simulation_nDOF_double_buffer.py 0.5 0.1 8 ../../trace_files/scene_benchmarks/bit_collision_data iiwa_7 5 iiwa link
-    python prediction_simulation_nDOF_double_buffer.py 0.5 0.1 8 ../../trace_files/scene_benchmarks/bit_collision_data iiwa_7 2-10 iiwa link
 """
 
 import sys
@@ -38,7 +33,7 @@ from collections import Counter
 # 添加上级目录到path以导入simulation_utils
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
 import simulation_utils as su
-import csv
+# import csv
 
 # 添加 trace_generation 目录到 Python 路径
 from trace_generation.config.ana_parameters import get_robot_params
@@ -50,19 +45,19 @@ bins = su.calculate_bins_from_workspace("iiwa", quant_bits)
 # --- Simulation Parameters from Command Line ---
 if len(sys.argv) < 9:
     print(
-        "Usage: python prediction_simulation_nDOF_double_buffer.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <benchmarks> <robot_name> <num_predictions> [collision_model_type]"
+        "Usage: python prediction_simulation_nDOF_double_buffer.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <benchmarks> <robot_name> <num_predictions> [collision_model_type] [num_dedicated_oocds]"
     )
     print(
         "  <benchmarks> can be: a single number (5), a range (2-10), or total count (10)"
     )
     print(
-        "Example 1: python prediction_simulation_nDOF_double_buffer.py 0.5 0.1 8 ../../trace_files/scene_benchmarks/bit_collision_data iiwa_7 10 iiwa 2 link"
+        "Example 1: python prediction_simulation_nDOF_double_buffer.py 0.5 0.1 8 ../../trace_files/scene_benchmarks/bit_collision_data iiwa_7 10 iiwa 2 link 2"
     )
     print(
-        "Example 2: python prediction_simulation_nDOF_double_buffer.py 0.5 0.1 8 ../../trace_files/scene_benchmarks/bit_collision_data iiwa_7 5 iiwa 3 link"
+        "Example 2: python prediction_simulation_nDOF_double_buffer.py 0.5 0.1 8 ../../trace_files/scene_benchmarks/bit_collision_data iiwa_7 5 iiwa 3 link 1"
     )
     print(
-        "Example 3: python prediction_simulation_nDOF_double_buffer.py 0.5 0.1 8 ../../trace_files/scene_benchmarks/bit_collision_data iiwa_7 2-10 iiwa 4 link"
+        "Example 3: python prediction_simulation_nDOF_double_buffer.py 0.5 0.1 8 ../../trace_files/scene_benchmarks/bit_collision_data iiwa_7 2-10 iiwa 4 link 3"
     )
     sys.exit(1)
 
@@ -86,6 +81,14 @@ if len(sys.argv) > 8:
 else:
     num_predictions = 2  # default
     collision_model_type = "link"
+
+# Optional: num_dedicated_oocds
+num_dedicated_oocds = 1
+if len(sys.argv) > 10:
+    try:
+        num_dedicated_oocds = int(sys.argv[10])
+    except ValueError:
+        pass
 
 # Parse benchmarks argument to create benchrange
 if "-" in benchmarks_arg:
@@ -123,6 +126,7 @@ print(f"Number of Benchmarks: {num_benchmarks}")
 print(f"Robot: {robot_name}")
 print(f"Collision Model: {collision_model_type}")
 print(f"Number of Predictions: {num_predictions}")
+print(f"Dedicated OOCDs: {num_dedicated_oocds}")
 print("Architecture: Double Buffer (Bank A + Bank B)")
 print("=" * 50)
 
@@ -217,6 +221,7 @@ for benchid in tqdm(benchrange, desc="Processing benchmarks"):
             cycle_check=check_cost,
             num_oocds=7,
             num_predictions=num_predictions,
+            num_dedicated_oocds=num_dedicated_oocds,
         )
     )
 

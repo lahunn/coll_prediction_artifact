@@ -360,6 +360,46 @@ class SphereEnvGeometric:
             collision, colls = result  # pyright: ignore[reportAssignmentType]
             return collision, coords, colls
 
+    def get_sphere_collision_data_link_coord(self, state):
+        """
+        获取球体碰撞数据以及对应的Link中心坐标信息
+        注意：此函数会更新robot_env的PyBullet状态
+
+        Args:
+            state: 关节配置状态
+
+        Returns:
+            如果 self.return_cycles=False: (collision, coords, colls, link_coords)
+            如果 self.return_cycles=True: (collision, coords, colls, cycles, link_coords)
+        """
+        # 获取碰撞数据
+        result = self.get_sphere_collision_data(state)
+
+        # 更新PyBullet环境状态以获取Link坐标
+        self.robot_env.set_config(state)
+
+        link_coords = []
+        link_pose_cache = {}
+
+        # 确保元数据已初始化
+        if not self.sphere_link_ids:
+            self._initialize_sphere_metadata()
+
+        for link_id in self.sphere_link_ids:
+            if link_id not in link_pose_cache:
+                # 获取link位姿 (pos + orn)
+                pose = self.robot_env._get_link_pose(link_id)
+                link_pose_cache[link_id] = list(pose[:3])  # 只取位置
+
+            link_coords.append(link_pose_cache[link_id])
+
+        if self.return_cycles:
+            collision, coords, colls, cycles = result  # pyright: ignore[reportAssignmentType]
+            return collision, link_coords, coords, colls, cycles
+        else:
+            collision, coords, colls = result  # pyright: ignore[reportAssignmentType]
+            return collision, link_coords, coords, colls
+
     def store_sphere_data(self, coords, colls, cycles=None, is_edge=True):
         """
         存储球体数据

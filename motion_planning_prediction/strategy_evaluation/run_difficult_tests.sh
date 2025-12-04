@@ -29,7 +29,7 @@ for COLLISION_MODEL in link sphere; do
     echo ">>> 运行碰撞模型: $COLLISION_MODEL <<<"
 
     # 根据碰撞模型确定结果文件并删除旧结果
-    [ "$COLLISION_MODEL" = "sphere" ] && RESULT_FILE="./result_files/sphere_results.csv" || RESULT_FILE="./result_files/obb_results.csv"
+    RESULT_FILE="../result_files/${COLLISION_MODEL}_results.csv"
     rm -rf "$RESULT_FILE"
 
     # 遍历难度等级
@@ -40,10 +40,31 @@ for COLLISION_MODEL in link sphere; do
         # 设置当前难度等级的数据文件夹
         DATA_FOLDER="$BASE_DATA_FOLDER/$difficulty_level"
 
-        python prediction_simulation_nDOF.py \
+        # 初始化CSV文件头 (如果文件不存在)
+        if [ ! -f "$RESULT_FILE" ]; then
+            echo "Scene,Threshold,Sample_Rate,QNonColl_Mult,Total_Checks,Total_Pred_Queries,Total_Oracle_Queries,Total_Cycles,Total_Oracle_Cycles,Reduction_Rate,Cycle_Efficiency,CDU_Utilization" > "$RESULT_FILE"
+        fi
+
+        # 运行仿真并捕获输出
+        OUTPUT=$(python prediction_simulation_nDOF.py \
             $THRESHOLD $SAMPLE_RATE $QNONCOLL_MULTIPLIER \
             $DATA_FOLDER $BASENAME $NUM_BENCHMARKS \
-            $ROBOT_NAME $COLLISION_MODEL
+            $ROBOT_NAME $COLLISION_MODEL)
+        
+        # 显示输出
+        echo "$OUTPUT"
+
+        # 提取数据
+        TOTAL_CHECKS=$(echo "$OUTPUT" | grep "Total Actual Checks:" | awk -F': ' '{print $2}')
+        FALL_PREDICTION=$(echo "$OUTPUT" | grep "Total Prediction Queries:" | awk -F': ' '{print $2}')
+        FALL_ORACLE=$(echo "$OUTPUT" | grep "Total Oracle Queries:" | awk -F': ' '{print $2}')
+        REDUCTION_RATE=$(echo "$OUTPUT" | grep "Query Reduction Rate:" | awk -F': ' '{print $2}' | sed 's/%//')
+        FALL_CYCLE=$(echo "$OUTPUT" | grep "Total Cycles (Prediction):" | awk -F': ' '{print $2}')
+        THEORETICAL_MIN_CYCLES=$(echo "$OUTPUT" | grep "Total Cycles (Oracle):" | awk -F': ' '{print $2}')
+        CYCLE_EFFICIENCY=$(echo "$OUTPUT" | grep "Cycle Efficiency:" | awk -F': ' '{print $2}' | sed 's/%//')
+
+        # 写入CSV (CDU_Utilization 设为 0)
+        echo "$difficulty_level,$THRESHOLD,$SAMPLE_RATE,$QNONCOLL_MULTIPLIER,$TOTAL_CHECKS,$FALL_PREDICTION,$FALL_ORACLE,$FALL_CYCLE,$THEORETICAL_MIN_CYCLES,$REDUCTION_RATE,$CYCLE_EFFICIENCY,0" >> "$RESULT_FILE"
 
         echo "  >>> 难度等级 $difficulty_level 运行完成 <<<"
     done

@@ -435,6 +435,7 @@ def simulate_parallel_collision_detection_double_buffer(
     cycle_check=DEFAULT_CYCLE_CHECK,
     num_oocds=NUM_OOCDS,
     num_predictions=2,
+    num_dedicated_oocds=1,
 ):
     """
     双缓冲架构的并行碰撞检测仿真。
@@ -478,28 +479,28 @@ def simulate_parallel_collision_detection_double_buffer(
         coll_found = 0
         while not edge_completed:
             (
+                oocds,
                 total_query_count,
                 coll_found,
+                colldict,
                 first_two_running,
                 first_two_checked,
-                cdu_idle_this_cycle,
-            ) = process_oocds(
+            ) = process_oocd_states_dedicated(
                 oocds,
                 active_pred.qcoll,
                 active_pred.qnoncoll,
-                active_pred.linklist,
                 cycle,
+                cycle_check,
                 total_query_count,
                 coll_found,
-                first_two_running,
-                first_two_checked,
-                cycle_check,
                 colldict,
                 sample_rate,
-                num_oocds,
+                num_dedicated_oocds,
                 qnoncoll_len,
+                active_pred.linklist,
+                first_two_running,
+                first_two_checked,
             )
-            cdu_idle_cycles += cdu_idle_this_cycle
 
             for pred in predictions:
                 enqueue_predictions(

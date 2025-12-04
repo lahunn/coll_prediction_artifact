@@ -36,6 +36,7 @@ from simulation_core.data_loader import (
     load_motion_trace_data,
     load_data,
     load_data_with_cycles,
+    load_data_with_link_coords,
 )
 from simulation_core.data_preprocessing import (
     csp_rearrange,
@@ -90,6 +91,7 @@ __all__ = [
     "load_motion_trace_data",
     "load_data",
     "load_data_with_cycles",
+    "load_data_with_link_coords",
     # Data Preprocessing
     "csp_rearrange",
     "csp_rearrange_with_cycles",

@@ -333,7 +333,7 @@ def cuboid_aabb(cuboid: Cuboid, aabb: AABB) -> tuple:
                cycles: 硬件周期数
     """
     # 阶段1：设置 - 计算相对位置和旋转 (4 cycles)
-    cycles = 2
+    cycles = 4
 
     # 计算AABB中心
     aabb_cx = (aabb.min_x + aabb.max_x) * 0.5
@@ -365,10 +365,10 @@ def cuboid_aabb(cuboid: Cuboid, aabb: AABB) -> tuple:
 
     # 阶段2：轴测试（带提前退出）
 
-    # === G1: 测试AABB的3个轴（世界坐标轴）=== (每轴2 cycles)
+    # === G1: 测试AABB的3个轴（世界坐标轴）=== (每轴4 cycles)
 
     # 测试L = A0 (X轴)
-    cycles += 3
+    cycles += 4
     d_l = abs(tx)
     r_a = e_a0
     r_b = abs_r00 * e_b0 + abs_r01 * e_b1 + abs_r02 * e_b2
@@ -376,7 +376,7 @@ def cuboid_aabb(cuboid: Cuboid, aabb: AABB) -> tuple:
         return 1, cycles
 
     # 测试L = A1 (Y轴)
-    cycles += 3
+    cycles += 4
     d_l = abs(ty)
     r_a = e_a1
     r_b = abs_r10 * e_b0 + abs_r11 * e_b1 + abs_r12 * e_b2
@@ -384,7 +384,7 @@ def cuboid_aabb(cuboid: Cuboid, aabb: AABB) -> tuple:
         return 1, cycles
 
     # 测试L = A2 (Z轴)
-    cycles += 3
+    cycles += 4
     d_l = abs(tz)
     r_a = e_a2
     r_b = abs_r20 * e_b0 + abs_r21 * e_b1 + abs_r22 * e_b2
@@ -394,7 +394,7 @@ def cuboid_aabb(cuboid: Cuboid, aabb: AABB) -> tuple:
     # === G2: 测试OBB的3个轴 === (每轴2 cycles)
 
     # 测试L = B0 (OBB轴1)
-    cycles += 3
+    cycles += 4
     d_l = abs(tx * r00 + ty * r10 + tz * r20)
     r_a = e_a0 * abs_r00 + e_a1 * abs_r10 + e_a2 * abs_r20
     r_b = e_b0
@@ -402,7 +402,7 @@ def cuboid_aabb(cuboid: Cuboid, aabb: AABB) -> tuple:
         return 1, cycles
 
     # 测试L = B1 (OBB轴2)
-    cycles += 3
+    cycles += 4
     d_l = abs(tx * r01 + ty * r11 + tz * r21)
     r_a = e_a0 * abs_r01 + e_a1 * abs_r11 + e_a2 * abs_r21
     r_b = e_b1
@@ -410,7 +410,7 @@ def cuboid_aabb(cuboid: Cuboid, aabb: AABB) -> tuple:
         return 1, cycles
 
     # 测试L = B2 (OBB轴3)
-    cycles += 3
+    cycles += 4
     d_l = abs(tx * r02 + ty * r12 + tz * r22)
     r_a = e_a0 * abs_r02 + e_a1 * abs_r12 + e_a2 * abs_r22
     r_b = e_b2
@@ -420,7 +420,7 @@ def cuboid_aabb(cuboid: Cuboid, aabb: AABB) -> tuple:
     # === G3: 测试9个叉积轴 === (每轴2 cycles)
 
     # 测试L = A0 × B0 (X × OBB轴1) = (0, -r20, r10)
-    cycles += 3
+    cycles += 4
     d_l = abs(tz * r10 - ty * r20)
     r_a = e_a1 * abs_r20 + e_a2 * abs_r10
     r_b = e_b1 * abs_r02 + e_b2 * abs_r01
@@ -428,7 +428,7 @@ def cuboid_aabb(cuboid: Cuboid, aabb: AABB) -> tuple:
         return 1, cycles
 
     # 测试L = A0 × B1 (X × OBB轴2) = (0, -r21, r11)
-    cycles += 3
+    cycles += 4
     d_l = abs(tz * r11 - ty * r21)
     r_a = e_a1 * abs_r21 + e_a2 * abs_r11
     r_b = e_b0 * abs_r02 + e_b2 * abs_r00
@@ -436,7 +436,7 @@ def cuboid_aabb(cuboid: Cuboid, aabb: AABB) -> tuple:
         return 1, cycles
 
     # 测试L = A0 × B2 (X × OBB轴3) = (0, -r22, r12)
-    cycles += 3
+    cycles += 4
     d_l = abs(tz * r12 - ty * r22)
     r_a = e_a1 * abs_r22 + e_a2 * abs_r12
     r_b = e_b0 * abs_r01 + e_b1 * abs_r00
@@ -444,7 +444,7 @@ def cuboid_aabb(cuboid: Cuboid, aabb: AABB) -> tuple:
         return 1, cycles
 
     # 测试L = A1 × B0 (Y × OBB轴1) = (r20, 0, -r00)
-    cycles += 3
+    cycles += 4
     d_l = abs(tx * r20 - tz * r00)
     r_a = e_a0 * abs_r20 + e_a2 * abs_r00
     r_b = e_b1 * abs_r12 + e_b2 * abs_r11
@@ -452,7 +452,7 @@ def cuboid_aabb(cuboid: Cuboid, aabb: AABB) -> tuple:
         return 1, cycles
 
     # 测试L = A1 × B1 (Y × OBB轴2) = (r21, 0, -r01)
-    cycles += 3
+    cycles += 4
     d_l = abs(tx * r21 - tz * r01)
     r_a = e_a0 * abs_r21 + e_a2 * abs_r01
     r_b = e_b0 * abs_r12 + e_b2 * abs_r10
@@ -460,7 +460,7 @@ def cuboid_aabb(cuboid: Cuboid, aabb: AABB) -> tuple:
         return 1, cycles
 
     # 测试L = A1 × B2 (Y × OBB轴3) = (r22, 0, -r02)
-    cycles += 3
+    cycles += 4
     d_l = abs(tx * r22 - tz * r02)
     r_a = e_a0 * abs_r22 + e_a2 * abs_r02
     r_b = e_b0 * abs_r11 + e_b1 * abs_r10
@@ -468,7 +468,7 @@ def cuboid_aabb(cuboid: Cuboid, aabb: AABB) -> tuple:
         return 1, cycles
 
     # 测试L = A2 × B0 (Z × OBB轴1) = (-r10, r00, 0)
-    cycles += 3
+    cycles += 4
     d_l = abs(ty * r00 - tx * r10)
     r_a = e_a0 * abs_r10 + e_a1 * abs_r00
     r_b = e_b1 * abs_r22 + e_b2 * abs_r21
@@ -476,7 +476,7 @@ def cuboid_aabb(cuboid: Cuboid, aabb: AABB) -> tuple:
         return 1, cycles
 
     # 测试L = A2 × B1 (Z × OBB轴2) = (-r11, r01, 0)
-    cycles += 3
+    cycles += 4
     d_l = abs(ty * r01 - tx * r11)
     r_a = e_a0 * abs_r11 + e_a1 * abs_r01
     r_b = e_b0 * abs_r22 + e_b2 * abs_r20
@@ -484,7 +484,7 @@ def cuboid_aabb(cuboid: Cuboid, aabb: AABB) -> tuple:
         return 1, cycles
 
     # 测试L = A2 × B2 (Z × OBB轴3) = (-r12, r02, 0)
-    cycles += 3
+    cycles += 4
     d_l = abs(ty * r02 - tx * r12)
     r_a = e_a0 * abs_r12 + e_a1 * abs_r02
     r_b = e_b0 * abs_r21 + e_b1 * abs_r20

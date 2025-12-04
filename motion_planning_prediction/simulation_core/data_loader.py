@@ -91,6 +91,47 @@ def load_data(
     return None, None
 
 
+def load_data_with_link_coords(
+    basename,
+    benchid,
+    data_folder,
+):
+    """
+    Loads collision data including link coordinates from a pickle file.
+
+    Args:
+        basename: Base name of the dataset
+        benchid: Benchmark number
+        data_folder: Path to the data folder
+        analysis_type: Type of analysis
+        num_obstacles: Number of obstacles
+
+    Returns:
+        (link_data, link_coll_data, link_coords_data) or (None, None, None)
+    """
+
+    filename = f"{data_folder}/{basename}_{benchid:04d}_sphere_link.pkl"
+
+    try:
+        with open(filename, "rb") as f:
+            data = pickle.load(f)
+            # Check tuple length to determine format
+            # Format 1 (no cycles): (link_data, link_coords_data, link_coll_data) -> len 3
+            # Format 2 (with cycles): (link_data, link_coords_data, link_coll_data, link_coll_cycles) -> len 4
+            if isinstance(data, tuple):
+                if len(data) == 3:
+                    # Return (link_data, link_coll_data, link_coords_data)
+                    return data[0], data[2], data[1]
+                elif len(data) == 4:
+                    # Return (link_data, link_coll_data, link_coords_data)
+                    return data[0], data[2], data[1]
+    except FileNotFoundError:
+        pass
+
+    print(f"Warning: Collision data file not found at {filename}", file=sys.stderr)
+    return None, None, None
+
+
 def load_data_with_cycles(basename, benchid, data_folder, collision_model_type="link"):
     """
     Loads collision data with cycles from a pickle file.

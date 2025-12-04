@@ -28,7 +28,7 @@ Link级碰撞检测预测仿真程序（nDOF机器人）
 import sys
 import os
 from tqdm import tqdm
-import csv
+# import csv
 
 # 添加上级目录到path以导入simulation_utils
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
@@ -87,7 +87,7 @@ else:
     csv_file = "../result_files/obb_results.csv"
     print_title = "=== OBB碰撞检测预测仿真 ==="
 
-qnoncoll_len = num_elements * qnoncoll_multiplier
+qnoncoll_len = 56
 
 print(print_title)
 print(f"阈值: {threshold}")

@@ -6,17 +6,17 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-OBSTACLE_DIR="$SCRIPT_DIR/../../trace_files/bit_traces"
-COLLISION_DIR="$SCRIPT_DIR/../../trace_files/scene_benchmarks/bit_collision_data"
 ROBOT_NAME="iiwa"
 
 # 默认范围
 START=1
-END=2
+END=200
+
+# 难度等级列表
+DIFFICULTY_LEVELS=("G1" "G2" "G3" "G4" "G5")
 
 # 新增：检测器类型和周期计数选项
-DETECTOR_TYPE="geometric"  # 默认使用geometric
-RETURN_CYCLES="--return-cycles"  # 默认返回周期数
+RETURN_CYCLES=""  # 默认返回周期数
 
 # 解析命令行参数
 while [[ $# -gt 0 ]]; do
@@ -27,10 +27,6 @@ while [[ $# -gt 0 ]]; do
       ;;
     --end)
       END="$2"
-      shift 2
-      ;;
-    --detector-type)
-      DETECTOR_TYPE="$2"
       shift 2
       ;;
     --return-cycles)
@@ -46,54 +42,70 @@ while [[ $# -gt 0 ]]; do
 done
 
 echo "处理范围: $START 到 $END"
-echo "检测器类型: $DETECTOR_TYPE"
 if [ -n "$RETURN_CYCLES" ]; then
     echo "周期计数: 启用"
 fi
+echo "难度等级: ${DIFFICULTY_LEVELS[*]}"
 echo "开始批量处理文件..."
 
-for obstacle_file in "$OBSTACLE_DIR"/${ROBOT_NAME}_7_*.pkl; do
-    if [ -f "$obstacle_file" ]; then
-        # 提取文件名（不含路径和扩展名）
-        base_name=$(basename "$obstacle_file" .pkl)
+# 遍历难度等级
+for DIFFICULTY in "${DIFFICULTY_LEVELS[@]}"; do
+    echo ""
+    echo "=========================================="
+    echo "处理难度等级: $DIFFICULTY"
+    echo "=========================================="
+    
+    OBSTACLE_DIR="$SCRIPT_DIR/../../trace_files/bit_traces/$DIFFICULTY"
+    COLLISION_DIR="$SCRIPT_DIR/../../trace_files/scene_benchmarks/bit_collision_data/$DIFFICULTY"
+    
+    # 检查目录是否存在
+    if [ ! -d "$OBSTACLE_DIR" ]; then
+        echo "警告: 障碍物目录不存在，跳过 $DIFFICULTY: $OBSTACLE_DIR"
+        continue
+    fi
+    
+    if [ ! -d "$COLLISION_DIR" ]; then
+        echo "警告: 碰撞数据目录不存在，跳过 $DIFFICULTY: $COLLISION_DIR"
+        continue
+    fi
 
-        # 构造对应的OBB文件路径
-        collision_file="$COLLISION_DIR/${base_name}_obb.pkl"
+    for obstacle_file in "$OBSTACLE_DIR"/${ROBOT_NAME}_7_*.pkl; do
+        if [ -f "$obstacle_file" ]; then
+            # 提取文件名（不含路径和扩展名）
+            base_name=$(basename "$obstacle_file" .pkl)
 
-        # 提取benchmark_id（文件名中的最后一部分）
-        benchmark_id=${base_name##*_}
-        benchmark_id_int=$((10#$benchmark_id))  # 转换为整数
+            # 构造对应的OBB文件路径
+            collision_file="$COLLISION_DIR/${base_name}_link.pkl"
 
-        if (( benchmark_id_int >= START && benchmark_id_int <= END )); then
-            if [ -f "$collision_file" ]; then
-                echo "处理文件: $base_name"
-                # 生成球体数据输出文件路径
-                # 根据检测器类型和是否返回周期数调整输出文件名
-                if [ "$DETECTOR_TYPE" = "geometric" ] && [ -n "$RETURN_CYCLES" ]; then
-                    sphere_file="$COLLISION_DIR/${base_name}_sphere_geometric_cycles.pkl"
-                elif [ "$DETECTOR_TYPE" = "geometric" ]; then
-                    sphere_file="$COLLISION_DIR/${base_name}_sphere_geometric.pkl"
-                else
+            # 提取benchmark_id（文件名中的最后一部分）
+            benchmark_id=${base_name##*_}
+            benchmark_id_int=$((10#$benchmark_id))  # 转换为整数
+
+            if (( benchmark_id_int >= START && benchmark_id_int <= END )); then
+                if [ -f "$collision_file" ]; then
+                    echo "处理文件: $base_name ($DIFFICULTY)"
+                    # 生成球体数据输出文件路径
+                    # 根据检测器类型和是否返回周期数调整输出文件名
                     sphere_file="$COLLISION_DIR/${base_name}_sphere.pkl"
+                    # 使用 python -m 方式运行，确保能正确导入模块
+                    cd "$PROJECT_ROOT" || exit 1  # 切换到项目根目录
+                    python3 -m trace_generation.scripts.generate_sphere_data \
+                        --obstacle-config-file "$obstacle_file" \
+                        --collision-data-file "$collision_file" \
+                        --robot-name "$ROBOT_NAME" \
+                        --benchmark-id "$benchmark_id" \
+                        $RETURN_CYCLES \
+                        --output-file "$sphere_file"
+                    cd "$SCRIPT_DIR" > /dev/null || exit 1  # 切换回脚本目录
+                    echo "------------------------"
+                else
+                    echo "警告: 未找到OBB文件 $collision_file"
                 fi
-                
-                # 使用 python -m 方式运行，确保能正确导入模块
-                cd "$PROJECT_ROOT" || exit 1  # 切换到项目根目录
-                python3 -m trace_generation.scripts.generate_sphere_data \
-                    --obstacle-config-file "$obstacle_file" \
-                    --collision-data-file "$collision_file" \
-                    --robot-name "$ROBOT_NAME" \
-                    --benchmark-id "$benchmark_id" \
-                    --detector-type "$DETECTOR_TYPE" \
-                    $RETURN_CYCLES \
-                    --output-file "$sphere_file"
-                cd "$SCRIPT_DIR" > /dev/null || exit 1  # 切换回脚本目录
-                echo "------------------------"
-            else
-                echo "警告: 未找到OBB文件 $collision_file"
             fi
         fi
-    fi
+    done
+    
+    echo "难度等级 $DIFFICULTY 处理完成"
 done
 
 echo "批量处理完成。"

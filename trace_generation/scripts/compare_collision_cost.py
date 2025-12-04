@@ -117,7 +117,7 @@ def evaluate_scenario(robot_env, obstacles, num_poses, obb_env, sphere_env, scen
             # Pose级: 所有link的总周期
             obb_pose_cycles_list.append(sum(obb_cycles))
         else:
-            print(f"警告: OBB检测器未返回周期数")
+            print("警告: OBB检测器未返回周期数")
 
         # Sphere检测 (收集单元级和pose级周期数)
         result_sphere = sphere_env.get_sphere_collision_data(state.tolist())
@@ -128,7 +128,7 @@ def evaluate_scenario(robot_env, obstacles, num_poses, obb_env, sphere_env, scen
             # Pose级: 所有sphere的总周期
             sphere_pose_cycles_list.append(sum(sphere_cycles))
         else:
-            print(f"警告: Sphere检测器未返回周期数")
+            print("警告: Sphere检测器未返回周期数")
 
     return {
         "obb_unit_cycles": obb_unit_cycles_list,
@@ -245,7 +245,7 @@ def print_summary(analysis, robot_name, num_poses, all_results):
         print(f"\n场景: {scene_name} ({density}个障碍物)")
 
         # 单元级别统计 (每个OBB/Sphere)
-        print(f"\n  [单元级别] 单个OBB/Sphere的平均周期:")
+        print("\n  [单元级别] 单个OBB/Sphere的平均周期:")
         print(
             f"    单个OBB  - 平均: {stats['obb_unit']['mean']:.2f} 周期 "
             f"(范围: {stats['obb_unit']['min']:.0f}-{stats['obb_unit']['max']:.0f}, "
@@ -262,7 +262,7 @@ def print_summary(analysis, robot_name, num_poses, all_results):
         )
 
         # Pose级别统计
-        print(f"\n  [Pose级别] 每个pose的总周期:")
+        print("\n  [Pose级别] 每个pose的总周期:")
         print(
             f"    OBB检测  - 平均: {stats['obb_pose']['mean']:.2f} 周期 "
             f"(范围: {stats['obb_pose']['min']:.0f}-{stats['obb_pose']['max']:.0f})"
@@ -324,7 +324,7 @@ def print_summary(analysis, robot_name, num_poses, all_results):
         )
 
         print(f"\n  障碍物从{first_density}增加到{last_density}个:")
-        print(f"\n  [单元级别] 单个OBB/Sphere周期增长:")
+        print("\n  [单元级别] 单个OBB/Sphere周期增长:")
         print(
             f"    单个OBB周期增长: {obb_unit_increase:.1f}% "
             f"({obb_unit_increase / density_increase:.1f}%/个障碍物)"
@@ -334,7 +334,7 @@ def print_summary(analysis, robot_name, num_poses, all_results):
             f"({sphere_unit_increase / density_increase:.1f}%/个障碍物)"
         )
 
-        print(f"\n  [Pose级别] 每个pose总周期增长:")
+        print("\n  [Pose级别] 每个pose总周期增长:")
         print(
             f"    OBB Pose周期增长: {obb_pose_increase:.1f}% "
             f"({obb_pose_increase / density_increase:.1f}%/个障碍物)"
@@ -382,7 +382,7 @@ def print_summary(analysis, robot_name, num_poses, all_results):
           f"{len(all_obb_unit_cycles)} OBB单元, "
           f"{len(all_sphere_unit_cycles)} Sphere单元")
     
-    print(f"\n  [单元级别] 单个OBB/Sphere的平均周期:")
+    print("\n  [单元级别] 单个OBB/Sphere的平均周期:")
     print(f"    单个OBB    - 平均: {overall_obb_unit['mean']:.2f} 周期 "
           f"(中位数: {overall_obb_unit['median']:.2f}, "
           f"标准差: {overall_obb_unit['std']:.2f})")
@@ -403,7 +403,7 @@ def print_summary(analysis, robot_name, num_poses, all_results):
         decline_pct = (overall_unit_speedup - 1) * 100
         print(f"    性能下降: Sphere比OBB慢 {decline_pct:.1f}%")
     
-    print(f"\n  [Pose级别] 每个pose的总周期:")
+    print("\n  [Pose级别] 每个pose的总周期:")
     print(f"    OBB检测    - 平均: {overall_obb_pose['mean']:.2f} 周期 "
           f"(中位数: {overall_obb_pose['median']:.2f}, "
           f"标准差: {overall_obb_pose['std']:.2f})")
@@ -497,7 +497,7 @@ def main():
     # 2. 初始化机器人环境
     print(f"初始化机器人环境: {args.robot_name}")
     robot_env = RobotEnv(args.robot_name)
-    print(f"✓ 机器人环境已初始化\n")
+    print("✓ 机器人环境已初始化\n")
 
     # 3. 初始化检测器 (启用周期计数)
     print("初始化碰撞检测器...")
@@ -505,7 +505,7 @@ def main():
     sphere_env = SphereEnvGeometric(
         robot_env=robot_env, robot_name=args.robot_name, return_cycles=True
     )
-    print(f"✓ OBB和Sphere检测器已初始化\n")
+    print("✓ OBB和Sphere检测器已初始化\n")
 
     # 4. 对每个场景进行评估
     print("开始评估各场景...")
