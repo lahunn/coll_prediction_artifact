@@ -14,10 +14,10 @@
 """
 # 用法:
 #   python multi_copu_real_data_simulation.py <basename> <benchid|start-end> <data_folder> <num_copus> <threshold>
-#                                             [num_oocds] [sample_rate]
-#                                             [--real-cycles] [--no-cht-conflict]
-#                                             [--cht-type {dual_port,multi_bank}] [--num-banks N]
-#                                             [--copus-per-edge N]
+# [num_oocds] [sample_rate]
+# [--real-cycles] [--no-cht-conflict]
+# [--cht-type {dual_port,multi_bank}] [--num-banks N]
+# [--copus-per-edge N]
 #
 # 示例:
 #   1) 单个benchmark（双端口CHT，使用真实周期）
@@ -36,8 +36,7 @@ import sys
 import os
 import argparse
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
 from simulation_core.multi_copu_scheduler import MultiCOPU_Scheduler
 import simulation_utils as su
 
@@ -49,56 +48,19 @@ QUANT_MAX = 1.5  # 量化最大值
 DEFAULT_CHECK_CYCLE = 45
 
 
-def distribute_benchmark_data(
-    all_data, all_coll, all_cycles, num_copus, copus_per_edge
-):
-    """
-    将benchmark的所有edge数据分配给COPU组
-    """
-    if copus_per_edge is None or copus_per_edge <= 0:
-        copus_per_edge = num_copus
-
-    num_groups = max(1, num_copus // copus_per_edge)
-
-    copu_data_list = [[] for _ in range(num_copus)]
-    copu_coll_list = [[] for _ in range(num_copus)]
-    copu_cycle_list = [[] for _ in range(num_copus)]
-
-    for edge_idx, (edge_data, edge_coll) in enumerate(zip(all_data, all_coll)):
-        edge_cycle = all_cycles[edge_idx] if all_cycles else None
-
-        group_idx = edge_idx % num_groups
-        start_copu = group_idx * copus_per_edge
-
-        if start_copu + copus_per_edge > num_copus:
-            continue
-
-        sub_coords, sub_colls, sub_cycles = su.allocate_edge_data_to_copus(
-            edge_data, edge_coll, edge_cycle, copus_per_edge
-        )
-
-        for i in range(copus_per_edge):
-            global_copu_id = start_copu + i
-            copu_data_list[global_copu_id].extend(sub_coords[i])
-            copu_coll_list[global_copu_id].extend(sub_colls[i])
-            if sub_cycles[i] is not None:
-                copu_cycle_list[global_copu_id].extend(sub_cycles[i])
-
-    return copu_data_list, copu_coll_list, copu_cycle_list
-
-
 def run_multi_copu_simulation(
     all_data,
     all_coll,
     all_cycles,
     num_copus,
     num_oocds=7,
-    quant_bits=3,
+    quant_bits=4,
     threshold=1.0,
     sample_rate=1.0,
     enable_conflict_check=True,
     cht_type="dual_port",
     copus_per_edge=None,
+    num_predictions=1,
     **cht_kwargs,
 ):
     """
@@ -125,11 +87,6 @@ def run_multi_copu_simulation(
     # 使用工具函数计算bins
     bins = su.calculate_bins_from_workspace(robot_name, quant_bits)
 
-    # 1. 分配数据
-    # copu_data, copu_coll, copu_cycles = distribute_benchmark_data(
-    #     all_data, all_coll, all_cycles, num_copus, copus_per_edge
-    # )
-
     # 2. 创建调度器
     scheduler = MultiCOPU_Scheduler(
         num_copus=num_copus,
@@ -138,15 +95,13 @@ def run_multi_copu_simulation(
         enable_conflict_check=enable_conflict_check,
         cht_type=cht_type,
         copus_per_edge=copus_per_edge,
+        num_predictions=num_predictions,
         **cht_kwargs,
     )
 
     # 3. 加载数据
+
     scheduler.set_benchmark_data(all_data, all_coll, all_cycles)
-    # for copu_id in range(num_copus):
-    #     scheduler.copus[copu_id].load_data(
-    #         copu_data[copu_id], copu_coll[copu_id], copu_cycles[copu_id]
-    #     )
 
     # 4. 执行仿真
     print(
@@ -188,13 +143,14 @@ def simulate_single_benchmark(
     data_folder,
     num_copus,
     num_oocds=7,
-    quant_bits=3,
+    quant_bits=4,
     threshold=1.0,
     sample_rate=1.0,
     use_real_cycles=False,
     enable_conflict_check=True,
     cht_type="dual_port",
     copus_per_edge=None,
+    num_predictions=1,
     **cht_kwargs,
 ):
     """
@@ -244,6 +200,7 @@ def simulate_single_benchmark(
         enable_conflict_check=enable_conflict_check,
         cht_type=cht_type,
         copus_per_edge=copus_per_edge,
+        num_predictions=num_predictions,
         **cht_kwargs,
     )
 
@@ -257,13 +214,14 @@ def run_benchmark_range_simulation(
     data_folder,
     num_copus,
     num_oocds=7,
-    quant_bits=3,
+    quant_bits=4,
     threshold=1.0,
     sample_rate=1.0,
     use_real_cycles=False,
     enable_conflict_check=True,
     cht_type="dual_port",
     copus_per_edge=None,
+    num_predictions=1,
     **cht_kwargs,
 ):
     """
@@ -316,6 +274,7 @@ def run_benchmark_range_simulation(
             enable_conflict_check=enable_conflict_check,
             cht_type=cht_type,
             copus_per_edge=copus_per_edge,
+            num_predictions=num_predictions,
             **cht_kwargs,
         )
 
@@ -419,7 +378,7 @@ def main():
     parser.add_argument("num_copus", type=int, help="number of COPUs")
     parser.add_argument("threshold", type=float, help="collision threshold")
 
-    # 兼容原位置可选参数: num_oocds, sample_rate
+    # 兼容原位置可选参数: num_oocds, sample_rate, num_predictions
     parser.add_argument(
         "num_oocds",
         type=int,
@@ -433,6 +392,13 @@ def main():
         nargs="?",
         default=0.1,
         help="sampling rate for free samples",
+    )
+    parser.add_argument(
+        "num_predictions",
+        type=int,
+        nargs="?",
+        default=1,
+        help="number of predictions per COPU",
     )
 
     # 可选开关与配置
@@ -475,6 +441,7 @@ def main():
     threshold = args.threshold
     num_oocds = args.num_oocds
     sample_rate = args.sample_rate
+    num_predictions = args.num_predictions
     use_real_cycles = args.real_cycles
     enable_conflict_check = not args.no_cht_conflict
     cht_type = args.cht_type
@@ -503,6 +470,7 @@ def main():
     print(f"  碰撞阈值: {threshold}")
     print(f"  CDU数量(OOCD): {num_oocds}")
     print(f"  采样率: {sample_rate}")
+    print(f"  Prediction数量: {num_predictions}")
     print(f"  使用真实周期: {use_real_cycles}")
     print(f"  CHT冲突检测: {enable_conflict_check}")
     print(f"  CHT类型: {cht_type}")
@@ -520,13 +488,14 @@ def main():
             data_folder,
             num_copus,
             num_oocds=num_oocds,
-            quant_bits=3,
+            quant_bits=4,
             threshold=threshold,
             sample_rate=sample_rate,
             use_real_cycles=use_real_cycles,
             enable_conflict_check=enable_conflict_check,
             cht_type=cht_type,
             copus_per_edge=copus_per_edge,
+            num_predictions=num_predictions,
             **cht_kwargs,
         )
     else:
@@ -537,13 +506,14 @@ def main():
             data_folder,
             num_copus,
             num_oocds=num_oocds,
-            quant_bits=3,
+            quant_bits=4,
             threshold=threshold,
             sample_rate=sample_rate,
             use_real_cycles=use_real_cycles,
             enable_conflict_check=enable_conflict_check,
             cht_type=cht_type,
             copus_per_edge=copus_per_edge,
+            num_predictions=num_predictions,
             **cht_kwargs,
         )
 
