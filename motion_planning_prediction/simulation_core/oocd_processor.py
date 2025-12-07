@@ -149,7 +149,7 @@ def process_oocds(
             )
 
             if not allocated:
-                oocds[oocd_id] = OOCDState(hash_key=0, result=1, busy=0, free_cycle=0)
+                oocds[oocd_id] = OOCDState(hash_key="", result=1, busy=0, free_cycle=0)
 
     cdu_idle_this_cycle = sum(
         1 for oocd in oocds if oocd.free_cycle <= cycle and not oocd.busy
@@ -322,7 +322,7 @@ def process_oocd_states_dedicated(
                     task_assigned = True
 
             if not task_assigned:
-                oocds[oocd_id] = OOCDState(hash_key=0, result=0, busy=0, free_cycle=0)
+                oocds[oocd_id] = OOCDState()
     return (
         oocds,
         query_count,
@@ -345,11 +345,10 @@ def dispatch_new_tasks(
     num_oocds,
     qnoncoll_size,
 ):
-    """分派新任务给空闲的OOCD"""
-    dequeued_this_cycle = False
+    """分派新任务给空闲的OOCD（改进版：支持多OOCD并行分派）"""
     for oocd_id in range(num_oocds):
         oocd = oocds[oocd_id]
-        if oocd.free_cycle <= cycle and not dequeued_this_cycle:
+        if oocd.free_cycle <= cycle:
             allocated, first_two_running, first_two_checked = (
                 attempt_standard_allocation(
                     oocd_id,
@@ -364,13 +363,7 @@ def dispatch_new_tasks(
                     qnoncoll_size,
                 )
             )
-            if allocated:
-                dequeued_this_cycle = True
-            else:
-                # 保持空闲状态
-                if oocd.busy == 0:  # 已经是空闲状态，无需重复赋值
-                    pass
-                else:
-                    oocds[oocd_id] = OOCDState(
-                        hash_key=0, result=0, busy=0, free_cycle=0
-                    )
+            if not allocated:
+                # 简化空闲状态管理：只在busy==1时重置为0
+                if oocd.busy == 1:
+                    oocds[oocd_id] = OOCDState()
