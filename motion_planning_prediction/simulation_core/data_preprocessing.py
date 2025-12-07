@@ -30,7 +30,7 @@ def generate_recursive_reorder(num_poses, step_size=8):
     """
     生成递归式重排顺序（保持固定步长，只对组序列进行递归二分重排）。
     """
-    group_count = min(step_size, (num_poses + step_size - 1) // step_size)
+    group_count = min(step_size, num_poses)
     group_order = recursive_binary_reorder(group_count)
 
     reorder = []
