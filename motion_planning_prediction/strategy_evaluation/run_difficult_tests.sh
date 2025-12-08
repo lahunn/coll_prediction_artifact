@@ -9,7 +9,7 @@ SAMPLE_RATE=0.1
 QNONCOLL_MULTIPLIER=8
 BASE_DATA_FOLDER="../../trace_files/scene_benchmarks/bit_collision_data"
 BASENAME="iiwa_7"
-NUM_BENCHMARKS=100
+NUM_BENCHMARKS=10
 ROBOT_NAME="iiwa"
 
 echo "=== 批量运行不同难度等级的预测仿真 ==="
