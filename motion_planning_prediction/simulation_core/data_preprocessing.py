@@ -2,6 +2,8 @@
 Data preprocessing utilities for CSP rearrangement and COPU allocation.
 """
 
+from .constants import DEFAULT_CYCLE_CHECK
+
 
 def recursive_binary_reorder(n):
     """
@@ -143,6 +145,8 @@ def allocate_edge_data_to_copus(
             pose_cycles = edge_cycles[original_pose_idx]
             copus_cycles[copu_id].extend(pose_cycles)
         else:
-            copus_cycles[copu_id].extend([40 for _ in range(len(pose_coords))])
+            copus_cycles[copu_id].extend(
+                [DEFAULT_CYCLE_CHECK for _ in range(len(pose_coords))]
+            )
 
     return copus_coords, copus_flags, copus_cycles

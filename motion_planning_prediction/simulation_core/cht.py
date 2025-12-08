@@ -6,10 +6,7 @@ CHT (Collision History Table) 模块
 
 # import numpy as np
 
-# ======================== Constants ========================
-MAX_COLLISION_COUNT = 15
-CHT_DEFAULT_SIZE = 4096
-ONE_CYCLE_DELAY = 1
+from .constants import MAX_COLLISION_COUNT, CHT_DEFAULT_SIZE, ONE_CYCLE_DELAY
 
 
 # ======================== ConfigurableCHT ========================
@@ -40,14 +37,14 @@ class ConfigurableCHT:
         self.current_cycle = 0
         self.pending_accesses = []  # [{completion_cycle, op_type, hash_key, bank_id, ...}]
 
-        if num_banks > 1:
-            self.bank_pending_counts = [0] * num_banks
+        # 为所有CHT类型（包括Dual Port）维护bank_pending_counts
+        self.bank_pending_counts = [0] * num_banks
 
         # 统计信息
         self.read_count = 0
         self.write_count = 0
         self.conflicts = 0  # 冲突次数
-        self.bank_access_counts = [0] * num_banks if num_banks > 1 else [0]
+        self.bank_access_counts = [0] * num_banks
 
     def _get_bank_id(self, hash_key):
         """
@@ -66,25 +63,20 @@ class ConfigurableCHT:
         return bank_id % self.num_banks
 
     def _calculate_completion_cycle(self, cycle, bank_id):
-        """计算操作完成周期，处理端口冲突"""
-        if self.num_banks == 1:
-            num_pending = len(self.pending_accesses)
-            if not self.enable_conflict_check:
-                return cycle + ONE_CYCLE_DELAY
+        """计算操作完成周期，处理端口冲突
+        
+        统一使用 bank_pending_counts（即使对于 dual-port 也是如此）
+        确保 dual-port 和 multi-bank 的时序一致性
+        """
+        pending_for_bank = self.bank_pending_counts[bank_id]
+        
+        if not self.enable_conflict_check:
+            return cycle + ONE_CYCLE_DELAY
 
-            wait_cycles = num_pending // self.ports_per_bank
-            if num_pending >= self.ports_per_bank:
-                self.conflicts += 1
-            return cycle + wait_cycles + ONE_CYCLE_DELAY
-        else:
-            pending_for_bank = self.bank_pending_counts[bank_id]
-            if not self.enable_conflict_check:
-                return cycle + ONE_CYCLE_DELAY
-
-            wait_cycles = pending_for_bank // self.ports_per_bank
-            if pending_for_bank >= self.ports_per_bank:
-                self.conflicts += 1
-            return cycle + wait_cycles + ONE_CYCLE_DELAY
+        wait_cycles = pending_for_bank // self.ports_per_bank
+        if pending_for_bank >= self.ports_per_bank:
+            self.conflicts += 1
+        return cycle + wait_cycles + ONE_CYCLE_DELAY
 
     def read_request(self, copu_id, hash_key, cycle):
         """
@@ -93,8 +85,7 @@ class ConfigurableCHT:
         """
         bank_id = self._get_bank_id(hash_key)
 
-        if self.num_banks > 1:
-            self.bank_access_counts[bank_id] += 1
+        self.bank_access_counts[bank_id] += 1
 
         completion_cycle = self._calculate_completion_cycle(cycle, bank_id)
 
@@ -108,8 +99,7 @@ class ConfigurableCHT:
             }
         )
 
-        if self.num_banks > 1:
-            self.bank_pending_counts[bank_id] += 1
+        self.bank_pending_counts[bank_id] += 1
 
         self.read_count += 1
         return self.memory.get(hash_key, [0, 0]), completion_cycle
@@ -121,8 +111,7 @@ class ConfigurableCHT:
         """
         bank_id = self._get_bank_id(hash_key)
 
-        if self.num_banks > 1:
-            self.bank_access_counts[bank_id] += 1
+        self.bank_access_counts[bank_id] += 1
 
         completion_cycle = self._calculate_completion_cycle(cycle, bank_id)
 
@@ -137,8 +126,7 @@ class ConfigurableCHT:
             }
         )
 
-        if self.num_banks > 1:
-            self.bank_pending_counts[bank_id] += 1
+        self.bank_pending_counts[bank_id] += 1
 
         self.write_count += 1
         return completion_cycle
@@ -175,7 +163,7 @@ class ConfigurableCHT:
                 )
 
             bank_id = access["bank_id"]
-            if self.num_banks > 1 and self.bank_pending_counts[bank_id] > 0:
+            if self.bank_pending_counts[bank_id] > 0:
                 self.bank_pending_counts[bank_id] -= 1
 
         self.pending_accesses = remaining
@@ -185,40 +173,38 @@ class ConfigurableCHT:
         """重置CHT内容（不重置统计信息）"""
         self.memory = {}
         self.pending_accesses = []
-        if self.num_banks > 1:
-            self.bank_pending_counts = [0] * self.num_banks
+        self.bank_pending_counts = [0] * self.num_banks
 
     def get_stats(self):
-        """返回CHT访问统计"""
+        """返回CHT访问统计（统一格式：始终包含 bank_access_counts）"""
         total_accesses = self.read_count + self.write_count
         conflict_rate = self.conflicts / total_accesses if total_accesses > 0 else 0.0
 
-        if self.num_banks == 1:
-            return {
-                "total_reads": self.read_count,
-                "total_writes": self.write_count,
-                "total_conflicts": self.conflicts,
-                "conflict_rate": conflict_rate,
-                "entries_used": len(self.memory),
-            }
-        else:
-            avg_access = sum(self.bank_access_counts) / self.num_banks
-            variance = (
-                sum((x - avg_access) ** 2 for x in self.bank_access_counts)
-                / self.num_banks
-            )
-            load_balance_std = variance**0.5
+        # 计算负载均衡统计（对所有CHT类型适用）
+        avg_access = sum(self.bank_access_counts) / self.num_banks if self.num_banks > 0 else 0
+        variance = (
+            sum((x - avg_access) ** 2 for x in self.bank_access_counts)
+            / self.num_banks
+            if self.num_banks > 0
+            else 0
+        )
+        load_balance_std = variance**0.5
 
-            return {
-                "total_reads": self.read_count,
-                "total_writes": self.write_count,
-                "total_conflicts": self.conflicts,
-                "conflict_rate": conflict_rate,
-                "entries_used": len(self.memory),
-                "bank_access_counts": self.bank_access_counts,
-                "load_balance_std": load_balance_std,
-                "bank_config": self.bank_config,
-            }
+        stats = {
+            "total_reads": self.read_count,
+            "total_writes": self.write_count,
+            "total_conflicts": self.conflicts,
+            "conflict_rate": conflict_rate,
+            "entries_used": len(self.memory),
+            "bank_access_counts": self.bank_access_counts,
+            "load_balance_std": load_balance_std,
+        }
+        
+        # 对于 multi-bank CHT，还包含 bank_config
+        if self.num_banks > 1:
+            stats["bank_config"] = self.bank_config
+        
+        return stats
 
 
 # ======================== DualPortSRAM_CHT ========================

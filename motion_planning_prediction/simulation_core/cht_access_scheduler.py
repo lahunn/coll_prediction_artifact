@@ -55,7 +55,7 @@ class CHT_AccessScheduler:
 
         # 没有待决请求，发起新的读请求
         data, comp_cycle = self.cht.read_request(0, hash_key, self.current_cycle)
-        if len(self.cht.pending_accesses) <= 2 and 1 == 0:  # ONE_CYCLE_DELAY == 0
+        if comp_cycle <= self.current_cycle:
             return True, data
         else:
             return False, None

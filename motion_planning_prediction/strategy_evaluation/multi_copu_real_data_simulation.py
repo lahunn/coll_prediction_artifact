@@ -132,6 +132,7 @@ def run_multi_copu_simulation(
         "num_collisions": num_collisions,
         "num_safe": num_safe,
         "copu_utilizations": copu_utilizations,
+        "cht_stats": result["cht_stats"],
     }
 
     return aggregated_result
@@ -352,6 +353,19 @@ def print_results(results, is_range=False):
 
     print(f"  平均COPU占用率: {results.get('avg_copu_utilization', 0.0):.2%}")
     print(f"  CHT冲突数: {results.get('total_cht_conflicts', 0)}")
+
+    # 输出CHT访问统计信息（统一格式：各Bank访问数 + 总读/写计数）
+    if "cht_stats" in results:
+        cht_stats = results["cht_stats"]
+        # 尝试获取各Bank访问数；若不存在（例如双端口CHT），则从总读写数推导为单Bank
+        bank_counts = cht_stats.get("bank_access_counts")
+        total_reads = cht_stats.get("total_reads", 0)
+        total_writes = cht_stats.get("total_writes", 0)
+        total_accesses = total_reads + total_writes
+        print(f"  CHT各Bank访问数: {bank_counts}")
+        print(
+            f"  CHT访问总数: {total_accesses} (读: {total_reads}, 写: {total_writes})"
+        )
 
     if "num_collisions" in results:
         print(f"  碰撞Edge数: {results['num_collisions']}")

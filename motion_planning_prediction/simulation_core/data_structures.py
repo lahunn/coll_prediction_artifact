@@ -7,7 +7,7 @@ from collections import deque
 
 # Class for OOCD state
 class OOCDState:
-    def __init__(self, hash_key, result, busy, free_cycle):
+    def __init__(self, hash_key="", result=1, busy=0, free_cycle=0):
         self.hash_key = hash_key
         self.result = result
         self.busy = busy

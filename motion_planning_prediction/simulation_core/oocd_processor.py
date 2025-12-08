@@ -39,9 +39,6 @@ def process_oocd_completion(
             oocd_cycles_delta += 1
             if oocd.free_cycle <= cycle:
                 query_count += 1
-                oocds[oocd_id] = OOCDState(
-                    hash_key="", result=1, busy=0, free_cycle=cycle
-                )
                 if oocd.result == 0:  # 碰撞
                     coll_found = True
 
@@ -103,6 +100,55 @@ def attempt_standard_allocation(
         )
         qnoncoll.popleft()
         allocated = True
+
+    return allocated, first_two_running, first_two_checked
+
+
+def attempt_dedicated_allocation(
+    oocd_id,
+    oocds,
+    qcoll,
+    qnoncoll,
+    linklist,
+    cycle,
+    first_two_running,
+    first_two_checked,
+    cycle_check,
+    qnoncoll_len,
+    is_dedicated,
+):
+    """
+    尝试为OOCD分配任务（专用策略）。
+
+    Dedicated OOCD: 优先处理qcoll（仅当qnoncoll满时），否则处理qnoncoll（满或linklist空时）
+    Non-dedicated OOCD: 优先处理qcoll，其次处理qnoncoll
+    """
+    allocated = False
+
+    # 尝试分配碰撞任务
+    if len(qcoll) > 0 and first_two_checked < cycle:
+        first_two_running += 1
+        if first_two_running == 1:
+            first_two_checked = cycle + cycle_check
+        oocds[oocd_id] = OOCDState(
+            hash_key=qcoll[0][0],
+            result=qcoll[0][1],
+            busy=1,
+            free_cycle=cycle + cycle_check,
+        )
+        qcoll.popleft()
+        allocated = True
+    # 尝试分配非碰撞任务
+    elif len(qnoncoll) > 0:
+        if not is_dedicated or len(qnoncoll) >= qnoncoll_len or len(linklist) == 0:
+            oocds[oocd_id] = OOCDState(
+                hash_key=qnoncoll[0][0],
+                result=qnoncoll[0][1],
+                busy=1,
+                free_cycle=cycle + cycle_check,
+            )
+            qnoncoll.popleft()
+            allocated = True
 
     return allocated, first_two_running, first_two_checked
 
@@ -254,6 +300,9 @@ def process_oocd_states_dedicated(
 ):
     """
     处理OOCD状态和任务完成（专用策略）。
+
+    Dedicated OOCD: 等待qnoncoll满或linklist空，否则优先处理qcoll
+    Non-dedicated OOCD: 优先处理qcoll，无qcoll时处理qnoncoll
     """
     for oocd_id in range(len(oocds)):
         oocd = oocds[oocd_id]
@@ -265,64 +314,26 @@ def process_oocd_states_dedicated(
 
         if oocd.free_cycle <= cycle:
             is_dedicated = oocd_id < num_dedicated_oocds
-            task_assigned = False
 
-            if is_dedicated:
-                if len(qnoncoll) >= qnoncoll_len:
-                    oocds[oocd_id] = OOCDState(
-                        hash_key=qnoncoll[0][0],
-                        result=qnoncoll[0][1],
-                        busy=1,
-                        free_cycle=cycle + cycle_check,
-                    )
-                    qnoncoll.popleft()
-                    task_assigned = True
-                elif len(qcoll) > 0 and first_two_checked < cycle:
-                    first_two_running += 1
-                    if first_two_running == 1:
-                        first_two_checked = cycle + cycle_check
-                    oocds[oocd_id] = OOCDState(
-                        hash_key=qcoll[0][0],
-                        result=qcoll[0][1],
-                        busy=1,
-                        free_cycle=cycle + cycle_check,
-                    )
-                    qcoll.popleft()
-                    task_assigned = True
-                elif len(linklist) == 0 and len(qnoncoll) > 0:
-                    oocds[oocd_id] = OOCDState(
-                        hash_key=qnoncoll[0][0],
-                        result=qnoncoll[0][1],
-                        busy=1,
-                        free_cycle=cycle + cycle_check,
-                    )
-                    qnoncoll.popleft()
-                    task_assigned = True
-            else:
-                if len(qcoll) > 0 and first_two_checked < cycle:
-                    first_two_running += 1
-                    if first_two_running == 1:
-                        first_two_checked = cycle + cycle_check
-                    oocds[oocd_id] = OOCDState(
-                        hash_key=qcoll[0][0],
-                        result=qcoll[0][1],
-                        busy=1,
-                        free_cycle=cycle + cycle_check,
-                    )
-                    qcoll.popleft()
-                    task_assigned = True
-                elif len(qnoncoll) > 0:
-                    oocds[oocd_id] = OOCDState(
-                        hash_key=qnoncoll[0][0],
-                        result=qnoncoll[0][1],
-                        busy=1,
-                        free_cycle=cycle + cycle_check,
-                    )
-                    qnoncoll.popleft()
-                    task_assigned = True
+            allocated, first_two_running, first_two_checked = (
+                attempt_dedicated_allocation(
+                    oocd_id,
+                    oocds,
+                    qcoll,
+                    qnoncoll,
+                    linklist,
+                    cycle,
+                    first_two_running,
+                    first_two_checked,
+                    cycle_check,
+                    qnoncoll_len,
+                    is_dedicated,
+                )
+            )
 
-            if not task_assigned:
+            if not allocated:
                 oocds[oocd_id] = OOCDState()
+
     return (
         oocds,
         query_count,
@@ -344,13 +355,20 @@ def dispatch_new_tasks(
     cycle_check,
     num_oocds,
     qnoncoll_size,
+    num_dedicated_oocds=8,
 ):
-    """分派新任务给空闲的OOCD（改进版：支持多OOCD并行分派）"""
+    """分派新任务给空闲的OOCD（改进版：支持多OOCD并行分派）
+
+    参数：
+        num_dedicated_oocds: 专用OOCD数量。当>0时使用专用策略，否则使用标准策略
+    """
     for oocd_id in range(num_oocds):
         oocd = oocds[oocd_id]
         if oocd.free_cycle <= cycle:
+            # 根据num_dedicated_oocds选择分配策略
+            is_dedicated = oocd_id < num_dedicated_oocds
             allocated, first_two_running, first_two_checked = (
-                attempt_standard_allocation(
+                attempt_dedicated_allocation(
                     oocd_id,
                     oocds,
                     qcoll,
@@ -361,8 +379,10 @@ def dispatch_new_tasks(
                     first_two_checked,
                     cycle_check,
                     qnoncoll_size,
+                    is_dedicated,
                 )
             )
+
             if not allocated:
                 # 简化空闲状态管理：只在busy==1时重置为0
                 if oocd.busy == 1:
