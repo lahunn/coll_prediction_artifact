@@ -13,7 +13,7 @@
 文件命名约定: {basename}_{benchid:04d}_{collision_model_type}.pkl
 其中 collision_model_type 为 'link' 或 'sphere'
 
-脚本接受七个命令行参数：
+脚本接受八个命令行参数：
 1. threshold: 预测阈值 (float)
 2. sample_rate: 采样率 (float)
 3. qnoncoll_multiplier: 用于计算非碰撞队列长度的乘数 (int)
@@ -21,9 +21,10 @@
 5. basename: 数据文件基础名称（如 iiwa_7）
 6. num_benchmarks: 基准测试数量
 7. robot_name: 机器人名称
+8. num_dedicated_oocds: 专用OOCD数量 (int, 可选, 默认为1)
 
 使用示例:
-    python prediction_simulation_nDOF_dedicated.py 0.5 0.1 8 ../../trace_files/scene_benchmarks/bit_collision_data iiwa_7 10 iiwa link
+    python prediction_simulation_nDOF_dedicated.py 0.5 0.1 8 ../../trace_files/scene_benchmarks/bit_collision_data iiwa_7 10 iiwa 1 link
 """
 
 import sys
@@ -51,10 +52,10 @@ fall_cycle = 0
 # --- Simulation Parameters from Command Line ---
 if len(sys.argv) < 8:
     print(
-        "Usage: python prediction_simulation_nDOF_dedicated.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <num_benchmarks> <robot_name> [collision_model_type]"
+        "Usage: python prediction_simulation_nDOF_dedicated.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <num_benchmarks> <robot_name> <num_dedicated_oocds> [collision_model_type]"
     )
     print(
-        "Example: python prediction_simulation_nDOF_dedicated.py 0.5 0.1 8 ../trace_files/scene_benchmarks/bit_collision_data iiwa_7 10 iiwa link"
+        "Example: python prediction_simulation_nDOF_dedicated.py 0.5 0.1 8 ../trace_files/scene_benchmarks/bit_collision_data iiwa_7 10 iiwa 1 link"
     )
     sys.exit(1)
 
@@ -65,7 +66,8 @@ data_folder = sys.argv[4]
 basename = sys.argv[5]
 num_benchmarks = int(sys.argv[6])
 robot_name = sys.argv[7]
-collision_model_type = sys.argv[8] if len(sys.argv) > 8 else "link"
+num_dedicated_oocds = int(sys.argv[8]) if len(sys.argv) > 8 else 1
+collision_model_type = sys.argv[9] if len(sys.argv) > 9 else "link"
 
 # 获取机器人参数
 robot_params = get_robot_params(robot_name)
@@ -82,10 +84,11 @@ else:
     num_elements = robot_params["obb_num"]
     check_cost = robot_params["obb_cost"]
     csv_file = "../result_files/obb_results_dedicated.csv"
-    print_title = "=== OBB Collision Detection Prediction Simulation (Dedicated CDU Version) ==="
+    print_title = (
+        "=== OBB Collision Detection Prediction Simulation (Dedicated CDU Version) ==="
+    )
 
 qnoncoll_len = num_elements * qnoncoll_multiplier
-num_dedicated_oocds = 1  # 默认值
 
 print(print_title)
 print(f"Threshold: {threshold}")
@@ -190,9 +193,7 @@ print(f"  查询减少率: {(1 - fall_prediction / total_checks) * 100:.2f}%")
 print("=" * 50)
 
 # 输出到CSV
-reduction_rate = (
-    (1 - fall_prediction / total_checks) * 100 if total_checks > 0 else 0
-)
+reduction_rate = (1 - fall_prediction / total_checks) * 100 if total_checks > 0 else 0
 
 # with open(csv_file, "a", newline="") as csvfile:
 #     writer = csv.writer(csvfile)

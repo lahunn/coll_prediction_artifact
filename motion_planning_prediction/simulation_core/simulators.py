@@ -35,9 +35,7 @@ def simulate_parallel_collision_detection(
     """
     模拟并行的碰撞检测过程，该过程结合了硬件检测器 (OOCD) 和基于历史的碰撞预测。
     """
-    oocds = [
-        OOCDState(hash_key=0, result=0, busy=0, free_cycle=0) for _ in range(num_oocds)
-    ]
+    oocds = [OOCDState() for _ in range(num_oocds)]
     pred = Prediction(qcoll_len, qnoncoll_len)
     pred.linklist = linklist
     pred.linklist_coll = linklist_coll
@@ -115,9 +113,7 @@ def simulate_parallel_collision_detection_real_cycles(
     """
     使用真实周期数的并行碰撞检测仿真。
     """
-    oocds = [
-        OOCDState(hash_key=0, result=0, busy=0, free_cycle=0) for _ in range(num_oocds)
-    ]
+    oocds = [OOCDState() for _ in range(num_oocds)]
     pred = Prediction(qcoll_len, qnoncoll_len)
     pred.linklist = linklist
     pred.linklist_coll = linklist_coll
@@ -195,9 +191,7 @@ def simulate_parallel_collision_detection_with_tracking(
     """
     带预测跟踪的并行碰撞检测仿真，返回预测结果用于准确率计算。
     """
-    oocds = [
-        OOCDState(hash_key=0, result=0, busy=0, free_cycle=0) for _ in range(num_oocds)
-    ]
+    oocds = [OOCDState() for _ in range(num_oocds)]
     pred = Prediction(qcoll_len, qnoncoll_len)
     pred.linklist = linklist
     pred.linklist_coll = linklist_coll
@@ -355,9 +349,7 @@ def simulate_parallel_collision_detection_dedicated(
     """
     模拟并行的碰撞检测过程，支持专用CDU策略。
     """
-    oocds = [
-        OOCDState(hash_key=0, result=0, busy=0, free_cycle=0) for _ in range(num_oocds)
-    ]
+    oocds = [OOCDState() for _ in range(num_oocds)]
     qcoll = deque(maxlen=qcoll_len)
     qnoncoll = deque(maxlen=qnoncoll_len)
     cycle = 0
@@ -423,6 +415,97 @@ def simulate_parallel_collision_detection_dedicated(
     return query_count, colldict, coll_found, cycle
 
 
+def simulate_edge_double_buffer(
+    edge_idx,
+    cycle,
+    predictions,
+    oocds,
+    total_query_count,
+    colldict,
+    cycle_check,
+    sample_rate,
+    num_dedicated_oocds,
+    qnoncoll_len,
+    qcoll_len,
+    threshold,
+    bins,
+    num_predictions,
+):
+    """
+    Simulate collision detection for a single edge in double buffer architecture.
+    """
+    active_index = edge_idx % num_predictions
+    active_pred = predictions[active_index]
+
+    qcoll_len_start = len(active_pred.qcoll)
+    qnoncoll_len_start = len(active_pred.qnoncoll)
+
+    edge_start_cycle = cycle
+    edge_completed = False
+    coll_found = 0
+    first_two_running = 0
+    first_two_checked = 0
+
+    while not edge_completed:
+        (
+            oocds,
+            total_query_count,
+            coll_found,
+            colldict,
+            first_two_running,
+            first_two_checked,
+        ) = process_oocd_states_dedicated(
+            oocds,
+            active_pred.qcoll,
+            active_pred.qnoncoll,
+            cycle,
+            cycle_check,
+            total_query_count,
+            coll_found,
+            colldict,
+            sample_rate,
+            num_dedicated_oocds,
+            qnoncoll_len,
+            active_pred.linklist,
+            first_two_running,
+            first_two_checked,
+        )
+
+        for pred in predictions:
+            enqueue_predictions(
+                pred.linklist,
+                pred.linklist_coll,
+                pred.qcoll,
+                pred.qnoncoll,
+                colldict,
+                threshold,
+                bins,
+                qcoll_len,
+                qnoncoll_len,
+            )
+
+        everything_free = (
+            len(active_pred.linklist) == 0
+            and not any(oocd.free_cycle > cycle for oocd in oocds)
+            and len(active_pred.qnoncoll) == 0
+            and len(active_pred.qcoll) == 0
+        )
+        if coll_found or everything_free:
+            edge_completed = True
+        cycle += 1
+
+    edge_cycles = cycle - edge_start_cycle
+
+    return (
+        cycle,
+        total_query_count,
+        coll_found,
+        edge_cycles,
+        qcoll_len_start,
+        qnoncoll_len_start,
+    )
+
+
 def simulate_parallel_collision_detection_double_buffer(
     edges_data,
     edges_coll,
@@ -440,9 +523,7 @@ def simulate_parallel_collision_detection_double_buffer(
     """
     双缓冲架构的并行碰撞检测仿真。
     """
-    oocds = [
-        OOCDState(hash_key=0, result=0, busy=0, free_cycle=0) for _ in range(num_oocds)
-    ]
+    oocds = [OOCDState() for _ in range(num_oocds)]
 
     predictions = [Prediction(qcoll_len, qnoncoll_len) for _ in range(num_predictions)]
 
@@ -451,8 +532,6 @@ def simulate_parallel_collision_detection_double_buffer(
     cycle = 0
     total_query_count = 0.0
     cdu_idle_cycles = 0
-    first_two_running = 0
-    first_two_checked = 0
     total_coll_edge_cycles = 0
     total_noncoll_edge_cycles = 0
 
@@ -468,68 +547,32 @@ def simulate_parallel_collision_detection_double_buffer(
         next_load_edge_idx += 1
 
     for edge_idx in range(len(edges_data)):
-        edge_start_cycle = cycle
+        (
+            cycle,
+            total_query_count,
+            coll_found,
+            edge_cycles,
+            qcoll_len_start,
+            qnoncoll_len_start,
+        ) = simulate_edge_double_buffer(
+            edge_idx,
+            cycle,
+            predictions,
+            oocds,
+            total_query_count,
+            colldict,
+            cycle_check,
+            sample_rate,
+            num_dedicated_oocds,
+            qnoncoll_len,
+            qcoll_len,
+            threshold,
+            bins,
+            num_predictions,
+        )
+
         active_index = edge_idx % num_predictions
         active_pred = predictions[active_index]
-
-        qcoll_lengths_at_start.append(len(active_pred.qcoll))
-        qnoncoll_lengths_at_start.append(len(active_pred.qnoncoll))
-
-        edge_completed = False
-        coll_found = 0
-        while not edge_completed:
-            (
-                oocds,
-                total_query_count,
-                coll_found,
-                colldict,
-                first_two_running,
-                first_two_checked,
-            ) = process_oocd_states_dedicated(
-                oocds,
-                active_pred.qcoll,
-                active_pred.qnoncoll,
-                cycle,
-                cycle_check,
-                total_query_count,
-                coll_found,
-                colldict,
-                sample_rate,
-                num_dedicated_oocds,
-                qnoncoll_len,
-                active_pred.linklist,
-                first_two_running,
-                first_two_checked,
-            )
-
-            for pred in predictions:
-                enqueue_predictions(
-                    pred.linklist,
-                    pred.linklist_coll,
-                    pred.qcoll,
-                    pred.qnoncoll,
-                    colldict,
-                    threshold,
-                    bins,
-                    qcoll_len,
-                    qnoncoll_len,
-                )
-
-            everything_free = (
-                len(active_pred.linklist) == 0
-                and not any(oocd.free_cycle > cycle for oocd in oocds)
-                and len(active_pred.qnoncoll) == 0
-                and len(active_pred.qcoll) == 0
-            )
-            if coll_found or everything_free:
-                edge_completed = True
-            cycle += 1
-
-        edge_cycles = cycle - edge_start_cycle
-        if coll_found > 0:
-            total_coll_edge_cycles += edge_cycles
-        else:
-            total_noncoll_edge_cycles += edge_cycles
 
         for oocd in oocds:
             oocd.reset()
@@ -546,8 +589,13 @@ def simulate_parallel_collision_detection_double_buffer(
             active_pred.linklist_coll = edge_coll_flat
             next_load_edge_idx += 1
 
-        first_two_running = 0
-        first_two_checked = 0
+        qcoll_lengths_at_start.append(qcoll_len_start)
+        qnoncoll_lengths_at_start.append(qnoncoll_len_start)
+
+        if coll_found > 0:
+            total_coll_edge_cycles += edge_cycles
+        else:
+            total_noncoll_edge_cycles += edge_cycles
 
     for oocd in oocds:
         if oocd.free_cycle > cycle:
