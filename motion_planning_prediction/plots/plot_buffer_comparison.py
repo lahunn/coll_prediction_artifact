@@ -98,7 +98,7 @@ def plot_comparison(model_type):
         x - width / 2,
         vals_sb_queries,
         width,
-        label=f"Single Buffer ({model_label})",
+        label=f"Single Buffer",
         color="skyblue",
     )
     rects2 = ax1.bar(
@@ -106,7 +106,7 @@ def plot_comparison(model_type):
     )
 
     ax1.set_ylabel("Total Prediction Queries")
-    ax1.set_title(f"Total Prediction Queries Comparison ({model_label})")
+    ax1.set_title(f"Total Prediction Queries Comparison")
     ax1.set_xticks(x)
     ax1.set_xticklabels(scenes)
     ax1.legend()
@@ -123,7 +123,7 @@ def plot_comparison(model_type):
         x - width / 2,
         vals_sb_cycles,
         width,
-        label=f"Single Buffer ({model_label})",
+        label=f"Single Buffer",
         color="skyblue",
     )
     rects4 = ax2.bar(
@@ -131,7 +131,7 @@ def plot_comparison(model_type):
     )
 
     ax2.set_ylabel("Total Cycles")
-    ax2.set_title(f"Total Cycles Comparison ({model_label})")
+    ax2.set_title(f"Total Cycles Comparison")
     ax2.set_xticks(x)
     ax2.set_xticklabels(scenes)
     ax2.legend()

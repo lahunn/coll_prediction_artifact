@@ -1,6 +1,7 @@
 {
   "version": "0.2.0",
   "configurations": [
+    
     {
       "name": "调试 prediction_simulation_nDOF_sphere.py",
       "type": "debugpy",
@@ -17,26 +18,68 @@
         "10"
       ],
     },
-      {
-        "name": "调试 analyze_multi_bank_cht.py",
-        "type": "debugpy",
-        "request": "launch",
-        "program": "${workspaceFolder}/motion_planning_prediction/analyze_multi_bank_cht.py",
-        "console": "integratedTerminal",
-        "cwd": "${workspaceFolder}/motion_planning_prediction",
-        "args": [
-          "iiwa_7",
-          "1-10",
-          "../trace_files/scene_benchmarks/bit_collision_data",
-          "8",
-          "1.0",
-          "7",
-          "1.0",
-          "100000",
-          "--num-banks",
-          "8"
-        ]
-      },
+    {
+      "name": "调试 multi_copu_real_data_simulation.py",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/motion_planning_prediction/strategy_evaluation/multi_copu_real_data_simulation.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/motion_planning_prediction/strategy_evaluation",
+      "args": [
+        "iiwa_7",
+        "1", // 场景编号
+        "../../trace_files/scene_benchmarks/bit_collision_data/G1",
+        "8", // COPU数量
+        "0.5", // 阈值
+        "7", // OOCD数量
+        "0.1", // 采样率
+        "1", // Prediction缓冲数量
+        "--copus-per-edge",
+        "1",
+        "--cht-type",
+        "multi_bank", //multi_bank or dual_port
+        "--num-banks",
+        "8"
+      ]
+    },
+    {
+      "name": "调试 prediction_simulation_nDOF.py",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/motion_planning_prediction/strategy_evaluation/prediction_simulation_nDOF.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/motion_planning_prediction/strategy_evaluation",
+      "args": [
+        "0.5",
+        "0.1",
+        "8",
+        "../../trace_files/scene_benchmarks/bit_collision_data/G5",
+        "iiwa_7",
+        "1",
+        "iiwa",
+        "link"
+      ]
+    },
+    {
+      "name": "调试 analyze_multi_bank_cht.py",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/motion_planning_prediction/analyze_multi_bank_cht.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/motion_planning_prediction",
+      "args": [
+        "iiwa_7",
+        "1-10",
+        "../trace_files/scene_benchmarks/bit_collision_data/G1",
+        "8",
+        "1.0",
+        "7",
+        "1.0",
+        "100000",
+        "--num-banks",
+        "8"
+      ]
+    },
     {
       "name": "调试 prediction_simulation_nDOF_double_buffer.py",
       "type": "debugpy",
