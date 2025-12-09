@@ -1,7 +1,27 @@
 {
   "version": "0.2.0",
   "configurations": [
-    
+    {
+      "name": "调试 global_oocd_simulation.py",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/motion_planning_prediction/strategy_evaluation/global_oocd_simulation.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/motion_planning_prediction/strategy_evaluation",
+      "args": [
+        "iiwa_7",
+        "1", //Benchmark ID 或 范围
+        "../../trace_files/scene_benchmarks/bit_collision_data/G1",//数据文件夹路径
+        "28", // OOCD数量
+        "0.5", // 阈值
+        "0.1", // 采样率
+        "8", // Prediction缓冲数量
+        "--cht-type",
+        "multi_bank",
+        "--num-banks",
+        "8"
+      ]
+    },
     {
       "name": "调试 prediction_simulation_nDOF_sphere.py",
       "type": "debugpy",
@@ -33,7 +53,7 @@
         "0.5", // 阈值
         "7", // OOCD数量
         "0.1", // 采样率
-        "1", // Prediction缓冲数量
+        "2", // Prediction缓冲数量
         "--copus-per-edge",
         "1",
         "--cht-type",

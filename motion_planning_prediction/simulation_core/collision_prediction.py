@@ -34,6 +34,30 @@ def update_collision_dict(colldict, hash_key, is_free, sample_rate):
     return colldict
 
 
+def submit_cht_write(cht_scheduler, pred_id, hash_key, is_collision, sample_rate):
+    """
+    根据OOCD结果提交CHT写操作，参考update_collision_dict的逻辑
+
+    Args:
+        cht_scheduler: CHT访问调度器
+        pred_id: prediction的ID
+        hash_key: 配置的哈希键
+        is_collision: OOCD结果 (0表示碰撞, 1表示无碰撞)
+        sample_rate: 采样率，用于决定是否更新无碰撞计数
+    """
+    # 参考update_collision_dict的逻辑：
+    # - 碰撞(is_collision==0)始终更新
+    # - 无碰撞(is_collision==1)仅按sample_rate更新
+
+    if is_collision == 0:
+        # 碰撞：增加碰撞计数
+        cht_scheduler.submit_write(pred_id, hash_key, 1, 0)
+    else:
+        # 无碰撞：按sample_rate概率增加无碰撞计数
+        if random.random() <= sample_rate:
+            cht_scheduler.submit_write(pred_id, hash_key, 0, 1)
+
+
 def predict_collision(colldict, hash_key, threshold):
     """
     Predicts collision based on the history dictionary.

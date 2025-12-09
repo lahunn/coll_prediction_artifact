@@ -3,7 +3,7 @@ OOCD (Out-Of-Order Collision Detector) processing functions.
 """
 
 from .data_structures import OOCDState, OOCDStatePreemptive
-from .collision_prediction import update_collision_dict
+from .collision_prediction import update_collision_dict, submit_cht_write
 import random
 
 
@@ -42,13 +42,10 @@ def process_oocd_completion(
                 if oocd.result == 0:  # 碰撞
                     coll_found = True
 
-                # 更新CHT
-                delta_coll = 1 if oocd.result == 0 else 0
-                delta_noncoll = 1 if oocd.result == 1 else 0
-                if delta_coll or random.random() <= sample_rate:
-                    cht_scheduler.submit_write(
-                        copu_id, oocd.hash_key, delta_coll, delta_noncoll
-                    )
+                # 直接调用submit_cht_write更新CHT
+                submit_cht_write(
+                    cht_scheduler, copu_id, oocd.hash_key, oocd.result, sample_rate
+                )
 
     return oocd_cycles_delta, query_count, coll_found
 
@@ -60,8 +57,6 @@ def attempt_standard_allocation(
     qnoncoll,
     linklist,
     cycle,
-    first_two_running,
-    first_two_checked,
     cycle_check,
     qnoncoll_len,
 ):
@@ -70,11 +65,7 @@ def attempt_standard_allocation(
     适用于 process_oocds 和 dispatch_new_tasks。
     """
     allocated = False
-    if len(qcoll) > 0 and first_two_checked < cycle:
-        first_two_running += 1
-        if first_two_running == 1:
-            first_two_checked = cycle + cycle_check
-
+    if len(qcoll) > 0:
         task = qcoll[0]
         task_cycle = task[2] if len(task) > 2 else cycle_check
 
@@ -86,9 +77,7 @@ def attempt_standard_allocation(
         )
         qcoll.popleft()
         allocated = True
-    elif (
-        len(qnoncoll) == qnoncoll_len or (len(linklist) == 0 and len(qnoncoll) > 0)
-    ) and first_two_checked < cycle:
+    elif len(qnoncoll) == qnoncoll_len or (len(linklist) == 0 and len(qnoncoll) > 0):
         task = qnoncoll[0]
         task_cycle = task[2] if len(task) > 2 else cycle_check
 
@@ -101,7 +90,7 @@ def attempt_standard_allocation(
         qnoncoll.popleft()
         allocated = True
 
-    return allocated, first_two_running, first_two_checked
+    return allocated
 
 
 def attempt_dedicated_allocation(
@@ -111,8 +100,6 @@ def attempt_dedicated_allocation(
     qnoncoll,
     linklist,
     cycle,
-    first_two_running,
-    first_two_checked,
     cycle_check,
     qnoncoll_len,
     is_dedicated,
@@ -126,10 +113,7 @@ def attempt_dedicated_allocation(
     allocated = False
 
     # 尝试分配碰撞任务
-    if len(qcoll) > 0 and first_two_checked < cycle:
-        first_two_running += 1
-        if first_two_running == 1:
-            first_two_checked = cycle + cycle_check
+    if len(qcoll) > 0:
         oocds[oocd_id] = OOCDState(
             hash_key=qcoll[0][0],
             result=qcoll[0][1],
@@ -150,7 +134,7 @@ def attempt_dedicated_allocation(
             qnoncoll.popleft()
             allocated = True
 
-    return allocated, first_two_running, first_two_checked
+    return allocated
 
 
 def process_oocds(
@@ -161,8 +145,6 @@ def process_oocds(
     cycle,
     total_query_count,
     coll_found,
-    first_two_running,
-    first_two_checked,
     cycle_check,
     colldict,
     sample_rate,
@@ -179,19 +161,15 @@ def process_oocds(
 
         # allocate new tasks
         if oocd.free_cycle <= cycle:
-            allocated, first_two_running, first_two_checked = (
-                attempt_standard_allocation(
-                    oocd_id,
-                    oocds,
-                    qcoll,
-                    qnoncoll,
-                    linklist,
-                    cycle,
-                    first_two_running,
-                    first_two_checked,
-                    cycle_check,
-                    qnoncoll_len,
-                )
+            allocated = attempt_standard_allocation(
+                oocd_id,
+                oocds,
+                qcoll,
+                qnoncoll,
+                linklist,
+                cycle,
+                cycle_check,
+                qnoncoll_len,
             )
 
             if not allocated:
@@ -203,8 +181,6 @@ def process_oocds(
     return (
         total_query_count,
         coll_found,
-        first_two_running,
-        first_two_checked,
         cdu_idle_this_cycle,
     )
 
@@ -295,8 +271,6 @@ def process_oocd_states_dedicated(
     num_dedicated_oocds,
     qnoncoll_len,
     linklist,
-    first_two_running,
-    first_two_checked,
 ):
     """
     处理OOCD状态和任务完成（专用策略）。
@@ -315,33 +289,22 @@ def process_oocd_states_dedicated(
         if oocd.free_cycle <= cycle:
             is_dedicated = oocd_id < num_dedicated_oocds
 
-            allocated, first_two_running, first_two_checked = (
-                attempt_dedicated_allocation(
-                    oocd_id,
-                    oocds,
-                    qcoll,
-                    qnoncoll,
-                    linklist,
-                    cycle,
-                    first_two_running,
-                    first_two_checked,
-                    cycle_check,
-                    qnoncoll_len,
-                    is_dedicated,
-                )
+            allocated = attempt_dedicated_allocation(
+                oocd_id,
+                oocds,
+                qcoll,
+                qnoncoll,
+                linklist,
+                cycle,
+                cycle_check,
+                qnoncoll_len,
+                is_dedicated,
             )
 
             if not allocated:
                 oocds[oocd_id] = OOCDState()
 
-    return (
-        oocds,
-        query_count,
-        coll_found,
-        colldict,
-        first_two_running,
-        first_two_checked,
-    )
+    return (oocds, query_count, coll_found, colldict)
 
 
 def dispatch_new_tasks(
@@ -350,12 +313,10 @@ def dispatch_new_tasks(
     qnoncoll,
     linklist,
     cycle,
-    first_two_running,
-    first_two_checked,
     cycle_check,
     num_oocds,
     qnoncoll_size,
-    num_dedicated_oocds=8,
+    num_dedicated_oocds=1,
 ):
     """分派新任务给空闲的OOCD（改进版：支持多OOCD并行分派）
 
@@ -367,20 +328,16 @@ def dispatch_new_tasks(
         if oocd.free_cycle <= cycle:
             # 根据num_dedicated_oocds选择分配策略
             is_dedicated = oocd_id < num_dedicated_oocds
-            allocated, first_two_running, first_two_checked = (
-                attempt_dedicated_allocation(
-                    oocd_id,
-                    oocds,
-                    qcoll,
-                    qnoncoll,
-                    linklist,
-                    cycle,
-                    first_two_running,
-                    first_two_checked,
-                    cycle_check,
-                    qnoncoll_size,
-                    is_dedicated,
-                )
+            allocated = attempt_dedicated_allocation(
+                oocd_id,
+                oocds,
+                qcoll,
+                qnoncoll,
+                linklist,
+                cycle,
+                cycle_check,
+                qnoncoll_size,
+                is_dedicated,
             )
 
             if not allocated:
