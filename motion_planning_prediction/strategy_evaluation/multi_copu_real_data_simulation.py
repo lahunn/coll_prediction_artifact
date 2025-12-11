@@ -21,16 +21,16 @@
 #
 # 示例:
 #   1) 单个benchmark（双端口CHT，使用真实周期）
-#      python multi_copu_real_data_simulation.py iiwa_7 1-10 ../trace_files/scene_benchmarks/bit_collision_data/G5 4 1.0 7 0.1 --real-cycles
+#      python multi_copu_real_data_simulation.py iiwa_7 1-10 ../../trace_files/scene_benchmarks/bit_collision_data/G5 4 1.0 7 0.1 --real-cycles
 #
 #   2) 范围benchmarks（多Bank CHT，8个bank，关闭冲突检测）
-#      python multi_copu_real_data_simulation.py iiwa_7 1-10 ../trace_files/scene_benchmarks/bit_collision_data/G5 4 1.0 7 0.1 --cht-type multi_bank --num-banks 8 --no-cht-conflict
+#      python multi_copu_real_data_simulation.py iiwa_7 1-10 ../../trace_files/scene_benchmarks/bit_collision_data/G5 4 1.0 7 0.1 --cht-type multi_bank --num-banks 8 --no-cht-conflict
 #
 #   3) 最简参数（其余使用默认：OOCD=7, sample_rate=1.0）
-#      python multi_copu_real_data_simulation.py iiwa_7 1 ../trace_files/scene_benchmarks/bit_collision_data/G5 4 1.0
+#      python multi_copu_real_data_simulation.py iiwa_7 1 ../../trace_files/scene_benchmarks/bit_collision_data/G5 4 1.0
 #
 #   4) 指定每Edge分配的COPU数量（例如4个COPU，每Edge用2个，即2组并行）
-#      python multi_copu_real_data_simulation.py iiwa_7 1 ../trace_files/scene_benchmarks/bit_collision_data/G5 4 1.0 --copus-per-edge 2
+#      python multi_copu_real_data_simulation.py iiwa_7 1 ../../trace_files/scene_benchmarks/bit_collision_data/G5 4 1.0 --copus-per-edge 2
 
 import sys
 import os

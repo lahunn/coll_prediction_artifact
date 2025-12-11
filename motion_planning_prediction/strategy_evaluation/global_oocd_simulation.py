@@ -227,7 +227,7 @@ def print_results(results, is_range=False):
             f"  系统吞吐量: {results.get('total_queries', 0) / max(1, results.get('total_cycles', 1)):.4f} queries/cycle"
         )
 
-    print(f"  平均OOCD占用率: {results.get('avg_oocd_utilization', 0.0):.2%}")
+    print(f"  平均占用率: {results.get('avg_oocd_utilization', 0.0):.2%}")
     print(f"  CHT冲突数: {results.get('total_cht_conflicts', 0)}")
 
 

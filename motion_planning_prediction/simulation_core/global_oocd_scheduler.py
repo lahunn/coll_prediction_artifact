@@ -206,6 +206,16 @@ class GlobalOOCDScheduler:
             if self._is_globally_finished():
                 break
 
+            # if self.cycle % 100 == 0:
+            #     # 输出当前周期处于busy状态的OOCD数目
+            #     busy_count = sum(1 for oocd in self.oocd_pool if oocd.busy)
+            #     # 输出各个prediction的队列长度
+            #     queue_info = "; ".join(
+            #         f"Pred{i}: qcoll={len(self.predictions[i].qcoll)}, qnoncoll={len(self.predictions[i].qnoncoll)}"
+            #         for i in range(self.num_predictions)
+            #     )
+            #     print(f"Cycle {self.cycle}: {busy_count} OOCDs busy | {queue_info}")
+
             # 推进全局周期
             self.cht_scheduler.advance_cycle()
             self.cycle += 1
@@ -250,8 +260,10 @@ class GlobalOOCDScheduler:
                     self.cht_scheduler, pred_id, oocd.hash_key, oocd.result, sample_rate
                 )
 
-                # 释放OOCD
-                oocd.busy = False
+                # 释放OOCD所有权并重置该槽位（每次OOCD运行完成后立即release）
+                self.oocd_ownership.release(oocd_id)
+                # 重置槽位状态
+                oocd.reset()
 
     def _dispatch_queued_tasks(self):
         """派发队列中的任务给OOCD"""

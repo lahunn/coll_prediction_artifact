@@ -116,8 +116,9 @@ class MultiCOPU_Scheduler:
             results dict with global metrics and per-COPU stats
         """
         # 预加载阶段：尝试填满所有组的所有prediction
-        for group_id in range(self.num_groups):
-            for prediction_idx in range(self.num_predictions):
+        # 关键：先按prediction分组，再按group分配，确保同一prediction的edges并行执行
+        for prediction_idx in range(self.num_predictions):
+            for group_id in range(self.num_groups):
                 if self.edge_queue:
                     edge_idx = self.edge_queue.popleft()
                     self._assign_edge_to_group(group_id, edge_idx, prediction_idx)
@@ -201,8 +202,8 @@ class MultiCOPU_Scheduler:
             "finished": [False] * self.copus_per_edge,
         }
 
-    def _finish_prediction(self, group_id, prediction_idx, group_copus):
-        """完成一个prediction的处理：重置状态、停止COPU任务、加载新任务"""
+    def _finish_task(self, group_id, prediction_idx, group_copus):
+        """完成一个任务的处理：重置状态、停止COPU任务、重置OOCD、加载新任务"""
         print(
             f"current cycle: {self.cycle} - current edge idx: {self.group_status[group_id][prediction_idx]['edge_idx']}"
         )
@@ -215,6 +216,11 @@ class MultiCOPU_Scheduler:
         # 停止组内所有COPU在该prediction的任务
         for c in group_copus:
             c.reset_prediction(prediction_idx)
+
+        # 重置所有OOCD状态
+        for c in group_copus:
+            for oocd in c.oocds:
+                oocd.reset()
 
         # 加载新任务到该prediction (如果队列不为空)
         if self.edge_queue:
@@ -237,10 +243,10 @@ class MultiCOPU_Scheduler:
         # 检查碰撞
         if any(copu.coll_found for copu in group_copus):
             self.edge_results[edge_idx] = "collision"
-            self._finish_prediction(group_id, active_idx, group_copus)
+            self._finish_task(group_id, active_idx, group_copus)
             return
 
         # 检查完成
         if all(self.group_status[group_id][active_idx]["finished"]):
             self.edge_results[edge_idx] = "safe"
-            self._finish_prediction(group_id, active_idx, group_copus)
+            self._finish_task(group_id, active_idx, group_copus)

@@ -316,7 +316,7 @@ def dispatch_new_tasks(
     cycle_check,
     num_oocds,
     qnoncoll_size,
-    num_dedicated_oocds=1,
+    num_dedicated_oocds=8,
 ):
     """分派新任务给空闲的OOCD（改进版：支持多OOCD并行分派）
 

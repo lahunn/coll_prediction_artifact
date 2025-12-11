@@ -69,6 +69,7 @@ for CHT_TYPE in "${auth_types[@]}"; do
                 "$THRESHOLD" \
                 "$SAMPLE_RATE" \
                 "$NUM_PRED" \
+                --max-oocd-per-pred 10 \
                 --cht-type "$CHT_TYPE" \
                 --num-banks "$NUM_BANKS" 2>&1)
 
@@ -83,7 +84,7 @@ for CHT_TYPE in "${auth_types[@]}"; do
             TOTAL_CYCLES=$(echo "$OUTPUT" | grep "总周期:" | tail -n 1 | awk -F': ' '{print $2}')
             TOTAL_QUERIES=$(echo "$OUTPUT" | grep "总查询数:" | tail -n 1 | awk -F': ' '{print $2}')
             THROUGHPUT=$(echo "$OUTPUT" | grep "系统吞吐量:" | tail -n 1 | awk -F': ' '{print $2}' | awk '{print $1}')
-            UTILIZATION=$(echo "$OUTPUT" | grep "平均COPU占用率:" | tail -n 1 | awk -F': ' '{print $2}')
+            UTILIZATION=$(echo "$OUTPUT" | grep "平均占用率:" | tail -n 1 | awk -F': ' '{print $2}')
             CONFLICTS=$(echo "$OUTPUT" | grep "CHT冲突数:" | tail -n 1 | awk -F': ' '{print $2}')
 
             echo "✓ (cycles=$TOTAL_CYCLES, throughput=$THROUGHPUT, utilization=$UTILIZATION)"
