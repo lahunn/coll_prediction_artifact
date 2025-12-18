@@ -3,6 +3,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 from matplotlib.ticker import FuncFormatter
+import matplotlib
+
+# Unified plotting style
+matplotlib.rcParams["pdf.fonttype"] = 42
+matplotlib.rcParams["ps.fonttype"] = 42
+plt.style.use("seaborn-v0_8-whitegrid")
+font = {
+    "family": "serif",
+    "weight": "normal",
+    "size": 28,
+}
+plt.rc("font", **font)
 
 
 def plot_cycle_comparison():
@@ -10,19 +22,23 @@ def plot_cycle_comparison():
     try:
         plt.style.use("seaborn-v0_8-whitegrid")
     except OSError:
-        plt.style.use("seaborn-whitegrid")  # Fallback for older matplotlib versions
-
-    # 数据文件路径
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    result_dir = os.path.join(current_dir, "../result_files")
-
+        pass
+    # Consistent palette: Dual variants in navy shades, Multi variants in darkgreen shades
+    colors = {
+        "Dual Port (Pred=1)": "navy",
+        "Dual Port (Pred=2)": "#1f4e79",
+        "Multi-Bank (Pred=1)": "darkgreen",
+        "Multi-Bank (Pred=2)": "#2e8b57",
+    }
     files = {
         "Dual Port (Pred=1)": "dual_port_pred1_results.csv",
         "Dual Port (Pred=2)": "dual_port_pred2_results.csv",
         "Multi-Bank (Pred=1)": "multi_bank_pred1_results.csv",
         "Multi-Bank (Pred=2)": "multi_bank_pred2_results.csv",
     }
-
+    # 数据文件路径
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    result_dir = os.path.join(current_dir, "../result_files")
     data = {}
     scenes = None
 

@@ -37,7 +37,18 @@ Usage Example:
 
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib
 import os
+# Unified plotting style
+matplotlib.rcParams["pdf.fonttype"] = 42
+matplotlib.rcParams["ps.fonttype"] = 42
+plt.style.use("seaborn-v0_8-whitegrid")
+font = {
+    "family": "serif",
+    "weight": "normal",
+    "size": 28,
+}
+plt.rc("font", **font)
 
 
 class CoordHashingPlotter:

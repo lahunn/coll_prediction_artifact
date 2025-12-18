@@ -7,7 +7,7 @@ set -e  # 遇到错误立即退出
 
 # === 配置参数 ===
 BASENAME="iiwa_7"
-BENCHID="1-100"
+BENCHID="1-10"
 # 基础数据路径
 BASE_DATA_FOLDER="../../trace_files/scene_benchmarks/bit_collision_data"
 NUM_COPUS=8
@@ -16,7 +16,6 @@ COPUS_PER_EDGE=1  # 每个Edge分配的COPU数量
 NUM_OOCDS=7
 NUM_BANKS=8
 SAMPLE_RATE=0.1
-NUM_PREDICTIONS=1  # 每个COPU的Prediction缓冲数量（Double Buffer）
 
 # 结果文件路径
 RESULT_DIR="../result_files"
@@ -97,7 +96,7 @@ for CHT_TYPE in dual_port multi_bank; do
             UTILIZATION=$(echo "$OUTPUT" | grep "平均COPU占用率:" | tail -n 1 | awk -F': ' '{print $2}')
             CONFLICTS=$(echo "$OUTPUT" | grep "CHT冲突数:" | tail -n 1 | awk -F': ' '{print $2}')
 
-            echo "✓ (cycles=$TOTAL_CYCLES, throughput=$THROUGHPUT)"
+            echo "✓ (cycles=$TOTAL_CYCLES, throughput=$THROUGHPUT, utilization=$UTILIZATION)"
 
             # 追加写入 CSV（头部已在循环外写入）
             if [ "$CHT_TYPE" == "dual_port" ]; then

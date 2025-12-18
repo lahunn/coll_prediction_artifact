@@ -16,8 +16,8 @@ OUTPUT_FILE="../result_files/coord_hashing_cost_results.csv"
 # 定义要测试的参数范围
 DENSITY_LEVELS=("dens3" "dens6" "dens9" "dens12")       # 目标场景密度
 QUANTIZE_BITS_LIST=(3 4 5)                        # 坐标量化位数
-# THRESHOLDS=(0.0 0.03125 0.0625 0.125 0.25 0.5 1.0 2.0 4.0)  # 碰撞阈值
-THRESHOLDS=(0.25 0.5 1.0 2.0)  # 碰撞阈值
+THRESHOLDS=(0.0 0.03125 0.125 0.5 1.0 2.0)  # 碰撞阈值
+# THRESHOLDS=(0.25 0.5 1.0 2.0)  # 碰撞阈值
 SAMPLE_RATES=(1.0)           # 自由样本采样率
 NUM_PROBLEMS=100                                         # 评估的问题数量
 
@@ -33,7 +33,7 @@ fi
 mkdir -p ../result_files
 
 # 写入CSV文件的表头
-echo "Density,QuantBits,Threshold,SampleRate,PosePrecision,PoseRecall,PoseCollisionRatio,ElemPrecision,ElemRecall,ElemCollisionRatio,PredCost,BaselineCost,Speedup" > "$OUTPUT_FILE"
+echo "Density,QuantBits,Threshold,SampleRate,PosePrecision,PoseRecall,PoseCollisionRatio,ElemPrecision,ElemRecall,ElemCollisionRatio,PredCost,BaselineCost,SpeedUp_Pct" > "$OUTPUT_FILE"
 
 echo "🚀 开始OBB碰撞预测参数扫描 (包含成本分析)"
 echo "   结果将保存到 $OUTPUT_FILE"

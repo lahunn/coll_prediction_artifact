@@ -29,6 +29,7 @@ from simulation_core.collision_prediction import (
     predict_collision,
     calculate_accuracy,
     enqueue_predictions,
+    enqueue_link_predictions,
     initialize_cht,
     inherit_cht,
 )
@@ -53,6 +54,8 @@ from simulation_core.oocd_processor import (
 )
 from simulation_core.simulators import (
     simulate_parallel_collision_detection,
+    simulate_parallel_collision_detection_sphere,
+    simulate_parallel_collision_detection_link,
     simulate_parallel_collision_detection_real_cycles,
     simulate_parallel_collision_detection_with_tracking,
     simulate_parallel_collision_detection_preemptive,
@@ -85,6 +88,7 @@ __all__ = [
     "predict_collision",
     "calculate_accuracy",
     "enqueue_predictions",
+    "enqueue_link_predictions",
     "initialize_cht",
     "inherit_cht",
     # Data Loader
@@ -105,6 +109,8 @@ __all__ = [
     "process_oocd_states_dedicated",
     # Simulators
     "simulate_parallel_collision_detection",
+    "simulate_parallel_collision_detection_sphere",
+    "simulate_parallel_collision_detection_link",
     "simulate_parallel_collision_detection_real_cycles",
     "simulate_parallel_collision_detection_with_tracking",
     "simulate_parallel_collision_detection_preemptive",

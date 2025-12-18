@@ -3,16 +3,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 
-# 设置风格
+# Unified plotting style
+import matplotlib
+matplotlib.rcParams["pdf.fonttype"] = 42
+matplotlib.rcParams["ps.fonttype"] = 42
 plt.style.use("seaborn-v0_8-whitegrid")
-plt.rcParams["font.family"] = "sans-serif"
-plt.rcParams["font.sans-serif"] = [
-    "Arial",
-    "DejaVu Sans",
-    "Liberation Sans",
-    "Bitstream Vera Sans",
-    "sans-serif",
-]
+font = {
+    "family": "serif",
+    "weight": "normal",
+    "size": 28,
+}
+plt.rc("font", **font)
 
 
 def plot_comparison(model_type):
@@ -99,10 +100,10 @@ def plot_comparison(model_type):
         vals_sb_queries,
         width,
         label=f"Single Buffer",
-        color="skyblue",
+        color="navy",
     )
     rects2 = ax1.bar(
-        x + width / 2, vals_db_queries, width, label="Double Buffer", color="lightcoral"
+        x + width / 2, vals_db_queries, width, label="Double Buffer", color="darkgreen"
     )
 
     ax1.set_ylabel("Total Prediction Queries")
@@ -124,10 +125,10 @@ def plot_comparison(model_type):
         vals_sb_cycles,
         width,
         label=f"Single Buffer",
-        color="skyblue",
+        color="navy",
     )
     rects4 = ax2.bar(
-        x + width / 2, vals_db_cycles, width, label="Double Buffer", color="lightcoral"
+        x + width / 2, vals_db_cycles, width, label="Double Buffer", color="darkgreen"
     )
 
     ax2.set_ylabel("Total Cycles")

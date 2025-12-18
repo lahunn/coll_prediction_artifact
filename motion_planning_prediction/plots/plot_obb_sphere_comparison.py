@@ -9,12 +9,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 
-# 设置中文字体
-plt.rcParams["font.sans-serif"] = ["DejaVu Sans"]
-plt.rcParams["axes.unicode_minus"] = False
-
-# 设置绘图风格
-plt.style.use("seaborn-v0_8-darkgrid")
+# 统一绘图风格
+import matplotlib
+matplotlib.rcParams["pdf.fonttype"] = 42
+matplotlib.rcParams["ps.fonttype"] = 42
+plt.style.use("seaborn-v0_8-whitegrid")
+font = {
+    "family": "serif",
+    "weight": "normal",
+    "size": 28,
+}
+plt.rc("font", **font)
 
 
 def plot_obb_comparison():
@@ -39,7 +44,7 @@ def plot_obb_comparison():
     # 创建柱状图
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    bars = ax.bar(categories, values, color=['skyblue', 'lightcoral', 'lightgreen'], alpha=0.8)
+    bars = ax.bar(categories, values, color=['navy', 'darkgreen', 'darkgreen'], alpha=0.8)
 
     # 添加数值标签
     for bar, value in zip(bars, values):
@@ -92,7 +97,7 @@ def plot_sphere_comparison():
     # 创建柱状图
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    bars = ax.bar(categories, values, color=['skyblue', 'lightcoral', 'lightgreen'], alpha=0.8)
+    bars = ax.bar(categories, values, color=['navy', 'darkgreen', 'darkgreen'], alpha=0.8)
 
     # 添加数值标签
     for bar, value in zip(bars, values):
@@ -147,9 +152,9 @@ def plot_methods_comparison():
 
     # 绘制三组柱状图
     bars1 = ax.bar(x - width, actual_queries, width, label='Total Actual Queries',
-                   color='skyblue', alpha=0.8)
+                   color='navy', alpha=0.8)
     bars2 = ax.bar(x, predicted_queries, width, label='Predicted Final Stats',
-                   color='lightcoral', alpha=0.8)
+                   color='darkgreen', alpha=0.8)
     bars3 = ax.bar(x + width, oracle_queries, width, label='Oracle Final Stats',
                    color='lightgreen', alpha=0.8)
 

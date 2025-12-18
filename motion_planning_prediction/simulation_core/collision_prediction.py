@@ -45,9 +45,6 @@ def submit_cht_write(cht_scheduler, pred_id, hash_key, is_collision, sample_rate
         is_collision: OOCD结果 (0表示碰撞, 1表示无碰撞)
         sample_rate: 采样率，用于决定是否更新无碰撞计数
     """
-    # 参考update_collision_dict的逻辑：
-    # - 碰撞(is_collision==0)始终更新
-    # - 无碰撞(is_collision==1)仅按sample_rate更新
 
     if is_collision == 0:
         # 碰撞：增加碰撞计数
@@ -161,6 +158,131 @@ def enqueue_predictions(
                     qnoncoll.append([keyy, linkcoll])
                 del linklist[0]
                 del linklist_coll[0]
+
+
+def enqueue_predictions_by_link(
+    linklist,
+    linklist_coll,
+    qcoll,
+    qnoncoll,
+    colldict,
+    threshold,
+    bins,
+    qcoll_len,
+    qnoncoll_len,
+    link_to_spheres,
+    sphere_to_link,
+    num_spheres_per_pose,
+    pose_cursor,
+):
+    """
+    对属于同一link的所有sphere进行预测并入队。
+
+    每次从linklist中取一个link的所有sphere，对每个sphere分别进行预测（使用各自的坐标），
+    然后将它们分别入队到qcoll或qnoncoll。
+
+    与enqueue_link_predictions的区别：
+    - enqueue_link_predictions: 整个link作为一个任务入队（payload包含所有sphere）
+    - enqueue_predictions_by_link: 每个sphere作为独立任务入队（但同一link的sphere一起预测）
+    """
+    if not linklist:
+        return
+
+    cursor_in_pose = pose_cursor[0]
+    if cursor_in_pose >= num_spheres_per_pose:
+        pose_cursor[0] = cursor_in_pose % num_spheres_per_pose
+        cursor_in_pose = pose_cursor[0]
+
+    link_id = sphere_to_link[cursor_in_pose]
+    sphere_indices = link_to_spheres[link_id]
+    count = len(sphere_indices)
+
+    # 逐个处理该link的每个sphere，只有当队列有空间时才入队
+    for i in range(count):
+        if not linklist:  # 安全检查
+            break
+
+        coord = linklist[0]
+        coll = linklist_coll[0]
+        keyy = compute_hash_keyy(coord, bins)
+        is_collision_predicted = predict_collision(colldict, keyy, threshold)
+
+        if is_collision_predicted:
+            if len(qcoll) < qcoll_len:
+                qcoll.append([keyy, coll])
+                del linklist[0]
+                del linklist_coll[0]
+                pose_cursor[0] = (pose_cursor[0] + 1) % num_spheres_per_pose
+            else:
+                # 队列满，停止处理，下次重试
+                break
+        else:
+            if len(qnoncoll) < qnoncoll_len:
+                qnoncoll.append([keyy, coll])
+                del linklist[0]
+                del linklist_coll[0]
+                pose_cursor[0] = (pose_cursor[0] + 1) % num_spheres_per_pose
+            else:
+                # 队列满，停止处理，下次重试
+                break
+
+
+def enqueue_link_predictions(
+    linklist,
+    linklist_coll,
+    qcoll,
+    qnoncoll,
+    colldict,
+    threshold,
+    bins,
+    qcoll_len,
+    qnoncoll_len,
+    link_to_spheres,
+    sphere_to_link,
+    num_spheres_per_pose,
+    pose_cursor,
+):
+    """Enqueue one link-level prediction task and remove that link's spheres.
+
+    This keeps queue entries link-granular (single hash key), while the payload
+    carries all sphere collision labels (and optional cycles) for that link so
+    dispatch can fan out per sphere.
+    """
+    if not linklist:
+        return
+
+    cursor_in_pose = pose_cursor[0]
+    if cursor_in_pose >= num_spheres_per_pose:
+        pose_cursor[0] = cursor_in_pose % num_spheres_per_pose
+        cursor_in_pose = pose_cursor[0]
+
+    link_id = sphere_to_link[cursor_in_pose]
+    sphere_indices = link_to_spheres[link_id]
+    count = len(sphere_indices)
+
+    if len(linklist) < count or len(linklist_coll) < count:
+        return
+
+    coords_slice = linklist[:count]
+    colls_slice = linklist_coll[:count]
+
+    keyy = compute_hash_keyy(coords_slice[0], bins)
+    is_collision_predicted = predict_collision(colldict, keyy, threshold)
+
+    task = [keyy, colls_slice]
+
+    if is_collision_predicted:
+        if len(qcoll) < qcoll_len:
+            qcoll.append(task)
+            del linklist[:count]
+            del linklist_coll[:count]
+            pose_cursor[0] = (pose_cursor[0] + count) % num_spheres_per_pose
+    else:
+        if len(qnoncoll) < qnoncoll_len:
+            qnoncoll.append(task)
+            del linklist[:count]
+            del linklist_coll[:count]
+            pose_cursor[0] = (pose_cursor[0] + count) % num_spheres_per_pose
 
 
 def predict_next_config(

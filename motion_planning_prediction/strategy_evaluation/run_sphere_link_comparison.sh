@@ -6,11 +6,12 @@
 # 参数设置
 THRESHOLD=0.5
 SAMPLE_RATE=0.1
-QNONCOLL_MULTIPLIER=8
+QNONCOLL_MULTIPLIER=16
 BASENAME="iiwa_7"
 ROBOT_NAME="iiwa"
+NUM_OOCDS=7
 START_BENCH=1
-END_BENCH=100
+END_BENCH=50
 
 # 结果文件目录
 RESULT_DIR="../result_files"
@@ -21,7 +22,7 @@ RESULT_FILE="${RESULT_DIR}/sphere_link_comparison_results.csv"
 BASE_DATA_DIR="../../trace_files/scene_benchmarks/bit_collision_data"
 
 # 初始化 CSV 文件
-echo "Difficulty,Strategy,Threshold,Sample_Rate,Total_Checks,Total_Pred_Queries,Total_Oracle_Queries,Query_Reduction_Rate,Query_Difference,Total_Pred_Cycles,Total_Oracle_Cycles,Cycle_Efficiency" > "$RESULT_FILE"
+echo "Difficulty,Strategy,Threshold,Sample_Rate,Total_Checks,Total_Pred_Queries,Total_Oracle_Queries,Query_Reduction_Rate,Query_Difference,Total_Pred_Cycles,Total_Oracle_Cycles,Cycle_Efficiency,OOCD_Utilization" > "$RESULT_FILE"
 
 echo "=== 开始运行对比仿真 ==="
 
@@ -49,7 +50,8 @@ for STRATEGY in sphere_coord link_coord; do
             $START_BENCH \
             $END_BENCH \
             "$ROBOT_NAME" \
-            "$STRATEGY")
+            "$STRATEGY" \
+            $NUM_OOCDS)
             
         # 解析结果
         TOTAL_CHECKS=$(echo "$OUTPUT" | grep "Total Actual Checks:" | awk -F': ' '{print $2}')
@@ -60,6 +62,7 @@ for STRATEGY in sphere_coord link_coord; do
         PRED_CYCLES=$(echo "$OUTPUT" | grep "Total Cycles (Prediction):" | awk -F': ' '{print $2}')
         ORACLE_CYCLES=$(echo "$OUTPUT" | grep "Total Cycles (Oracle):" | awk -F': ' '{print $2}')
         CYCLE_EFFICIENCY=$(echo "$OUTPUT" | grep "Cycle Efficiency:" | awk -F': ' '{print $2}' | sed 's/%//')
+        OOCD_UTILIZATION=$(echo "$OUTPUT" | grep "Average OOCD Utilization:" | awk -F': ' '{print $2}' | sed 's/%//')
         
         # 检查是否成功提取到数据
         if [ -z "$TOTAL_CHECKS" ]; then
@@ -68,8 +71,8 @@ for STRATEGY in sphere_coord link_coord; do
             echo "$OUTPUT" | tail -n 10
         else
             # 写入 CSV
-            echo "$DIFFICULTY,$STRATEGY,$THRESHOLD,$SAMPLE_RATE,$TOTAL_CHECKS,$PRED_QUERIES,$ORACLE_QUERIES,$REDUCTION_RATE,$QUERY_DIFF,$PRED_CYCLES,$ORACLE_CYCLES,$CYCLE_EFFICIENCY" >> "$RESULT_FILE"
-            echo "结果已写入 CSV: Checks=$TOTAL_CHECKS, Efficiency=$CYCLE_EFFICIENCY%"
+            echo "$DIFFICULTY,$STRATEGY,$THRESHOLD,$SAMPLE_RATE,$TOTAL_CHECKS,$PRED_QUERIES,$ORACLE_QUERIES,$REDUCTION_RATE,$QUERY_DIFF,$PRED_CYCLES,$ORACLE_CYCLES,$CYCLE_EFFICIENCY,$OOCD_UTILIZATION" >> "$RESULT_FILE"
+            echo "结果已写入 CSV: PRED_QUERIES=$PRED_QUERIES, Efficiency=$CYCLE_EFFICIENCY%, Utilization=$OOCD_UTILIZATION%"
         fi
     done
 done

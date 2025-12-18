@@ -38,6 +38,7 @@
 
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib
 import os
 
 
@@ -46,6 +47,16 @@ class SphereHashingPlotter:
 
     def __init__(self, csv_path):
         """
+        # Unified plotting style
+        matplotlib.rcParams["pdf.fonttype"] = 42
+        matplotlib.rcParams["ps.fonttype"] = 42
+        plt.style.use("seaborn-v0_8-whitegrid")
+        font = {
+            "family": "serif",
+            "weight": "normal",
+            "size": 28,
+        }
+        plt.rc("font", **font)
         初始化绘图器
 
         Args:

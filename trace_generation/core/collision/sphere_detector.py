@@ -393,12 +393,8 @@ class SphereEnvGeometric:
 
             link_coords.append(link_pose_cache[link_id])
 
-        if self.return_cycles:
-            collision, coords, colls, cycles = result  # pyright: ignore[reportAssignmentType]
-            return collision, link_coords, coords, colls, cycles
-        else:
-            collision, coords, colls = result  # pyright: ignore[reportAssignmentType]
-            return collision, link_coords, coords, colls
+        collision, coords, colls = result  # pyright: ignore[reportAssignmentType]
+        return collision, link_coords, coords, colls
 
     def store_sphere_data(self, coords, colls, cycles=None, is_edge=True):
         """

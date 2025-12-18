@@ -55,8 +55,6 @@ class COPUModule:
 
         self.query_count = 0
         self.oocd_cycles = 0
-        self.first_two_running = 0
-        self.first_two_checked = 0
 
         self.initial_task_count = 0
         self.conservation_violations = []
@@ -135,8 +133,6 @@ class COPUModule:
             active_pred.qnoncoll,
             active_pred.linklist,
             self.cycle,
-            self.first_two_running,
-            self.first_two_checked,
             self.cycle_check,
             self.num_oocds,
             self.qnoncoll_size,

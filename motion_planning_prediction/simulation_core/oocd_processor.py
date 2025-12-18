@@ -4,7 +4,6 @@ OOCD (Out-Of-Order Collision Detector) processing functions.
 
 from .data_structures import OOCDState, OOCDStatePreemptive
 from .collision_prediction import update_collision_dict, submit_cht_write
-import random
 
 
 def check_completion(oocd, cycle, query_count, coll_found, colldict, sample_rate):
@@ -305,6 +304,83 @@ def process_oocd_states_dedicated(
                 oocds[oocd_id] = OOCDState()
 
     return (oocds, query_count, coll_found, colldict)
+
+
+def process_oocds_link(
+    oocds,
+    qcoll,
+    qnoncoll,
+    pending_spheres,
+    linklist,
+    cycle,
+    total_query_count,
+    coll_found,
+    cycle_check,
+    colldict,
+    sample_rate,
+    num_oocds,
+    qnoncoll_len,
+):
+    """Process OOCDs when queues hold link-level tasks.
+
+    qcoll/qnoncoll entries: [hash_key, [sphere_results], [optional cycles]].
+    pending_spheres holds per-sphere tasks not yet dispatched.
+    """
+    for oocd_id in range(num_oocds):
+        oocd = oocds[oocd_id]
+        total_query_count, coll_found, colldict = check_completion(
+            oocd, cycle, total_query_count, coll_found, colldict, sample_rate
+        )
+
+    free_ids = [idx for idx, oocd in enumerate(oocds) if oocd.free_cycle <= cycle]
+
+    def assign_task(oocd_idx, task):
+        task_cycle = task[2] if len(task) > 2 else cycle_check
+        oocds[oocd_idx] = OOCDState(
+            hash_key=task[0],
+            result=task[1],
+            busy=1,
+            free_cycle=cycle + task_cycle,
+        )
+
+    while free_ids:
+        if pending_spheres:
+            oocd_idx = free_ids.pop(0)
+            task = pending_spheres.popleft()
+            assign_task(oocd_idx, task)
+            continue
+
+        # Prioritize qcoll; only take from qnoncoll when it's full or linklist is empty
+        link_task = None
+        if qcoll:
+            link_task = qcoll.popleft()
+        elif qnoncoll and (len(qnoncoll) == qnoncoll_len or len(linklist) == 0):
+            link_task = qnoncoll.popleft()
+
+        if not link_task:
+            break
+        link_hash = link_task[0]
+        sphere_results = link_task[1]
+        sphere_cycles = link_task[2] if len(link_task) > 2 else None
+
+        per_sphere_tasks = []
+        for idx, sphere_result in enumerate(sphere_results):
+            cycle_val = sphere_cycles[idx] if sphere_cycles is not None else cycle_check
+            per_sphere_tasks.append([link_hash, sphere_result, cycle_val])
+
+        while free_ids and per_sphere_tasks:
+            oocd_idx = free_ids.pop(0)
+            task = per_sphere_tasks.pop(0)
+            assign_task(oocd_idx, task)
+
+        if per_sphere_tasks:
+            pending_spheres.extend(per_sphere_tasks)
+
+    cdu_idle_this_cycle = sum(
+        1 for oocd in oocds if oocd.free_cycle <= cycle and not oocd.busy
+    )
+
+    return total_query_count, coll_found, cdu_idle_this_cycle
 
 
 def dispatch_new_tasks(

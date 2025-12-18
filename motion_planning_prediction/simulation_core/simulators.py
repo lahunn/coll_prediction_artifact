@@ -10,12 +10,17 @@ from .constants import (
     DEFAULT_CYCLE_CHECK,
 )
 from .data_structures import OOCDState, OOCDStatePreemptive, Prediction
-from .collision_prediction import enqueue_predictions
+from .collision_prediction import (
+    enqueue_predictions,
+    enqueue_link_predictions,
+    enqueue_predictions_by_link,
+)
 from .oocd_processor import (
     process_oocds,
     process_oocd_states_preemptive,
     handle_preemption,
     process_oocd_states_dedicated,
+    process_oocds_link,
 )
 from .data_preprocessing import csp_rearrange
 
@@ -40,33 +45,29 @@ def simulate_parallel_collision_detection(
     pred.linklist = linklist
     pred.linklist_coll = linklist_coll
     cycle = 0
-    first_two_running = 0
-    first_two_checked = 0
     coll_found = 0
     links_remaining = len(linklist)
     everything_free = 0
     query_count = 0.0
+    total_idle_cycles = 0
 
     while not coll_found and not everything_free:
-        query_count, coll_found, first_two_running, first_two_checked, _ = (
-            process_oocds(
-                oocds,
-                pred.qcoll,
-                pred.qnoncoll,
-                pred.linklist,
-                cycle,
-                query_count,
-                coll_found,
-                first_two_running,
-                first_two_checked,
-                cycle_check,
-                colldict,
-                sample_rate,
-                num_oocds,
-                qnoncoll_len,
-            )
+        query_count, coll_found, cdu_idle_this_cycle = process_oocds(
+            oocds,
+            pred.qcoll,
+            pred.qnoncoll,
+            pred.linklist,
+            cycle,
+            query_count,
+            coll_found,
+            cycle_check,
+            colldict,
+            sample_rate,
+            num_oocds,
+            qnoncoll_len,
         )
-
+        total_idle_cycles += cdu_idle_this_cycle
+        # 执行预测
         enqueue_predictions(
             pred.linklist,
             pred.linklist_coll,
@@ -93,8 +94,186 @@ def simulate_parallel_collision_detection(
     for oocd in oocds:
         if oocd.free_cycle > cycle:
             query_count += (cycle_check - oocd.free_cycle + cycle) / cycle_check
+    oocd_utilization = (
+        1.0 - (total_idle_cycles / (cycle * num_oocds)) if cycle > 0 else 0.0
+    )
+    return query_count, colldict, coll_found, cycle, oocd_utilization
 
-    return query_count, colldict, coll_found, cycle
+
+def simulate_parallel_collision_detection_sphere(
+    linklist,
+    linklist_coll,
+    colldict,
+    threshold,
+    sample_rate,
+    bins,
+    link_to_spheres,
+    sphere_to_link,
+    num_spheres_per_pose,
+    qnoncoll_len=DEFAULT_QNONCOLL_LEN,
+    qcoll_len=DEFAULT_QCOLL_LEN,
+    cycle_check=DEFAULT_CYCLE_CHECK,
+    num_oocds=NUM_OOCDS,
+):
+    """
+    模拟并行的碰撞检测过程，每次预测时对属于同一link的所有sphere都进行预测。
+
+    与simulate_parallel_collision_detection的区别：
+    - process_oocds保持不变
+    - enqueue阶段使用enqueue_predictions_by_link，对同一link的所有sphere一起预测
+    """
+    oocds = [OOCDState() for _ in range(num_oocds)]
+    pred = Prediction(qcoll_len, qnoncoll_len)
+    pred.linklist = linklist
+    pred.linklist_coll = linklist_coll
+
+    pose_cursor = [0]
+    cycle = 0
+    coll_found = 0
+    everything_free = 0
+    query_count = 0.0
+    total_idle_cycles = 0
+
+    while not coll_found and not everything_free:
+        query_count, coll_found, cdu_idle_this_cycle = process_oocds(
+            oocds,
+            pred.qcoll,
+            pred.qnoncoll,
+            pred.linklist,
+            cycle,
+            query_count,
+            coll_found,
+            cycle_check,
+            colldict,
+            sample_rate,
+            num_oocds,
+            qnoncoll_len,
+        )
+        total_idle_cycles += cdu_idle_this_cycle
+
+        # 使用enqueue_predictions_by_link：对同一link的所有sphere一起预测
+        enqueue_predictions_by_link(
+            pred.linklist,
+            pred.linklist_coll,
+            pred.qcoll,
+            pred.qnoncoll,
+            colldict,
+            threshold,
+            bins,
+            qcoll_len,
+            qnoncoll_len,
+            link_to_spheres,
+            sphere_to_link,
+            num_spheres_per_pose,
+            pose_cursor,
+        )
+
+        links_remaining = len(pred.linklist)
+        if (
+            links_remaining == 0
+            and not any(oocd.free_cycle > cycle for oocd in oocds)
+            and not pred.qnoncoll
+            and not pred.qcoll
+        ):
+            everything_free = 1
+
+        cycle += 1
+
+    for oocd in oocds:
+        if oocd.free_cycle > cycle:
+            query_count += (cycle_check - oocd.free_cycle + cycle) / cycle_check
+
+    oocd_utilization = (
+        1.0 - (total_idle_cycles / (cycle * num_oocds)) if cycle > 0 else 0.0
+    )
+
+    return query_count, colldict, coll_found, cycle, oocd_utilization
+
+
+def simulate_parallel_collision_detection_link(
+    linklist,
+    linklist_coll,
+    colldict,
+    threshold,
+    sample_rate,
+    bins,
+    link_to_spheres,
+    sphere_to_link,
+    num_spheres_per_pose,
+    qnoncoll_len=DEFAULT_QNONCOLL_LEN,
+    qcoll_len=DEFAULT_QCOLL_LEN,
+    cycle_check=DEFAULT_CYCLE_CHECK,
+    num_oocds=NUM_OOCDS,
+):
+    """Parallel collision simulation with link-level prediction enqueue and per-sphere dispatch."""
+    oocds = [OOCDState() for _ in range(num_oocds)]
+    pred = Prediction(qcoll_len, qnoncoll_len)
+    pred.linklist = linklist
+    pred.linklist_coll = linklist_coll
+
+    pending_spheres = deque()
+    pose_cursor = [0]
+    cycle = 0
+    coll_found = 0
+    everything_free = 0
+    query_count = 0.0
+    total_idle_cycles = 0
+
+    while not coll_found and not everything_free:
+        query_count, coll_found, cdu_idle_this_cycle = process_oocds_link(
+            oocds,
+            pred.qcoll,
+            pred.qnoncoll,
+            pending_spheres,
+            pred.linklist,
+            cycle,
+            query_count,
+            coll_found,
+            cycle_check,
+            colldict,
+            sample_rate,
+            num_oocds,
+            qnoncoll_len,
+        )
+        total_idle_cycles += cdu_idle_this_cycle
+
+        enqueue_link_predictions(
+            pred.linklist,
+            pred.linklist_coll,
+            pred.qcoll,
+            pred.qnoncoll,
+            colldict,
+            threshold,
+            bins,
+            qcoll_len,
+            qnoncoll_len,
+            link_to_spheres,
+            sphere_to_link,
+            num_spheres_per_pose,
+            pose_cursor,
+        )
+
+        links_remaining = len(pred.linklist)
+        if (
+            links_remaining == 0
+            and not any(oocd.free_cycle > cycle for oocd in oocds)
+            and not pred.qnoncoll
+            and not pred.qcoll
+            and not pending_spheres
+        ):
+            everything_free = 1
+
+        cycle += 1
+
+    # for oocd in oocds:
+    #     if oocd.free_cycle > cycle:
+    #         query_count += (cycle_check - oocd.free_cycle + cycle) / cycle_check
+
+    oocd_utilization = (
+        1.0 - (total_idle_cycles / (cycle * num_oocds)) if cycle > 0 else 0.0
+    )
+
+    return query_count, colldict, coll_found, cycle, oocd_utilization
 
 
 def simulate_parallel_collision_detection_real_cycles(
@@ -118,33 +297,29 @@ def simulate_parallel_collision_detection_real_cycles(
     pred.linklist = linklist
     pred.linklist_coll = linklist_coll
     cycle = 0
-    first_two_running = 0
-    first_two_checked = 0
     coll_found = 0
     links_remaining = len(linklist)
     everything_free = 0
     query_count = 0.0
+    total_idle_cycles = 0
 
     while not coll_found and not everything_free:
-        query_count, coll_found, first_two_running, first_two_checked, _ = (
-            process_oocds(
-                oocds,
-                pred.qcoll,
-                pred.qnoncoll,
-                pred.linklist,
-                cycle,
-                query_count,
-                coll_found,
-                first_two_running,
-                first_two_checked,
-                cycle_check,
-                colldict,
-                sample_rate,
-                num_oocds,
-                qnoncoll_len,
-            )
+        query_count, coll_found, cdu_idle_this_cycle = process_oocds(
+            oocds,
+            pred.qcoll,
+            pred.qnoncoll,
+            pred.linklist,
+            cycle,
+            query_count,
+            coll_found,
+            cycle_check,
+            colldict,
+            sample_rate,
+            num_oocds,
+            qnoncoll_len,
         )
-
+        total_idle_cycles += cdu_idle_this_cycle
+        # 执行预测
         enqueue_predictions(
             pred.linklist,
             pred.linklist_coll,
@@ -173,7 +348,11 @@ def simulate_parallel_collision_detection_real_cycles(
         if oocd.free_cycle > cycle:
             query_count += 0.5
 
-    return query_count, colldict, coll_found, cycle
+    oocd_utilization = (
+        1.0 - (total_idle_cycles / (cycle * num_oocds)) if cycle > 0 else 0.0
+    )
+
+    return query_count, colldict, coll_found, cycle, oocd_utilization
 
 
 def simulate_parallel_collision_detection_with_tracking(
@@ -196,8 +375,6 @@ def simulate_parallel_collision_detection_with_tracking(
     pred.linklist = linklist
     pred.linklist_coll = linklist_coll
     cycle = 0
-    first_two_running = 0
-    first_two_checked = 0
     coll_found = 0
     links_remaining = len(linklist)
     everything_free = 0
@@ -207,23 +384,19 @@ def simulate_parallel_collision_detection_with_tracking(
     actuals = []
 
     while not coll_found and not everything_free:
-        query_count, coll_found, first_two_running, first_two_checked, _ = (
-            process_oocds(
-                oocds,
-                pred.qcoll,
-                pred.qnoncoll,
-                pred.linklist,
-                cycle,
-                query_count,
-                coll_found,
-                first_two_running,
-                first_two_checked,
-                cycle_check,
-                colldict,
-                sample_rate,
-                num_oocds,
-                qnoncoll_len,
-            )
+        query_count, coll_found, _ = process_oocds(
+            oocds,
+            pred.qcoll,
+            pred.qnoncoll,
+            pred.linklist,
+            cycle,
+            query_count,
+            coll_found,
+            cycle_check,
+            colldict,
+            sample_rate,
+            num_oocds,
+            qnoncoll_len,
         )
 
         enqueue_predictions(
@@ -353,8 +526,6 @@ def simulate_parallel_collision_detection_dedicated(
     qcoll = deque(maxlen=qcoll_len)
     qnoncoll = deque(maxlen=qnoncoll_len)
     cycle = 0
-    first_two_running = 0
-    first_two_checked = 0
     coll_found = 0
     links_remaining = len(linklist)
     everything_free = 0
@@ -366,8 +537,6 @@ def simulate_parallel_collision_detection_dedicated(
             query_count,
             coll_found,
             colldict,
-            first_two_running,
-            first_two_checked,
         ) = process_oocd_states_dedicated(
             oocds,
             qcoll,
@@ -381,8 +550,6 @@ def simulate_parallel_collision_detection_dedicated(
             num_dedicated_oocds,
             qnoncoll_len,
             linklist,
-            first_two_running,
-            first_two_checked,
         )
 
         enqueue_predictions(
@@ -443,8 +610,6 @@ def simulate_edge_double_buffer(
     edge_start_cycle = cycle
     edge_completed = False
     coll_found = 0
-    first_two_running = 0
-    first_two_checked = 0
 
     while not edge_completed:
         (
@@ -452,8 +617,6 @@ def simulate_edge_double_buffer(
             total_query_count,
             coll_found,
             colldict,
-            first_two_running,
-            first_two_checked,
         ) = process_oocd_states_dedicated(
             oocds,
             active_pred.qcoll,
@@ -467,8 +630,6 @@ def simulate_edge_double_buffer(
             num_dedicated_oocds,
             qnoncoll_len,
             active_pred.linklist,
-            first_two_running,
-            first_two_checked,
         )
 
         for pred in predictions:

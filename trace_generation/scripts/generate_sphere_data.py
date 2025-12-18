@@ -22,7 +22,6 @@ def compare_collision(
     output_file=None,
     benchmark_id=None,
     enable_self_collision=False,
-    return_cycles=False,
 ):
     """
     对比OBB和球体碰撞检测结果
@@ -34,7 +33,6 @@ def compare_collision(
         output_file: 球体碰撞数据输出文件路径（可选）
         benchmark_id: 基准测试ID
         enable_self_collision: 是否启用自碰撞检测
-        return_cycles: 是否记录周期数（仅geometric支持）
     """
     print(f"加载obstacle_config_file: {obstacle_config_file}")
     with open(obstacle_config_file, "rb") as f:
@@ -49,9 +47,6 @@ def compare_collision(
     print(f"障碍物数量: {len(obstacles)}")
     print(f"边数量: {len(configs)}")
     print(f"自碰撞检测: {'启用' if enable_self_collision else '禁用'}")
-    if return_cycles:
-        print("周期计数: 启用")
-
     # 创建机器人环境
     robot_env = RobotEnv(
         robot_name, OBB_GUI=False, enable_self_collision=enable_self_collision
@@ -59,9 +54,7 @@ def compare_collision(
 
     # 根据detector_type创建相应的球体环境
 
-    sphere_env = SphereEnvGeometric(
-        robot_env=robot_env, robot_name=robot_name, return_cycles=return_cycles
-    )
+    sphere_env = SphereEnvGeometric(robot_env=robot_env, robot_name=robot_name)
     # 加载障碍物
     sphere_env.load_obstacles(obstacles)
 
@@ -80,7 +73,6 @@ def compare_collision(
 
         edge_sphere_coords = []
         edge_sphere_colls = []
-        edge_sphere_cycles = []  # 新增：存储周期数据
 
         if len(edge_configs) > len(obb_edge):
             print(f"警告: OBB数据中edge {i}缺少pose")
@@ -94,14 +86,7 @@ def compare_collision(
 
         # 处理edge中的每个pose
         for j, config in enumerate(edge_configs):
-            # 获取球体碰撞数据
-            if return_cycles:
-                collision, coords, colls, cycles = sphere_env.get_sphere_collision_data(  # pyright: ignore[reportAssignmentType]
-                    config
-                )  # pyright: ignore[reportAssignmentType]
-                edge_sphere_cycles.append(cycles)
-            else:
-                collision, coords, colls = sphere_env.get_sphere_collision_data(config)  # pyright: ignore[reportAssignmentType]
+            collision, coords, colls = sphere_env.get_sphere_collision_data(config)  # type: ignore
 
             edge_sphere_coords.append(coords)
             edge_sphere_colls.append(colls)
@@ -123,17 +108,9 @@ def compare_collision(
 
         # 存储球体数据（无论是否一致）
         if edge_sphere_coords:
-            if return_cycles and edge_sphere_cycles:
-                sphere_env.store_sphere_data(
-                    edge_sphere_coords,
-                    edge_sphere_colls,
-                    cycles=edge_sphere_cycles,  # type: ignore
-                    is_edge=True,
-                )
-            else:
-                sphere_env.store_sphere_data(
-                    edge_sphere_coords, edge_sphere_colls, is_edge=True
-                )
+            sphere_env.store_sphere_data(
+                edge_sphere_coords, edge_sphere_colls, is_edge=True
+            )
 
     # 清理资源
     sphere_env.cleanup_obstacles()
@@ -156,7 +133,6 @@ def generate_sphere_data(
     output_file=None,
     benchmark_id=None,
     enable_self_collision=False,
-    return_cycles=False,
 ):
     """
     对比OBB和球体碰撞检测结果
@@ -168,7 +144,6 @@ def generate_sphere_data(
         output_file: 球体碰撞数据输出文件路径（可选）
         benchmark_id: 基准测试ID
         enable_self_collision: 是否启用自碰撞检测
-        return_cycles: 是否记录周期数（仅geometric支持）
     """
     print(f"加载obstacle_config_file: {obstacle_config_file}")
     with open(obstacle_config_file, "rb") as f:
@@ -183,17 +158,12 @@ def generate_sphere_data(
     print(f"障碍物数量: {len(obstacles)}")
     print(f"边数量: {len(configs)}")
     print(f"自碰撞检测: {'启用' if enable_self_collision else '禁用'}")
-    if return_cycles:
-        print("周期计数: 启用")
-
     # 创建机器人环境
     robot_env = RobotEnv(
         robot_name, OBB_GUI=False, enable_self_collision=enable_self_collision
     )
 
-    sphere_env = SphereEnvGeometric(
-        robot_env=robot_env, robot_name=robot_name, return_cycles=return_cycles
-    )
+    sphere_env = SphereEnvGeometric(robot_env=robot_env, robot_name=robot_name)
 
     # 加载障碍物
     sphere_env.load_obstacles(obstacles)
@@ -208,7 +178,6 @@ def generate_sphere_data(
     # 本地存储数据
     all_link_data = []
     all_link_coll_data = []
-    all_link_coll_cycles = []
     all_link_coords_data = []
 
     # 处理每个edge
@@ -219,7 +188,6 @@ def generate_sphere_data(
 
         edge_sphere_coords = []
         edge_sphere_colls = []
-        edge_sphere_cycles = []  # 新增：存储周期数据
         edge_link_coords = []
 
         # if len(edge_configs) > len(obb_edge):
@@ -235,15 +203,9 @@ def generate_sphere_data(
         # 处理edge中的每个pose
         for j, config in enumerate(edge_configs):
             # 获取球体碰撞数据
-            if return_cycles:
-                collision, link_coords, coords, colls, cycles = (  # pyright: ignore[reportAssignmentType]
-                    sphere_env.get_sphere_collision_data_link_coord(config)
-                )
-                edge_sphere_cycles.append(cycles)
-            else:
-                collision, link_coords, coords, colls = (  # pyright: ignore[reportAssignmentType]
-                    sphere_env.get_sphere_collision_data_link_coord(config)
-                )
+            collision, link_coords, coords, colls = (  # pyright: ignore[reportAssignmentType]
+                sphere_env.get_sphere_collision_data_link_coord(config)
+            )
 
             edge_sphere_coords.append(coords)
             edge_sphere_colls.append(colls)
@@ -269,25 +231,6 @@ def generate_sphere_data(
             all_link_data.append(edge_sphere_coords)
             all_link_coll_data.append(edge_sphere_colls)
             all_link_coords_data.append(edge_link_coords)
-            if return_cycles:
-                all_link_coll_cycles.append(edge_sphere_cycles)
-
-            # if detector_type == "geometric":
-            #     if return_cycles and edge_sphere_cycles:
-            #         sphere_env.store_sphere_data(
-            #             edge_sphere_coords,
-            #             edge_sphere_colls,
-            #             cycles=edge_sphere_cycles,  # type: ignore
-            #             is_edge=True,
-            #         )
-            #     else:
-            #         sphere_env.store_sphere_data(
-            #             edge_sphere_coords, edge_sphere_colls, is_edge=True
-            #         )
-            # else:  # pybullet模式不支持cycles参数
-            #     sphere_env.store_sphere_data(
-            #         edge_sphere_coords, edge_sphere_colls, is_edge=True
-            #     )
 
     # 清理资源
     sphere_env.cleanup_obstacles()
@@ -300,25 +243,9 @@ def generate_sphere_data(
 
     # 保存球体碰撞数据（如果指定了输出文件）
     if output_file:
-        # sphere_env.save_collision_data(output_file)
-        print(f"保存数据到: {output_file}")
         with open(output_file, "wb") as f:
-            if return_cycles:
-                pickle.dump(
-                    (
-                        all_link_data,
-                        all_link_coords_data,
-                        all_link_coll_data,
-                        all_link_coll_cycles,
-                    ),
-                    f,
-                )
-                print(f"保存球体碰撞数据（含周期数和Link坐标）到: {output_file}")
-            else:
-                pickle.dump(
-                    (all_link_data, all_link_coords_data, all_link_coll_data), f
-                )
-                print(f"保存球体碰撞数据（含Link坐标）到: {output_file}")
+            pickle.dump((all_link_data, all_link_coords_data, all_link_coll_data), f)
+            print(f"保存球体碰撞数据（含Link坐标）到: {output_file}")
 
 
 def main():
@@ -338,32 +265,25 @@ def main():
         action="store_true",
         help="启用自碰撞检测",
     )
-    parser.add_argument(
-        "--return-cycles",
-        action="store_true",
-        help="是否记录周期数(仅geometric支持)",
-    )
 
     args = parser.parse_args()
 
-    compare_collision(
-        args.obstacle_config_file,
-        args.collision_data_file,
-        args.robot_name,
-        args.output_file,
-        args.benchmark_id,
-        args.enable_self_collision,
-        args.return_cycles,
-    )
-    # generate_sphere_data(
+    # compare_collision(
     #     args.obstacle_config_file,
     #     args.collision_data_file,
     #     args.robot_name,
     #     args.output_file,
     #     args.benchmark_id,
     #     args.enable_self_collision,
-    #     args.return_cycles,
     # )
+    generate_sphere_data(
+        args.obstacle_config_file,
+        args.collision_data_file,
+        args.robot_name,
+        args.output_file,
+        args.benchmark_id,
+        args.enable_self_collision,
+    )
 
     return 0
 

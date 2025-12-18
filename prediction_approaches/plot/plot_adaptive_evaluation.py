@@ -6,10 +6,11 @@ import numpy as np
 # 设置绘图风格
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
+plt.style.use("seaborn-v0_8-whitegrid")
 font = {
-    'family' : 'Times New Roman',
-    'weight' : 'normal',
-    'size'   : 22, # 调整字体大小以适应更多的标签
+    'family': 'serif',
+    'weight': 'normal',
+    'size': 22,
 }
 plt.rc('font', **font)
 
@@ -45,8 +46,8 @@ recall = df['Recall'].tolist()
 x = np.arange(len(labels))  # 标签位置
 width = 0.35  # 柱状图宽度
 
-rects1 = ax.bar(x - width/2, precision, width, label='Precision (精确度)', color='navy')
-rects2 = ax.bar(x + width/2, recall, width, label='Recall (召回率)', color='cornflowerblue')
+rects1 = ax.bar(x - width/2, precision, width, label='Precision', color='navy')
+rects2 = ax.bar(x + width/2, recall, width, label='Recall', color='darkgreen')
 
 # 添加标签、标题和坐标轴
 ax.set_ylabel('Percentage (%)')

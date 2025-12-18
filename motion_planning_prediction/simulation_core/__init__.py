@@ -79,6 +79,9 @@ from .cht_access_scheduler import (
 from .multi_copu_scheduler import (
     MultiCOPU_Scheduler,
 )
+from .global_oocd_scheduler import (
+    GlobalOOCDScheduler,
+)
 from .perf_analyse import (
     analyze_multi_copu_performance,
 )
@@ -136,6 +139,7 @@ __all__ = [
     "COPUModule",
     "CHT_AccessScheduler",
     "MultiCOPU_Scheduler",
+    "GlobalOOCDScheduler",
     # Oracle Utils
     "calculate_oracle_cycles",
     "calculate_oracle_cycles_for_edges",

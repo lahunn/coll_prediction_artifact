@@ -9,6 +9,17 @@ import sys
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib
+# Unified plotting style
+matplotlib.rcParams["pdf.fonttype"] = 42
+matplotlib.rcParams["ps.fonttype"] = 42
+plt.style.use("seaborn-v0_8-whitegrid")
+font = {
+    "family": "serif",
+    "weight": "normal",
+    "size": 28,
+}
+plt.rc("font", **font)
 from pathlib import Path
 import argparse
 
@@ -45,15 +56,25 @@ def plot_single_config(ax, df, config, title_suffix=""):
         stds.append(group.std())
     
     # 绘制曲线
-    ax.plot(sizes, means, 'o-', linewidth=2, markersize=4, 
-            label=f'Threshold={threshold}, Sample Rate={sample_rate}, Queue Multiplier={qnoncoll_multiplier}')
+    ax.plot(
+        sizes,
+        means,
+        'o-',
+        linewidth=2,
+        markersize=4,
+        color='navy',
+        label=f'Threshold={threshold}, Sample Rate={sample_rate}, Queue Multiplier={qnoncoll_multiplier}'
+    )
     
     # 添加误差条
     if any(stds):
-        ax.fill_between(sizes, 
-                       np.array(means) - np.array(stds), 
-                       np.array(means) + np.array(stds), 
-                       alpha=0.3)
+        ax.fill_between(
+            sizes,
+            np.array(means) - np.array(stds),
+            np.array(means) + np.array(stds),
+            alpha=0.3,
+            color='darkgreen'
+        )
     
     ax.set_xlabel('Training Data Size (History Dictionary Size)')
     ax.set_ylabel('Prediction Accuracy')
@@ -113,14 +134,26 @@ def plot_aggregated_curve(df, save_path=None):
         counts.append(len(group))
     
     # 绘制主曲线
-    plt.plot(sizes, means, 'b-', linewidth=3, marker='o', markersize=6, 
-             label='Mean Accuracy')
+    plt.plot(
+        sizes,
+        means,
+        '-',
+        linewidth=3,
+        marker='o',
+        markersize=6,
+        color='navy',
+        label='Mean Accuracy'
+    )
     
     # 添加误差条
-    plt.fill_between(sizes, 
-                    np.array(means) - np.array(stds), 
-                    np.array(means) + np.array(stds), 
-                    alpha=0.3, color='blue', label='Standard Deviation Range')
+    plt.fill_between(
+        sizes,
+        np.array(means) - np.array(stds),
+        np.array(means) + np.array(stds),
+        alpha=0.3,
+        color='darkgreen',
+        label='Standard Deviation Range'
+    )
     
     # 添加数据点数量标注
     for i, (size, count) in enumerate(zip(sizes, counts)):

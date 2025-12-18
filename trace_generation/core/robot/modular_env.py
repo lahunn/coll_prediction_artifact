@@ -286,6 +286,29 @@ class ModularEnv:
 
         return edge_free, edge_link_coords, edge_link_colls
 
+    def sample_n_points_probe(self, n, need_negative=False):
+        """
+        采样n个配置点（带详细信息）
+
+        Args:
+            n: 采样数量
+            need_negative: 是否需要负样本（碰撞点）
+
+        Returns:
+            tuple: (free, collided, info_list, info_coll_list)
+        """
+        free, collided, info_list, info_coll_list = [], [], [], []
+        samples = self.robot_env.sample_n_points(n, need_negative)
+        for s in samples:
+            is_free, info, info_coll = self._state_fp_probe(s)
+            if is_free:
+                free.append(s)
+            else:
+                collided.append(s)
+            info_list.append(info)
+            info_coll_list.append(info_coll)
+        return free, collided, info_list, info_coll_list
+
     def generate_random_obstacles(
         self,
         num_obstacles,

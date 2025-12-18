@@ -22,6 +22,7 @@ from utils.utils import calculate_expected_checks, calculate_baseline_expectatio
 # 添加 trace_generation 目录到 Python 路径
 from trace_generation.config.ana_parameters import get_robot_params
 
+
 def plot(code, ytest, name):
     """绘制二维散点图显示碰撞和非碰撞样本的分布"""
     principalComponents = code.data.cpu().numpy()
@@ -46,10 +47,12 @@ def plot(code, ytest, name):
     plt.clf()
     plt.close()
 
+
 def create_bins(min_val, max_val, num_bins):
     """创建等间距的分桶边界"""
     margin = (max_val - min_val) * 0.01
     return np.linspace(min_val - margin, max_val + margin, num_bins + 1)[:-1]
+
 
 def main():
     """主函数"""
@@ -169,24 +172,26 @@ def main():
         )
         pred_cost = expected_checks * sphere_cost
 
-        baseline_checks = calculate_baseline_expectation(
-            N=sphere_num, R=ele_collision_ratio
-        )
+        baseline_checks = sphere_num
         baseline_cost = baseline_checks * sphere_cost
 
-        speedup = baseline_cost / pred_cost if pred_cost > 0 else 0
+        # Compute cost ratio relative to baseline; report as percentage
+        speedup_pct = (
+            (pred_cost / baseline_cost * 100.0) if baseline_cost > 0 else float("inf")
+        )
     else:
         pred_cost = float("inf")
         baseline_cost = float("inf")
-        speedup = 0
+        speedup_pct = 0
 
     # 输出姿态级和元素级指标
     print(
         f"{density_level}, {coord_quantize_bits}, {radius_quantize_bits}, {collision_threshold}, {free_sample_rate}, "
         f"Pose: {precision:.2f}%, {recall:.2f}%, {all_collision_ratio:.4f}, "
         f"Elem: {ele_precision:.2f}%, {ele_recall:.2f}%, {ele_collision_ratio:.4f}, "
-        f"Cost: {pred_cost:.2f}, {baseline_cost:.2f}, {speedup:.2f}"
+        f"Cost: {pred_cost:.2f}, {baseline_cost:.2f}, {speedup_pct:.2f}%"
     )
+
 
 if __name__ == "__main__":
     main()

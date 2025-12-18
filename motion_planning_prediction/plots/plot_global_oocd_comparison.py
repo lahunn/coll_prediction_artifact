@@ -3,6 +3,22 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
+import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
+import os
+import pandas as pd
+
+# Unified plotting style
+matplotlib.rcParams["pdf.fonttype"] = 42
+matplotlib.rcParams["ps.fonttype"] = 42
+plt.style.use("seaborn-v0_8-whitegrid")
+font = {
+    "family": "serif",
+    "weight": "normal",
+    "size": 28,
+}
+plt.rc("font", **font)
 
 
 def plot_global_oocd_cycle_comparison():
@@ -52,10 +68,10 @@ def plot_global_oocd_cycle_comparison():
     width = 0.18
 
     colors = {
-        "Dual Port (Pred=8)": "#2E86AB",
-        "Dual Port (Pred=16)": "#A23B72",
-        "Multi-Bank (Pred=8)": "#F18F01",
-        "Multi-Bank (Pred=16)": "#C73E1D",
+        "Dual Port (Pred=8)": "navy",
+        "Dual Port (Pred=16)": "#1f4e79",
+        "Multi-Bank (Pred=8)": "darkgreen",
+        "Multi-Bank (Pred=16)": "#2e8b57",
     }
 
     fig, ax = plt.subplots(figsize=(14, 8))
@@ -210,10 +226,10 @@ def plot_global_oocd_utilization_comparison():
     width = 0.18
 
     colors = {
-        "Dual Port (Pred=8)": "#2E86AB",
-        "Dual Port (Pred=16)": "#A23B72",
-        "Multi-Bank (Pred=8)": "#F18F01",
-        "Multi-Bank (Pred=16)": "#C73E1D",
+        "Dual Port (Pred=8)": "navy",
+        "Dual Port (Pred=16)": "#1f4e79",
+        "Multi-Bank (Pred=8)": "darkgreen",
+        "Multi-Bank (Pred=16)": "#2e8b57",
     }
 
     fig, ax = plt.subplots(figsize=(14, 8))

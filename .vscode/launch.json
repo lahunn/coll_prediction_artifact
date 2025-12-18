@@ -11,7 +11,7 @@
       "args": [
         "iiwa_7",
         "1", //Benchmark ID 或 范围
-        "../../trace_files/scene_benchmarks/bit_collision_data/G1",//数据文件夹路径
+        "../../trace_files/scene_benchmarks/bit_collision_data/G1", //数据文件夹路径
         "28", // OOCD数量
         "0.5", // 阈值
         "0.1", // 采样率
@@ -334,6 +334,46 @@
         "iiwa",
         "--collision-model",
         "sphere"
+      ]
+    },
+    {
+      "name": "调试 prediction_simulation_sphere_link.py (sphere_coord)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/motion_planning_prediction/strategy_evaluation/prediction_simulation_sphere_link.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/motion_planning_prediction/strategy_evaluation",
+      "args": [
+        "0.5",
+        "0.1",
+        "8",
+        "../../trace_files/scene_benchmarks/bit_collision_data/G5",
+        "iiwa_7",
+        "1",
+        "10",
+        "iiwa",
+        "sphere_coord",
+        "7"
+      ]
+    },
+    {
+      "name": "调试 prediction_simulation_sphere_link.py (link_coord)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/motion_planning_prediction/strategy_evaluation/prediction_simulation_sphere_link.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/motion_planning_prediction/strategy_evaluation",
+      "args": [
+        "0.5",
+        "0.1",
+        "8",
+        "../../trace_files/scene_benchmarks/bit_collision_data/G1",
+        "iiwa_7",
+        "1",
+        "10",
+        "iiwa",
+        "link_coord",
+        "7"
       ]
     }
   ]

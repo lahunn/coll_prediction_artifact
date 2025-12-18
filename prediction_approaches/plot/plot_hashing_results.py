@@ -1,6 +1,18 @@
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib
 import os
+
+# Unified plotting style
+matplotlib.rcParams["pdf.fonttype"] = 42
+matplotlib.rcParams["ps.fonttype"] = 42
+plt.style.use("seaborn-v0_8-whitegrid")
+font = {
+    "family": "serif",
+    "weight": "normal",
+    "size": 28,
+}
+plt.rc("font", **font)
 
 
 def plot_aggregated_metrics(df, parameter_name, density, output_dir="plots"):
@@ -34,7 +46,7 @@ def plot_aggregated_metrics(df, parameter_name, density, output_dir="plots"):
     ax1.bar(
         aggregated_data[parameter_name].astype(str),
         aggregated_data["Precision"],
-        color="skyblue",
+        color="navy",
     )
     ax1.set_title("Average Precision")
     ax1.set_xlabel(parameter_name)
@@ -46,7 +58,7 @@ def plot_aggregated_metrics(df, parameter_name, density, output_dir="plots"):
     ax2.bar(
         aggregated_data[parameter_name].astype(str),
         aggregated_data["Recall"],
-        color="lightgreen",
+        color="darkgreen",
     )
     ax2.set_title("Average Recall")
     ax2.set_xlabel(parameter_name)

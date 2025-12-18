@@ -1,6 +1,18 @@
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib
 import os
+
+# Unified plotting style (serif font, seaborn whitegrid, colors: navy/darkgreen)
+matplotlib.rcParams["pdf.fonttype"] = 42
+matplotlib.rcParams["ps.fonttype"] = 42
+plt.style.use("seaborn-v0_8-whitegrid")
+font = {
+    "family": "serif",
+    "weight": "normal",
+    "size": 28,
+}
+plt.rc("font", **font)
 
 # 读取数据
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -21,7 +33,15 @@ fig.suptitle('Dual Port vs Multi Bank CHT Performance Comparison')
 
 for i, metric in enumerate(metrics):
     ax = axes[i//2, i%2]
-    df.plot(x='Scene', y=[f'{metric}_Dual', f'{metric}_Multi'], kind='bar', ax=ax, rot=0)
+    # Use consistent colors: Dual=navy, Multi=darkgreen
+    df.plot(
+        x='Scene',
+        y=[f'{metric}_Dual', f'{metric}_Multi'],
+        kind='bar',
+        ax=ax,
+        rot=0,
+        color=["navy", "darkgreen"],
+    )
     ax.set_title(metric)
     ax.set_ylabel('Value' if metric != 'Utilization' else 'Percentage (%)')
     ax.grid(axis='y', linestyle='--', alpha=0.7)

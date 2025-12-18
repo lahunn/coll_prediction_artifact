@@ -6,10 +6,11 @@ import numpy as np
 # Set plot styles
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
+plt.style.use("seaborn-v0_8-whitegrid")
 font = {
-    'family' : 'Times New Roman',
-    'weight' : 'normal',
-    'size'   : 28,
+    'family': 'serif',
+    'weight': 'normal',
+    'size': 28,
 }
 plt.rc('font', **font)
 
@@ -40,7 +41,7 @@ x = np.arange(len(labels))  # the label locations
 width = 0.35  # the width of the bars
 
 rects1 = ax.bar(x - width/2, precision, width, label='Precision', color='navy')
-rects2 = ax.bar(x + width/2, recall, width, label='Recall', color='cornflowerblue')
+rects2 = ax.bar(x + width/2, recall, width, label='Recall', color='darkgreen')
 
 # Add some text for labels, title and axes ticks
 ax.set_ylabel('Percentage (%)')

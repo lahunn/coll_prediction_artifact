@@ -453,70 +453,50 @@ def compare_simulation_vs_formula():
     """对比蒙特卡洛模拟和精确公式的结果"""
     print("对比蒙特卡洛模拟 vs 精确公式...")
 
+    # 使用白底风格
+    plt.style.use('default')
+    
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-    fig.suptitle(
-        "Monte Carlo Simulation vs Exact Formula Comparison",
-        fontsize=16,
-        fontweight="bold",
-    )
 
-    # 测试配置
+    # 测试配置 - 简化标题
     test_configs = [
         {
             "param": "R",
             "values": np.linspace(0.1, 0.9, 9),
             "fixed": {"C": 0.8, "A": 0.8, "N": 20},
-            "xlabel": "Collision Rate R",
-            "title": "Varying R (C=0.8, A=0.8, N=20)",
+            "xlabel": r"Collision Rate ($R$)",
+            "label": "(a)",
         },
         {
             "param": "C",
             "values": np.linspace(0.4, 1.0, 7),
             "fixed": {"R": 0.5, "A": 0.8, "N": 20},
-            "xlabel": "Coverage C",
-            "title": "Varying C (R=0.5, A=0.8, N=20)",
+            "xlabel": r"Recall ($C$)",
+            "label": "(b)",
         },
         {
             "param": "A",
             "values": np.linspace(0.4, 1.0, 7),
             "fixed": {"R": 0.5, "C": 0.8, "N": 20},
-            "xlabel": "Accuracy A",
-            "title": "Varying A (R=0.5, C=0.8, N=20)",
+            "xlabel": r"Precision ($A$)",
+            "label": "(c)",
         },
         {
             "param": "N",
             "values": np.array(
                 [
-                    1,
-                    2,
-                    3,
-                    4,
-                    5,
-                    6,
-                    7,
-                    8,
-                    9,
-                    10,
-                    20,
-                    30,
-                    40,
-                    50,
-                    60,
-                    70,
-                    80,
-                    90,
-                    100,
-                    200,
-                    300,
-                    400,
-                    500,
+                    1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+                    20, 30, 40, 50, 60, 70, 80, 90, 100, 150
                 ]
             ),
             "fixed": {"R": 0.5, "C": 0.8, "A": 0.8},
-            "xlabel": "Total Tasks N",
-            "title": "Varying N (R=0.5, C=0.8, A=0.8)",
+            "xlabel": r"Total Tasks ($N$)",
+            "label": "(d)",
         },
     ]
+
+    # 收集所有误差信息用于Caption
+    all_errors = []
 
     for idx, (ax, config) in enumerate(zip(axes.flat, test_configs)):
         param_values = config["values"]
@@ -559,24 +539,32 @@ def compare_simulation_vs_formula():
 
         # 绘图
         if valid_params:
+            # 蓝色实心圆点 - 精确公式
             ax.plot(
                 valid_params,
                 formula_results,
                 "o-",
-                linewidth=2,
-                label="Exact Formula",
-                color="blue",
+                linewidth=2.5,
+                color="#1f77b4",  # 深蓝色
                 markersize=8,
+                markerfacecolor="#1f77b4",
+                markeredgecolor="#1f77b4",
+                label="Exact Formula",
+                zorder=2,
             )
+            # 红色空心方块 - 蒙特卡洛（不画连接线）
             ax.plot(
                 valid_params,
                 simulation_results,
-                "s--",
-                linewidth=2,
+                "s",
+                linewidth=0,
+                color="#d62728",  # 深红色
+                markersize=10,
+                markerfacecolor="none",
+                markeredgecolor="#d62728",
+                markeredgewidth=2,
                 label="Monte Carlo (10k runs)",
-                color="red",
-                markersize=6,
-                alpha=0.7,
+                zorder=3,
             )
 
             # 计算误差
@@ -586,20 +574,57 @@ def compare_simulation_vs_formula():
             ]
             avg_error = np.mean(errors)
             max_error = np.max(errors)
+            all_errors.append({
+                'config': config['label'],
+                'avg': avg_error,
+                'max': max_error
+            })
 
-            ax.set_xlabel(config["xlabel"], fontsize=11)
-            ax.set_ylabel("Expected Checks", fontsize=11)
-            ax.set_title(
-                f"{config['title']}\nAvg Error: {avg_error:.2f}%, Max Error: {max_error:.2f}%",
-                fontsize=11,
+            # 设置标签
+            ax.set_xlabel(config["xlabel"], fontsize=24)
+            # 只在左侧两个子图显示Y轴标签
+            if idx % 2 == 0:
+                ax.set_ylabel("Expected Checks", fontsize=24)
+            
+            # 在子图左上角添加编号标签
+            ax.text(
+                0.1, 0.95, config["label"], 
+                transform=ax.transAxes,
+                fontsize=20, fontweight="bold",
+                verticalalignment="top",
+                bbox=dict(boxstyle="round", facecolor="white", alpha=0.8, edgecolor="none", pad=0.3)
             )
-            ax.legend()
-            ax.grid(True, alpha=0.3)
+            
+            # 只在第一个子图显示图例
+            if idx == 0:
+                ax.legend(loc='best', fontsize=20, framealpha=0.9)
+            
+            # 使用淡灰色网格
+            ax.grid(True, alpha=0.2, linestyle='--', linewidth=0.5, color='gray')
+            ax.set_axisbelow(True)
+            
+            # 设置Y轴范围
+            ax.set_ylim([0, 4.5])
+            
+            # 设置白色背景
+            ax.set_facecolor('white')
 
-    plt.tight_layout()
-    plt.savefig("analysis_simulation_vs_formula.png", dpi=300, bbox_inches="tight")
+    # 在图底部添加误差信息说明
+    error_text = "Average errors: "
+    error_text += ", ".join([f"{e['config']}: {e['avg']:.2f}%" for e in all_errors])
+    fig.text(0.5, 0.02, error_text, ha='center', fontsize=24, style='italic')
+
+    plt.tight_layout(rect=(0, 0.05, 1, 1))
+    
+    # 设置白色背景
+    fig.patch.set_facecolor('white')
+    
+    plt.savefig("analysis_simulation_vs_formula.png", dpi=300, bbox_inches="tight", facecolor='white')
     print("保存: analysis_simulation_vs_formula.png")
     plt.close()
+    
+    # 恢复原来的绘图风格
+    plt.style.use("seaborn-v0_8-darkgrid")
 
 
 def main():
@@ -615,13 +640,13 @@ def main():
     os.chdir(results_dir)
 
     # 执行各项分析
-    analyze_vs_R()
-    analyze_vs_C()
-    analyze_vs_A()
-    analyze_vs_N()
-    analyze_S_vs_N()
-    analyze_heatmap_C_A()
-    analyze_efficiency_ratio()
+    # analyze_vs_R()
+    # analyze_vs_C()
+    # analyze_vs_A()
+    # analyze_vs_N()
+    # analyze_S_vs_N()
+    # analyze_heatmap_C_A()
+    # analyze_efficiency_ratio()
     compare_simulation_vs_formula()
 
     print("=" * 70)

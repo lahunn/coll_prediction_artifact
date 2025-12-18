@@ -21,6 +21,7 @@ from utils.utils import calculate_expected_checks, calculate_baseline_expectatio
 # 添加 trace_generation 目录到 Python 路径
 from trace_generation.config.ana_parameters import get_robot_params
 
+
 def plot(code, ytest, name):
     """绘制二维散点图显示碰撞和非碰撞样本的分布"""
     principalComponents = code.data.cpu().numpy()
@@ -45,6 +46,7 @@ def plot(code, ytest, name):
     plt.clf()
     plt.close()
 
+
 def main():
     """主函数"""
     # 解析命令行参数
@@ -61,7 +63,7 @@ def main():
     free_sample_rate = float(sys.argv[4])
     num_problems = int(sys.argv[5])
     robot_name = sys.argv[6] if len(sys.argv) == 7 else "franka"
-    
+
     # 获取机器人参数
     robot_params = get_robot_params(robot_name)
     obb_num = robot_params["obb_num"]
@@ -121,24 +123,26 @@ def main():
             N=obb_num,
         )
         pred_cost = expected_checks * obb_cost
-        baseline_checks = calculate_baseline_expectation(
-            N=obb_num, R=ele_collision_ratio
-        )
+        baseline_checks = obb_num
         baseline_cost = baseline_checks * obb_cost
 
-        speedup = baseline_cost / pred_cost if pred_cost > 0 else 0
+        # Compute cost ratio relative to baseline; report as percentage
+        speedup_pct = (
+            (pred_cost / baseline_cost * 100.0) if baseline_cost > 0 else float("inf")
+        )
     else:
         pred_cost = float("inf")
         baseline_cost = float("inf")
-        speedup = 0
+        speedup_pct = 0
 
     # 输出姿态级和元素级指标
     print(
         f"{density_level}, {quantize_bits}, {collision_threshold}, {free_sample_rate}, "
         f"Pose: {precision:.2f}%, {recall:.2f}%, {all_collision_ratio:.4f}, "
         f"Elem: {ele_precision:.2f}%, {ele_recall:.2f}%, {ele_collision_ratio:.4f}, "
-        f"Cost: {pred_cost:.2f}, {baseline_cost:.2f}, {speedup:.2f}"
+        f"Cost: {pred_cost:.2f}, {baseline_cost:.2f}, {speedup_pct:.2f}%"
     )
+
 
 if __name__ == "__main__":
     main()

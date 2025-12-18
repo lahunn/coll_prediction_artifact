@@ -6,11 +6,23 @@ across all difficulty levels (G1, G2, G3, G4, G5)
 
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib
 import numpy as np
 import os
 
 # Create figs directory if it doesn't exist
 os.makedirs("figs", exist_ok=True)
+
+# Unified plotting style (serif font, seaborn whitegrid, colors: navy/darkgreen)
+matplotlib.rcParams["pdf.fonttype"] = 42
+matplotlib.rcParams["ps.fonttype"] = 42
+plt.style.use("seaborn-v0_8-whitegrid")
+font = {
+    "family": "serif",
+    "weight": "normal",
+    "size": 28,
+}
+plt.rc("font", **font)
 
 # Read data
 link_df = pd.read_csv("../result_files/link_results.csv")
@@ -27,10 +39,10 @@ width = 0.35
 
 plt.figure(figsize=(12, 7))
 link_bars = plt.bar(
-    x - width / 2, link_cycles, width, color="skyblue", alpha=0.8, label="LINK"
+    x - width / 2, link_cycles, width, color="navy", alpha=0.8, label="LINK"
 )
 sphere_bars = plt.bar(
-    x + width / 2, sphere_cycles, width, color="lightcoral", alpha=0.8, label="Sphere"
+    x + width / 2, sphere_cycles, width, color="darkgreen", alpha=0.8, label="Sphere"
 )
 
 # Add value labels
@@ -54,7 +66,6 @@ for bar, cycle in zip(sphere_bars, sphere_cycles):
         va="bottom",
         fontweight="bold",
         fontsize=8,
-        color="darkred",
     )
 
 # Add percentage difference labels above the bars
