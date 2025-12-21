@@ -14,7 +14,7 @@ BIT*和LazySP算法评估脚本
 """
 
 import numpy as np
-from config import set_random_seed
+from trace_generation.bit_planning.algorithm.config import set_random_seed
 from tqdm import tqdm
 from algorithm.bit_star import BITStar
 

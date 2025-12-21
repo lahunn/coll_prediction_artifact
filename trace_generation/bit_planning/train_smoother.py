@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from config import set_random_seed
+from trace_generation.bit_planning.algorithm.config import set_random_seed
 from tqdm import tqdm as tqdm
 from tensorboardX import SummaryWriter
 from eval_gnn import explore

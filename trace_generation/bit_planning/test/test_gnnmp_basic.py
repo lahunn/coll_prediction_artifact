@@ -52,17 +52,45 @@ def prepare_env(robot_name, map_file, problem_index):
 
 def run_once(robot_name, map_file, problem_index, model_key):
     env = prepare_env(robot_name, map_file, problem_index)
+    
+    # 调试：检查环境初始化
+    print(f"Robot config_dim: {env.robot_env.config_dim}")
+    print(f"Init state: {env.init_state}")
+    print(f"Goal state: {env.goal_state}")
+    print(f"Obstacles count: {len(env.obstacle_manager.obstacles) if hasattr(env, 'obstacle_manager') else 0}")
+    
+    # 检查初始状态和目标状态是否在自由空间中
+    init_free = env._state_fp(np.array(env.init_state))
+    goal_free = env._state_fp(np.array(env.goal_state))
+    print(f"Init state in free space: {init_free}")
+    print(f"Goal state in free space: {goal_free}")
+    
+    if not init_free or not goal_free:
+        print("WARNING: Initial or goal state is in collision!")
+    
     planner = GNNPlanner(env, model_key=model_key)
+    print(f"Model loaded: {type(planner.model).__name__}")
+    print(f"Smoother loaded: {type(planner.smoother).__name__}")
+    
     result = planner.plan(problem_index=problem_index, batch=200, t_max=500, k=30)
-    print(f"problem {problem_index}: success={result['success']}, cost={result['path_cost']:.3f}, "
-          f"collisions={result['collision_checks']}, time={result['total_time']:.3f}s")
+    
+    print(f"\n=== Planning Results ===")
+    print(f"Success: {result['success']}")
+    print(f"Path length: {len(result['path'])}")
+    print(f"Cost: {result['path_cost']:.3f}")
+    print(f"Collision checks: {result['collision_checks']}")
+    print(f"Time: {result['total_time']:.3f}s")
+    print(f"Explored states: {len(result['explored'])}")
+    
+    if not result['success']:
+        print(f"Planning failed - explored {len(result['explored'])} states but didn't reach goal")
 
 
 def main():
     parser = argparse.ArgumentParser(description="Basic GNNPlanner test on saved iiwa problems.")
     parser.add_argument("--map-file", default="trace_generation/bit_planning/maze_files/iiwa_7_50.pkl")
     parser.add_argument("--robot-name", default="iiwa")
-    parser.add_argument("--model-key", default="iiwa7")
+    parser.add_argument("--model-key", default="kuka7")
     parser.add_argument("--index", type=int, default=0)
     args = parser.parse_args()
 

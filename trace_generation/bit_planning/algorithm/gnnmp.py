@@ -1,7 +1,7 @@
 import os
 import pickle
 import time
-from typing import Any, Dict, List, Optional, Tuple, cast
+from typing import Any, Dict, List, Optional, cast
 
 import numpy as np
 import torch
@@ -9,7 +9,7 @@ from torch_geometric.data import Data
 from torch_geometric.nn import knn_graph
 from torch_sparse import coalesce
 
-from config import set_random_seed
+from trace_generation.bit_planning.algorithm.config import set_random_seed
 from smoother import model_smooth, joint_smoother
 from str2model import str2model
 
@@ -33,6 +33,7 @@ def to_np(tensor):
 
 class DotDict(dict):
     """dot.notation access to dictionary attributes"""
+
     __getattr__ = dict.get
     __setattr__ = dict.__setitem__
     __delattr__ = dict.__delitem__
@@ -40,88 +41,133 @@ class DotDict(dict):
 
 def obs_data(env, free, collided):
     """Package obstacle and sampled config data for GNN input."""
-    data = DotDict({
-        'free': torch.FloatTensor(np.array(free)).to(device),
-        'collided': torch.FloatTensor(np.array(collided))[:len(free)].to(device),
-        'obstacles': torch.FloatTensor(env.obstacles).to(device),
-    })
+    # 获取障碍物数据：ModularEnv 通过 obstacle_manager 存储障碍物
+    if hasattr(env, "obstacle_manager") and hasattr(env.obstacle_manager, "obstacles"):
+        obstacles = (
+            np.array(env.obstacle_manager.obstacles)
+            if env.obstacle_manager.obstacles
+            else np.array([])
+        )
+    else:
+        # 降级处理：如果没有 obstacle_manager，使用空障碍物
+        obstacles = np.array([])
+
+    data = DotDict(
+        {
+            "free": torch.FloatTensor(np.array(free)).to(device),
+            "collided": torch.FloatTensor(np.array(collided))[: len(free)].to(device),
+            "obstacles": torch.FloatTensor(obstacles).to(device)
+            if obstacles.size > 0
+            else torch.FloatTensor([]).to(device),
+        }
+    )
     return data
 
 
 def create_data(free, collided, env, k):
     """Construct torch_geometric Data object for GNN policy network."""
     data = Data(goal=torch.FloatTensor(env.goal_state))
-    data.v = torch.cat((torch.FloatTensor(np.array(free)),
-                        torch.FloatTensor(np.array(collided))), dim=0)
+    data.v = torch.cat(
+        (torch.FloatTensor(np.array(free)), torch.FloatTensor(np.array(collided))),
+        dim=0,
+    )
     data.labels = torch.zeros(len(data.v), 3)
-    data.labels[:len(free), 0] = 1
-    data.labels[len(free):, 1] = 1
+    data.labels[: len(free), 0] = 1
+    data.labels[len(free) :, 1] = 1
     data.labels[1, 2] = 1
     k1 = int(np.ceil(k * np.log(len(free)) / np.log(100)))
     edge_index = knn_graph(torch.FloatTensor(data.v), k=k1, loop=True)
     edge_index = torch.cat((edge_index, edge_index.flip(0)), dim=-1)
-    edge_index_free = knn_graph(torch.FloatTensor(data.v[:len(free)]), k=k1, loop=True)
-    edge_index = torch.cat((edge_index, edge_index_free, edge_index_free.flip(0)), dim=-1)
+    edge_index_free = knn_graph(torch.FloatTensor(data.v[: len(free)]), k=k1, loop=True)
+    edge_index = torch.cat(
+        (edge_index, edge_index_free, edge_index_free.flip(0)), dim=-1
+    )
     data.edge_index, _ = coalesce(edge_index, None, len(data.v), len(data.v))
     return data
 
 
 @torch.no_grad()
-def explore(env, model, model_s, pbindex=2000, smooth=True, batch=500, t_max=1000, k=30, smoother='model', loop=5):
+def explore(
+    env,
+    model,
+    model_s,
+    pbindex=2000,
+    smooth=True,
+    batch=500,
+    t_max=1000,
+    k=30,
+    smoother="model",
+    loop=5,
+):
     """
     GNN-guided exploration to find collision-free path.
-    
+
     Returns dict with success, paths, collision counts, timing, and search trace.
     """
-    c0 = env.collision_check_count
+    c0 = env.collision_check_count()
     t0 = time.time()
     forward = 0
-    
+
     success = False
     path, smooth_path = [], []
     n_batch = batch
-    free, collided, link_info, link_feas_info = env.sample_n_points_probe(n_batch, need_negative=True)
-    collided = collided[:len(free)]
+    free, collided, link_info, link_feas_info = env.sample_n_points_probe(
+        n_batch, need_negative=True
+    )
+
+    collided = collided[: len(free)]
     free = [env.init_state] + [env.goal_state] + list(free)
-    
+
     explored = [0]
     explored_edges = [[0, 0]]
-    costs = {0: 0.}
+    costs = {0: 0.0}
     prev = {0: 0}
 
     data = create_data(free, collided, env, k)
 
     while not success and (len(free) - 2) <= t_max:
         t1 = time.time()
-        policy = model(**data.to(device).to_dict(), **obs_data(env, free, collided), loop=loop)
+        policy = model(
+            **data.to(device).to_dict(), **obs_data(env, free, collided), loop=loop
+        )
         policy = policy.cpu()
         forward += time.time() - t1
 
         policy[torch.arange(len(data.v)), torch.arange(len(data.v))] = 0
+
         policy[:, explored] = 0
+
         policy[:, data.labels[:, 1] == 1] = 0
         policy[data.labels[:, 1] == 1, :] = 0
-        policy[np.array(explored_edges).reshape(2, -1)] = 0
-        
+        explored_edges_arr = np.array(explored_edges)
+        if len(explored_edges_arr) > 0:
+            policy[explored_edges_arr[:, 0], explored_edges_arr[:, 1]] = 0
+
         while policy[explored, :].sum() != 0:
             agent = policy[
-                np.array(explored)[torch.where(policy[explored, :] != 0)[0]], 
-                torch.where(policy[explored, :] != 0)[1]
+                np.array(explored)[torch.where(policy[explored, :] != 0)[0]],
+                torch.where(policy[explored, :] != 0)[1],
             ].argmax()
 
-            end_a, end_b = torch.where(policy[explored, :] != 0)[0][agent], \
-                           torch.where(policy[explored, :] != 0)[1][agent]
+            end_a, end_b = (
+                torch.where(policy[explored, :] != 0)[0][agent],
+                torch.where(policy[explored, :] != 0)[1][agent],
+            )
             end_a, end_b = int(end_a), int(end_b)
             end_a = explored[end_a]
             explored_edges.extend([[end_a, end_b], [end_b, end_a]])
-            
-            edgefeas, sample_info, sample_feas_info = env._edge_fp_probe(to_np(data.v[end_a]), to_np(data.v[end_b]))
+
+            edgefeas, sample_info, sample_feas_info = env._edge_fp_probe(
+                to_np(data.v[end_a]), to_np(data.v[end_b])
+            )
             link_info.append(sample_info)
             link_feas_info.append(sample_feas_info)
-            
+
             if edgefeas:
                 explored.append(end_b)
-                costs[end_b] = costs[end_a] + float(np.linalg.norm(to_np(data.v[end_a]) - to_np(data.v[end_b])))
+                costs[end_b] = costs[end_a] + float(
+                    np.linalg.norm(to_np(data.v[end_a]) - to_np(data.v[end_b]))
+                )
                 prev[end_b] = end_a
 
                 policy[:, end_b] = 0
@@ -143,50 +189,54 @@ def explore(env, model, model_s, pbindex=2000, smooth=True, batch=500, t_max=100
                 return []
             if (n_batch + len(free) - 2) > t_max:
                 break
-            new_free, new_collided, sample_info, sample_feas_info = env.sample_n_points_probe(n_batch, need_negative=True)
+            new_free, new_collided, sample_info, sample_feas_info = (
+                env.sample_n_points_probe(n_batch, need_negative=True)
+            )
             link_info += sample_info
             link_feas_info += sample_feas_info
             free = free + list(new_free)
             collided = collided + list(new_collided)
-            collided = collided[:len(free)]
+            collided = collided[: len(free)]
             data = create_data(free, collided, env, k)
 
-    c_explore = env.collision_check_count - c0
-    c1 = env.collision_check_count
+    c_explore = env.collision_check_count() - c0
+    c1 = env.collision_check_count()
     t1 = time.time()
-    
+
     if success and smooth:
         path = list(data.v[path].data.cpu().numpy())
-        if smoother == 'model':
-            smooth_path, edge_info, edge_feas_info = model_smooth(model_s, free, collided, path, env)
+        if smoother == "model":
+            smooth_path, edge_info, edge_feas_info = model_smooth(
+                model_s, free, collided, path, env
+            )
             link_info += edge_info
             link_feas_info += edge_feas_info
-        elif smoother == 'oracle':
+        elif smoother == "oracle":
             smooth_path = joint_smoother(path, env, iter=5)
         else:
             smooth_path = path
-    
-    c_smooth = env.collision_check_count - c1
-    
+
+    c_smooth = env.collision_check_count() - c1
+
     os.makedirs("logfiles_GNN_2D", exist_ok=True)
     with open(f"logfiles_GNN_2D/link_info_{pbindex}.pkl", "wb") as f:
         pickle.dump((link_info, link_feas_info), f)
-    
+
     if smooth:
         total_time = time.time()
         return {
-            'c_explore': c_explore,
-            'c_smooth': c_smooth,
-            'data': data,
-            'explored': explored,
-            'forward': forward,
-            'total': total_time - t0,
-            'total_explore': t1 - t0,
-            'success': success,
-            't0': t0,
-            'path': path,
-            'smooth_path': smooth_path,
-            'explored_edges': explored_edges
+            "c_explore": c_explore,
+            "c_smooth": c_smooth,
+            "data": data,
+            "explored": explored,
+            "forward": forward,
+            "total": total_time - t0,
+            "total_explore": t1 - t0,
+            "success": success,
+            "t0": t0,
+            "path": path,
+            "smooth_path": smooth_path,
+            "explored_edges": explored_edges,
         }
     else:
         return list(data.v[path].data.cpu().numpy()), free, collided
@@ -199,6 +249,10 @@ def _load_models(model_key: str, device: torch.device) -> Dict[str, Any]:
     smoother.load_state_dict(torch.load(smoother_path, map_location=device))
     model.to(device).eval()
     smoother.to(device).eval()
+
+    # 重要：设置模型属性以启用障碍物处理
+    model.use_obstacles = True
+
     return {"model": model, "smoother": smoother}
 
 

@@ -201,24 +201,24 @@
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}/trace_generation/bit_planning",
       "args": [
-        "--robot-file",
-        "/home/lanh/project/robot_sim/coll_prediction_artifact/data/robots/franka_description/franka_panda.urdf",
         "--robot-name",
-        "franka",
+        "iiwa",
         "--num-problems",
-        "200",
+        "500",
         "--num-obstacles",
-        "18",
+        "10",
         "--max-time",
-        "6.0",
+        "10.0",
         "--workspace-min",
-        "-1.0",
+        "-1.2",
         "--workspace-max",
-        "1.0",
+        "1.2",
+        "--safe-zone-radius",
+        "0.15",
         "--voxel-size-min",
         "0.12",
         "--voxel-size-max",
-        "0.20"
+        "0.25"
       ]
     },
     {

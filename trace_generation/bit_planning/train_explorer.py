@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 from torch_geometric.data import Data
-from config import config, set_random_seed
+from trace_generation.bit_planning.algorithm.config import config, set_random_seed
 from tqdm import tqdm as tqdm
 from tensorboardX import SummaryWriter
 import pickle

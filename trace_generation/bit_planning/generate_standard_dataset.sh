@@ -60,7 +60,7 @@ for NUM_OBSTACLES in 10; do
 
     python generate_problem_dataset.py \
         --robot-name "$ROBOT_NAME" \
-        --num-problems 1000 \
+        --num-problems 5 \
         --num-obstacles "$NUM_OBSTACLES" \
         --max-time 10.0 \
         --workspace-min "$X_START" \

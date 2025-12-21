@@ -64,6 +64,7 @@ class ModularEnv:
         self.config_dim = self.robot_env.config_dim
         self.bound = self.robot_env.bound
         self.collision_model_type = collision_model_type
+        self.RRT_EPS = 0.25  # 默认平滑系数
 
     def init_new_problem(self, index):
         """
@@ -166,18 +167,54 @@ class ModularEnv:
         """
         return self.robot_env.get_robot_points(config, end_point)
 
-    def sample_n_points(self, n, need_negative=False):
+    def sample_n_points(self, n):
         """
-        采样配置点
+        采样配置点（不进行碰撞检测）
 
         Args:
             n: 采样数量
-            need_negative: 是否需要负样本
 
         Returns:
-            采样点列表
+            采样点列表或单个点
         """
-        return self.robot_env.sample_n_points(n, need_negative)
+        return self.robot_env.sample_n_points(n)
+
+    def sample_n_points_probe(self, n, need_negative=False):
+        """
+        采样n个自由配置点（带详细碰撞信息），使用拒绝采样
+
+        Args:
+            n: 采样数量（自由配置数量）
+            need_negative: 是否收集负样本（碰撞点）
+
+        Returns:
+            如果 need_negative=False: 返回 (free, [], info_list, info_coll_list)
+            如果 need_negative=True: 返回 (free, collided, info_list, info_coll_list)
+        """
+        free = []
+        collided = []
+        info_list = []
+        info_coll_list = []
+
+        for i in range(n):
+            while True:
+                # 单次均匀采样
+                sample = self.robot_env.sample_n_points(1)
+                is_free, info, info_coll = self._state_fp_probe(sample)
+
+                if is_free:
+                    # 找到自由配置，加入正样本并退出内循环
+                    free.append(sample)
+                    info_list.append(info)
+                    info_coll_list.append(info_coll)
+                    break
+                elif need_negative:
+                    # 碰撞配置，加入负样本并继续尝试
+                    collided.append(sample)
+                    info_list.append(info)
+                    info_coll_list.append(info_coll)
+
+        return free, collided, info_list, info_coll_list
 
     def interpolate(self, from_state, to_state, ratio):
         """
@@ -285,29 +322,6 @@ class ModularEnv:
             edge_link_colls = []
 
         return edge_free, edge_link_coords, edge_link_colls
-
-    def sample_n_points_probe(self, n, need_negative=False):
-        """
-        采样n个配置点（带详细信息）
-
-        Args:
-            n: 采样数量
-            need_negative: 是否需要负样本（碰撞点）
-
-        Returns:
-            tuple: (free, collided, info_list, info_coll_list)
-        """
-        free, collided, info_list, info_coll_list = [], [], [], []
-        samples = self.robot_env.sample_n_points(n, need_negative)
-        for s in samples:
-            is_free, info, info_coll = self._state_fp_probe(s)
-            if is_free:
-                free.append(s)
-            else:
-                collided.append(s)
-            info_list.append(info)
-            info_coll_list.append(info_coll)
-        return free, collided, info_list, info_coll_list
 
     def generate_random_obstacles(
         self,

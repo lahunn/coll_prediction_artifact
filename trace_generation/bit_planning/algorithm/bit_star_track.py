@@ -341,7 +341,7 @@ class BITStar:
 
 if __name__ == '__main__':
     from utils.plot import plot_edges
-    from config import set_random_seed
+    from trace_generation.bit_planning.algorithm.config import set_random_seed
     from environment import MazeEnv
     from tqdm import tqdm
 

@@ -3,7 +3,7 @@ from copy import deepcopy
 from algorithm.bit_star import BITStar
 from environment.maze_env import MazeEnv
 from trace_generation.bit_planning.utils.plot import plot_edges
-from config import set_random_seed
+from trace_generation.bit_planning.algorithm.config import set_random_seed
 import torch
 from torch_geometric.utils import add_self_loops
 from algorithm.dijkstra import dijkstra
@@ -66,7 +66,7 @@ def obs_data(env, free, collided):
         {
             "free": torch.FloatTensor(np.array(free)).to(device),
             "collided": torch.FloatTensor(np.array(collided)).to(device),
-            "obstacles": torch.FloatTensor(env.obstacles).to(device),
+            "obstacles": torch.FloatTensor(np.array(env.obstacle_manager.obstacles) if hasattr(env, 'obstacle_manager') and len(env.obstacle_manager.obstacles) > 0 else np.zeros((1, 2, 3))).to(device),
         }
     )
     return data

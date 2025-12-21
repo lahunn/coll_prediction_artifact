@@ -39,3 +39,5 @@ motion_planning_prediction/scripts/result_files/*.csv
 motion_planning_prediction/strategy_evaluation/result_files/*.csv
 motion_planning_prediction/plots/figs/*.png
 trace_files/bit_traces/*/*.pkl
+trace_files/problems/*/*.pkl
+trace_files/problems/*.pkl

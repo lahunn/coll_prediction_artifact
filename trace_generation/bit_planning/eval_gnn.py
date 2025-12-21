@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 from torch_geometric.data import Data
-from config import set_random_seed
+from trace_generation.bit_planning.algorithm.config import set_random_seed
 from tqdm import tqdm as tqdm
 from torch_sparse import coalesce
 from torch_geometric.nn import knn_graph

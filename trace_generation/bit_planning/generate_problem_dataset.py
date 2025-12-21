@@ -153,7 +153,12 @@ def reconstruct_path(edges, start, goal):
 
 
 def redistribute_problems_by_difficulty(
-    robot_name, config_dim, num_obstacles, filename_to_edge_count
+    robot_name,
+    config_dim,
+    num_obstacles,
+    filename_to_edge_count,
+    problems,
+    output_file,
 ):
     """根据link_edge_count重新划分问题到不同难度级别"""
     print("\n开始重新划分问题到不同难度级别...")
@@ -167,6 +172,15 @@ def redistribute_problems_by_difficulty(
     for level in difficulty_levels:
         os.makedirs(f"{source_dir}/{level}", exist_ok=True)
         os.makedirs(f"{collision_source_dir}/{level}", exist_ok=True)
+
+    # problems 输出根目录（基于 output_file 的父目录）
+    problems_output_root = (
+        os.path.dirname(output_file)
+        if output_file is not None
+        else "../../trace_files/problems"
+    )
+    for level in difficulty_levels:
+        os.makedirs(os.path.join(problems_output_root, level), exist_ok=True)
 
     if not filename_to_edge_count:
         print("未找到有效的碰撞数据文件")
@@ -215,6 +229,7 @@ def redistribute_problems_by_difficulty(
 
     # 重新划分文件
     level_counters = {level: 0 for level in difficulty_levels}
+    problems_by_level = {level: [] for level in difficulty_levels}
 
     for idx, (problem_idx, pair_file, coll_file_link, coll_file_sphere) in enumerate(
         problem_files
@@ -234,6 +249,11 @@ def redistribute_problems_by_difficulty(
             level = difficulty_levels[4]
 
         level_counters[level] += 1
+
+        # 收集对应难度的 problem
+        # problem_idx 从 1 开始，problems 列表从 0 开始
+        if 1 <= problem_idx <= len(problems):
+            problems_by_level[level].append(problems[problem_idx - 1])
 
         # 生成新的文件名
         new_pair_filename = f"{robot_name}_{config_dim}_{level_counters[level]:04d}.pkl"
@@ -265,6 +285,14 @@ def redistribute_problems_by_difficulty(
     for level in difficulty_levels:
         print(f"  {level}: {level_counters[level]} 个问题")
 
+    # 保存每个难度级别对应的 problems 文件
+    for level in difficulty_levels:
+        level_path = os.path.join(problems_output_root, level)
+        problems_filepath = os.path.join(level_path, "problems.pkl")
+        with open(problems_filepath, "wb") as f:
+            pickle.dump(problems_by_level[level], f)
+    print(f"\n已保存分难度 problems 文件到: {problems_output_root}/G1-G5")
+
 
 def generate_problem_dataset(
     robot_file,
@@ -272,7 +300,7 @@ def generate_problem_dataset(
     num_problems=3000,
     num_obstacles=10,
     output_file=None,
-    max_planning_time=60.0,
+    max_planning_time=10.0,
     workspace_range=(-1.0, 1.0),
     voxel_size_range=(0.12, 0.20),
     safe_zone_radius=0.5,
@@ -303,7 +331,10 @@ def generate_problem_dataset(
     config_dim = modular_env_link.config_dim
 
     if output_file is None:
-        output_file = f"maze_files/{robot_name}_{config_dim}_{num_problems}.pkl"
+        # 默认输出到 trace_files/problems 目录下的单一汇总文件
+        output_file = (
+            f"../../trace_files/problems/{robot_name}_{config_dim}_{num_problems}.pkl"
+        )
 
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
 
@@ -422,7 +453,12 @@ def generate_problem_dataset(
 
     # 重新划分问题到不同难度级别
     redistribute_problems_by_difficulty(
-        robot_name, config_dim, num_obstacles, filename_to_edge_count
+        robot_name,
+        config_dim,
+        num_obstacles,
+        filename_to_edge_count,
+        problems,
+        output_file,
     )
 
     # 统计信息

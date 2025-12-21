@@ -3,7 +3,7 @@ import torch
 from train_next import str2next
 from str2name import str2name
 from algorithm.tsa import NEXT_plan
-from config import set_random_seed
+from trace_generation.bit_planning.algorithm.config import set_random_seed
 from eval_gnn import explore
 import numpy as np
 from tqdm import tqdm

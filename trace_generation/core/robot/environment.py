@@ -290,30 +290,21 @@ class RobotEnv:
             points = [points[self.robotEndEffectorIndex]]
         return points
 
-    def sample_n_points(self, n, need_negative=False):
+    def sample_n_points(self, n):
         """
-        在配置空间采样 n 个可行点（正样本），可选采样不可行点（负样本）
+        在配置空间采样 n 个配置点
 
         Args:
             n: 采样数量
-            need_negative: 是否需要负样本
 
         Returns:
-            采样点列表
+            采样点（返回点列表）
         """
+        samples = uniform_sample(
+            self.lower_bounds, self.upper_bounds, self.config_dim, n
+        )
 
-        if need_negative:
-            samples = uniform_sample(
-                self.lower_bounds, self.upper_bounds, self.config_dim, n * 2
-            )
-            # 这里需要碰撞检测来筛选正负样本，但由于没有碰撞环境，暂时返回所有样本
-            # 实际使用时需要传入 collision_env
-            return samples[:n], samples[n:]  # 正样本, 负样本
-        else:
-            samples = uniform_sample(
-                self.lower_bounds, self.upper_bounds, self.config_dim, n
-            )
-            return samples
+        return samples
 
     def interpolate(self, from_state, to_state, ratio):
         """
