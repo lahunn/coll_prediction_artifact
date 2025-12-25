@@ -23,16 +23,16 @@ plt.rcParams["axes.unicode_minus"] = False
 plt.style.use("seaborn-v0_8-darkgrid")
 
 
-def analyze_vs_R():
-    """分析 S 关于真实碰撞率 R 的变化"""
-    print("分析 S vs R...")
+def analyze_vs_P():
+    """分析 S 关于真实碰撞率 P 的变化"""
+    print("分析 S vs P...")
 
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     fig.suptitle(
-        "Expected Checks S vs Collision Rate R", fontsize=16, fontweight="bold"
+        "Expected Checks S vs Collision Rate P", fontsize=16, fontweight="bold"
     )
 
-    R_values = np.linspace(0.01, 0.99, 100)
+    P_values = np.linspace(0.01, 0.99, 100)
 
     configs = [
         {"C": 0.8, "A": 0.8, "N": 100, "label": "C=0.8, A=0.8, N=100"},
@@ -44,19 +44,19 @@ def analyze_vs_R():
     for idx, (ax, config) in enumerate(zip(axes.flat, configs)):
         S_values = []
         baseline_values = []
-        for R in R_values:
+        for P in P_values:
             try:
-                S = calculate_expected_checks(R, config["C"], config["A"], config["N"])
+                S = calculate_expected_checks(P, config["C"], config["A"], config["N"])
                 S_values.append(S)
-                baseline = calculate_baseline_expectation(config["N"], R)
+                baseline = calculate_baseline_expectation(config["N"], P)
                 baseline_values.append(baseline)
             except ValueError:
                 S_values.append(np.nan)
                 baseline_values.append(np.nan)
 
-        ax.plot(R_values, S_values, linewidth=2, label="With Predictor", color="blue")
+        ax.plot(P_values, S_values, linewidth=2, label="With Predictor", color="blue")
         ax.plot(
-            R_values,
+            P_values,
             baseline_values,
             linestyle="--",
             linewidth=2,
@@ -64,7 +64,7 @@ def analyze_vs_R():
             label="Baseline (No Predictor)",
             color="orange",
         )
-        ax.set_xlabel("Collision Rate R", fontsize=11)
+        ax.set_xlabel("Collision Rate P", fontsize=11)
         ax.set_ylabel("Expected Checks S", fontsize=11)
         ax.set_title(config["label"], fontsize=12)
         ax.legend()
@@ -90,20 +90,20 @@ def analyze_vs_C():
     C_values = np.linspace(0.1, 1.0, 24)
 
     configs = [
-        {"R": 0.3, "A": 0.8, "N": 24, "label": "R=0.3, A=0.8, N=24"},
-        {"R": 0.5, "A": 0.8, "N": 24, "label": "R=0.5, A=0.8, N=24"},
-        {"R": 0.7, "A": 0.8, "N": 24, "label": "R=0.7, A=0.8, N=24"},
-        {"R": 0.5, "A": 0.6, "N": 24, "label": "R=0.5, A=0.6, N=24"},
+        {"P": 0.3, "A": 0.8, "N": 24, "label": "P=0.3, A=0.8, N=24"},
+        {"P": 0.5, "A": 0.8, "N": 24, "label": "P=0.5, A=0.8, N=24"},
+        {"P": 0.7, "A": 0.8, "N": 24, "label": "P=0.7, A=0.8, N=24"},
+        {"P": 0.5, "A": 0.6, "N": 24, "label": "P=0.5, A=0.6, N=24"},
     ]
 
     for idx, (ax, config) in enumerate(zip(axes.flat, configs)):
         S_values = []
         valid_C = []
-        baseline = calculate_baseline_expectation(config["N"], config["R"])
+        baseline = calculate_baseline_expectation(config["N"], config["P"])
 
         for C in C_values:
             try:
-                S = calculate_expected_checks(config["R"], C, config["A"], config["N"])
+                S = calculate_expected_checks(config["P"], C, config["A"], config["N"])
                 S_values.append(S)
                 valid_C.append(C)
             except ValueError:
@@ -145,20 +145,20 @@ def analyze_vs_A():
     A_values = np.linspace(0.1, 1.0, 100)
 
     configs = [
-        {"R": 0.3, "C": 0.8, "N": 100, "label": "R=0.3, C=0.8, N=100"},
-        {"R": 0.5, "C": 0.8, "N": 100, "label": "R=0.5, C=0.8, N=100"},
-        {"R": 0.7, "C": 0.8, "N": 100, "label": "R=0.7, C=0.8, N=100"},
-        {"R": 0.5, "C": 0.6, "N": 100, "label": "R=0.5, C=0.6, N=100"},
+        {"P": 0.3, "C": 0.8, "N": 100, "label": "P=0.3, C=0.8, N=100"},
+        {"P": 0.5, "C": 0.8, "N": 100, "label": "P=0.5, C=0.8, N=100"},
+        {"P": 0.7, "C": 0.8, "N": 100, "label": "P=0.7, C=0.8, N=100"},
+        {"P": 0.5, "C": 0.6, "N": 100, "label": "P=0.5, C=0.6, N=100"},
     ]
 
     for idx, (ax, config) in enumerate(zip(axes.flat, configs)):
         S_values = []
         valid_A = []
-        baseline = calculate_baseline_expectation(config["N"], config["R"])
+        baseline = calculate_baseline_expectation(config["N"], config["P"])
 
         for A in A_values:
             try:
-                S = calculate_expected_checks(config["R"], config["C"], A, config["N"])
+                S = calculate_expected_checks(config["P"], config["C"], A, config["N"])
                 S_values.append(S)
                 valid_A.append(A)
             except ValueError:
@@ -202,9 +202,9 @@ def analyze_vs_N():
     N_values = np.arange(10, 501, 10)
 
     configs = [
-        {"R": 0.3, "C": 0.8, "A": 0.8, "label": "R=0.3, C=0.8, A=0.8"},
-        {"R": 0.5, "C": 0.8, "A": 0.8, "label": "R=0.5, C=0.8, A=0.8"},
-        {"R": 0.7, "C": 0.8, "A": 0.8, "label": "R=0.7, C=0.8, A=0.8"},
+        {"P": 0.3, "C": 0.8, "A": 0.8, "label": "P=0.3, C=0.8, A=0.8"},
+        {"P": 0.5, "C": 0.8, "A": 0.8, "label": "P=0.5, C=0.8, A=0.8"},
+        {"P": 0.7, "C": 0.8, "A": 0.8, "label": "P=0.7, C=0.8, A=0.8"},
     ]
 
     for idx, config in enumerate(configs):
@@ -213,8 +213,8 @@ def analyze_vs_N():
 
         for N in N_values:
             try:
-                S = calculate_expected_checks(config["R"], config["C"], config["A"], N)
-                baseline = calculate_baseline_expectation(N, config["R"])
+                S = calculate_expected_checks(config["P"], config["C"], config["A"], N)
+                baseline = calculate_baseline_expectation(N, config["P"])
                 S_over_N.append(S / N)
                 baseline_over_N.append(baseline / N)
             except ValueError:
@@ -263,9 +263,9 @@ def analyze_S_vs_N():
     N_values = np.arange(10, 501, 10)
 
     configs = [
-        {"R": 0.3, "C": 0.8, "A": 0.8, "label": "R=0.3, C=0.8, A=0.8"},
-        {"R": 0.5, "C": 0.8, "A": 0.8, "label": "R=0.5, C=0.8, A=0.8"},
-        {"R": 0.7, "C": 0.8, "A": 0.8, "label": "R=0.7, C=0.8, A=0.8"},
+        {"P": 0.3, "C": 0.8, "A": 0.8, "label": "P=0.3, C=0.8, A=0.8"},
+        {"P": 0.5, "C": 0.8, "A": 0.8, "label": "P=0.5, C=0.8, A=0.8"},
+        {"P": 0.7, "C": 0.8, "A": 0.8, "label": "P=0.7, C=0.8, A=0.8"},
     ]
 
     for idx, config in enumerate(configs):
@@ -274,9 +274,9 @@ def analyze_S_vs_N():
 
         for N in N_values:
             try:
-                S = calculate_expected_checks(config["R"], config["C"], config["A"], N)
+                S = calculate_expected_checks(config["P"], config["C"], config["A"], N)
                 S_values.append(S)
-                baseline = calculate_baseline_expectation(N, config["R"])
+                baseline = calculate_baseline_expectation(N, config["P"])
                 baseline_values.append(baseline)
             except ValueError:
                 S_values.append(np.nan)
@@ -327,8 +327,8 @@ def analyze_heatmap_C_A():
     A_values = np.linspace(0.1, 1.0, 50)
 
     configs = [
-        {"R": 0.3, "N": 100, "title": "R=0.3, N=100"},
-        {"R": 0.7, "N": 100, "title": "R=0.7, N=100"},
+        {"P": 0.3, "N": 100, "title": "P=0.3, N=100"},
+        {"P": 0.7, "N": 100, "title": "P=0.7, N=100"},
     ]
 
     for ax, config in zip(axes, configs):
@@ -337,7 +337,7 @@ def analyze_heatmap_C_A():
         for i, A in enumerate(A_values):
             for j, C in enumerate(C_values):
                 try:
-                    S = calculate_expected_checks(config["R"], C, A, config["N"])
+                    S = calculate_expected_checks(config["P"], C, A, config["N"])
                     S_matrix[i, j] = S
                 except ValueError:
                     S_matrix[i, j] = np.nan
@@ -367,38 +367,38 @@ def analyze_efficiency_ratio():
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     fig.suptitle("Efficiency Ratio: N/S vs Parameters", fontsize=16, fontweight="bold")
 
-    # N/S vs R
+    # N/S vs P
     ax = axes[0, 0]
-    R_values = np.linspace(0.1, 0.9, 100)
+    P_values = np.linspace(0.1, 0.9, 100)
     for C, A in [(0.6, 0.6), (0.8, 0.8), (0.9, 0.9)]:
         ratios = []
-        for R in R_values:
+        for P in P_values:
             try:
-                S = calculate_expected_checks(R, C, A, 100)
+                S = calculate_expected_checks(P, C, A, 100)
                 ratios.append(100 / S)
             except ValueError:
                 ratios.append(np.nan)
-        ax.plot(R_values, ratios, linewidth=2, label=f"C={C}, A={A}")
-    ax.set_xlabel("Collision Rate R", fontsize=11)
+        ax.plot(P_values, ratios, linewidth=2, label=f"C={C}, A={A}")
+    ax.set_xlabel("Collision Rate P", fontsize=11)
     ax.set_ylabel("Efficiency Ratio (N/S)", fontsize=11)
-    ax.set_title("Efficiency vs R", fontsize=12)
+    ax.set_title("Efficiency vs P", fontsize=12)
     ax.legend()
     ax.grid(True, alpha=0.3)
 
     # N/S vs C
     ax = axes[0, 1]
     C_values = np.linspace(0.1, 1.0, 100)
-    for R, A in [(0.3, 0.8), (0.5, 0.8), (0.7, 0.8)]:
+    for P, A in [(0.3, 0.8), (0.5, 0.8), (0.7, 0.8)]:
         ratios = []
         valid_C = []
         for C in C_values:
             try:
-                S = calculate_expected_checks(R, C, A, 100)
+                S = calculate_expected_checks(P, C, A, 100)
                 ratios.append(100 / S)
                 valid_C.append(C)
             except ValueError:
                 pass
-        ax.plot(valid_C, ratios, linewidth=2, label=f"R={R}, A={A}")
+        ax.plot(valid_C, ratios, linewidth=2, label=f"P={P}, A={A}")
     ax.set_xlabel("Coverage C", fontsize=11)
     ax.set_ylabel("Efficiency Ratio (N/S)", fontsize=11)
     ax.set_title("Efficiency vs C", fontsize=12)
@@ -408,17 +408,17 @@ def analyze_efficiency_ratio():
     # N/S vs A
     ax = axes[1, 0]
     A_values = np.linspace(0.1, 1.0, 100)
-    for R, C in [(0.3, 0.8), (0.5, 0.8), (0.7, 0.8)]:
+    for P, C in [(0.3, 0.8), (0.5, 0.8), (0.7, 0.8)]:
         ratios = []
         valid_A = []
         for A in A_values:
             try:
-                S = calculate_expected_checks(R, C, A, 100)
+                S = calculate_expected_checks(P, C, A, 100)
                 ratios.append(100 / S)
                 valid_A.append(A)
             except ValueError:
                 pass
-        ax.plot(valid_A, ratios, linewidth=2, label=f"R={R}, C={C}")
+        ax.plot(valid_A, ratios, linewidth=2, label=f"P={P}, C={C}")
     ax.set_xlabel("Accuracy A", fontsize=11)
     ax.set_ylabel("Efficiency Ratio (N/S)", fontsize=11)
     ax.set_title("Efficiency vs A", fontsize=12)
@@ -428,15 +428,15 @@ def analyze_efficiency_ratio():
     # N/S vs N
     ax = axes[1, 1]
     N_values = np.arange(10, 501, 10)
-    for R, C, A in [(0.3, 0.8, 0.8), (0.5, 0.8, 0.8), (0.7, 0.8, 0.8)]:
+    for P, C, A in [(0.3, 0.8, 0.8), (0.5, 0.8, 0.8), (0.7, 0.8, 0.8)]:
         ratios = []
         for N in N_values:
             try:
-                S = calculate_expected_checks(R, C, A, N)
+                S = calculate_expected_checks(P, C, A, N)
                 ratios.append(N / S)
             except ValueError:
                 ratios.append(np.nan)
-        ax.plot(N_values, ratios, linewidth=2, label=f"R={R}, C={C}, A={A}")
+        ax.plot(N_values, ratios, linewidth=2, label=f"P={P}, C={C}, A={A}")
     ax.set_xlabel("Total Tasks N", fontsize=11)
     ax.set_ylabel("Efficiency Ratio (N/S)", fontsize=11)
     ax.set_title("Efficiency vs N", fontsize=12)
@@ -457,27 +457,27 @@ def compare_simulation_vs_formula():
     plt.style.use('default')
     
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-
+ 
     # 测试配置 - 简化标题
     test_configs = [
         {
-            "param": "R",
+            "param": "P",
             "values": np.linspace(0.1, 0.9, 9),
             "fixed": {"C": 0.8, "A": 0.8, "N": 20},
-            "xlabel": r"Collision Rate ($R$)",
+            "xlabel": r"Collision Rate ($P$)",
             "label": "(a)",
         },
         {
             "param": "C",
             "values": np.linspace(0.4, 1.0, 7),
-            "fixed": {"R": 0.5, "A": 0.8, "N": 20},
+            "fixed": {"P": 0.5, "A": 0.8, "N": 20},
             "xlabel": r"Recall ($C$)",
             "label": "(b)",
         },
         {
             "param": "A",
             "values": np.linspace(0.4, 1.0, 7),
-            "fixed": {"R": 0.5, "C": 0.8, "N": 20},
+            "fixed": {"P": 0.5, "C": 0.8, "N": 20},
             "xlabel": r"Precision ($A$)",
             "label": "(c)",
         },
@@ -489,7 +489,7 @@ def compare_simulation_vs_formula():
                     20, 30, 40, 50, 60, 70, 80, 90, 100, 150
                 ]
             ),
-            "fixed": {"R": 0.5, "C": 0.8, "A": 0.8},
+            "fixed": {"P": 0.5, "C": 0.8, "A": 0.8},
             "xlabel": r"Total Tasks ($N$)",
             "label": "(d)",
         },
@@ -515,19 +515,19 @@ def compare_simulation_vs_formula():
 
             try:
                 # 检查参数有效性
-                if params["C"] * params["R"] > params["A"] + 1e-9:
+                if params["C"] * params["P"] > params["A"] + 1e-9:
                     continue
 
-                # 计算精确公式结果
+                # 计算精确公式结果 (collision rate passed positionally)
                 formula_result = calculate_expected_checks(
-                    R=params["R"], C=params["C"], A=params["A"], N=params["N"]
+                    params["P"], params["C"], params["A"], params["N"]
                 )
                 formula_results.append(formula_result)
 
                 # 计算蒙特卡洛模拟结果
                 print(f"  模拟 {config['param']}={val:.2f}...", end=" ")
                 simulation_result = find_sim_cost(
-                    R=params["R"], C=params["C"], A=params["A"], N=params["N"]
+                    params["P"], params["C"], params["A"], params["N"]
                 )
                 simulation_results.append(simulation_result)
                 valid_params.append(val)
@@ -640,7 +640,7 @@ def main():
     os.chdir(results_dir)
 
     # 执行各项分析
-    # analyze_vs_R()
+    # analyze_vs_P()
     # analyze_vs_C()
     # analyze_vs_A()
     # analyze_vs_N()
@@ -655,7 +655,7 @@ def main():
 
     # 打印一些关键观察
     print("\n关键观察:")
-    print("1. S vs R: 随着碰撞率增加，期望检测次数通常减少")
+    print("1. S vs P: 随着碰撞率增加，期望检测次数通常减少")
     print("2. S vs C: 更高的覆盖率(召回率)通常降低期望检测次数")
     print("3. S vs A: 更高的准确率(精确率)显著降低期望检测次数")
     print("4. S/N vs N: 归一化检测次数随N趋于稳定")

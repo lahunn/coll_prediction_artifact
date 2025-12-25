@@ -19,7 +19,7 @@ COORD_BITS_LIST=(3 4 5)                      # 坐标量化位数
 RADIUS_BITS_LIST=(0)                    # 半径量化位数
 THRESHOLDS=(0.0 0.03125 0.125 0.5 1.0 2.0)  # 碰撞阈值
 # THRESHOLDS=(0.25 0.5 1.0 2.0)  # 碰撞阈值
-SAMPLE_RATES=(1.0)    # 自由样本采样率 (U)
+SAMPLE_RATES=(0 0.125 0.25 0.5 1)           # 自由样本采样率
 NUM_PROBLEMS=100                              # 评估的问题数量
 
 # --- 执行 ---
