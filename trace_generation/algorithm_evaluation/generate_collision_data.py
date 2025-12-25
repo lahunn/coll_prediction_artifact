@@ -26,11 +26,15 @@ from typing import List, Sequence, Tuple, Optional
 import numpy as np
 
 from trace_generation.core.robot.modular_env import ModularEnv
-from trace_generation.bit_planning.algorithm.bit_star import BITStar
-from trace_generation.bit_planning.algorithm.gnnmp import GNNPlanner
+from trace_generation.algorithm_evaluation.algorithm.bit_star import BITStar
+from trace_generation.algorithm_evaluation.algorithm.gnnmp import GNNPlanner
 
-
-def ensure_dirs(pair_dir: str, collision_dir: str, level: Optional[str] = None, planner: Optional[str] = None) -> None:
+def ensure_dirs(
+    pair_dir: str,
+    collision_dir: str,
+    level: Optional[str] = None,
+    planner: Optional[str] = None,
+) -> None:
     if level:
         pair_dir = os.path.join(pair_dir, level)
         collision_dir = os.path.join(collision_dir, level)
@@ -105,7 +109,15 @@ def run_gnnmp(env: ModularEnv, model_key: str, t_max: int = 1000) -> float:
     return cost
 
 
-def save_pair(pair_dir: str, base: str, index: int, obstacles, configs, level: Optional[str] = None, planner: Optional[str] = None) -> None:
+def save_pair(
+    pair_dir: str,
+    base: str,
+    index: int,
+    obstacles,
+    configs,
+    level: Optional[str] = None,
+    planner: Optional[str] = None,
+) -> None:
     if level:
         pair_dir = os.path.join(pair_dir, level)
     if planner:
@@ -117,8 +129,15 @@ def save_pair(pair_dir: str, base: str, index: int, obstacles, configs, level: O
         pickle.dump(payload, f)
     print(f"  保存障碍物-配置对到目录: {pair_filepath}")
 
+
 def save_collision(
-    env: ModularEnv, collision_dir: str, base: str, index: int, suffix: str, level: Optional[str] = None, planner: Optional[str] = None
+    env: ModularEnv,
+    collision_dir: str,
+    base: str,
+    index: int,
+    suffix: str,
+    level: Optional[str] = None,
+    planner: Optional[str] = None,
 ) -> None:
     if level:
         collision_dir = os.path.join(collision_dir, level)
@@ -176,7 +195,15 @@ def process_one_problem(
         raise ValueError("planner 仅支持 bit_star 或 gnnmp")
 
     # 保存障碍物-配置对（以 link 环境记录的 configs 为准）
-    save_pair(pair_dir, base, idx1, obstacles, env_link.collision_env.config_list, level, planner_subdir)
+    save_pair(
+        pair_dir,
+        base,
+        idx1,
+        obstacles,
+        env_link.collision_env.config_list,
+        level,
+        planner_subdir,
+    )
 
     # 保存 link 碰撞数据
     save_collision(env_link, collision_dir, base, idx1, "link", level, planner_subdir)
@@ -188,7 +215,9 @@ def process_one_problem(
         _sphere_cost = run_gnnmp(env_sphere, gnn_model_key or "")
 
     # 保存 sphere 碰撞数据
-    save_collision(env_sphere, collision_dir, base, idx1, "sphere", level, planner_subdir)
+    save_collision(
+        env_sphere, collision_dir, base, idx1, "sphere", level, planner_subdir
+    )
 
     # 关闭环境
     try:

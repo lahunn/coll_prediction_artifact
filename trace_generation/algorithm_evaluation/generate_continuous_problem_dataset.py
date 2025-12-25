@@ -23,7 +23,7 @@ import numpy as np
 import argparse
 
 from trace_generation.core.robot.modular_env import ModularEnv
-from trace_generation.bit_planning.algorithm.bit_star import BITStar
+from trace_generation.algorithm_evaluation.algorithm.bit_star import BITStar
 from trace_generation.utils.planning_utils import uniform_sample, distance
 
 EDGE_COUNT_LIMIT = 10
