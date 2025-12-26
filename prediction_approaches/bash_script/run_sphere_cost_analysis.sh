@@ -15,7 +15,7 @@ OUTPUT_FILE="../result_files/sphere_hashing_cost_results.csv"
 
 # 定义要测试的参数范围
 DENSITY_LEVELS=("dens3" "dens6" "dens9" "dens12")  # 目标场景密度
-COORD_BITS_LIST=(3 4 5)                      # 坐标量化位数
+COORD_BITS_LIST=(4)                      # 坐标量化位数
 RADIUS_BITS_LIST=(0)                    # 半径量化位数
 THRESHOLDS=(0.0 0.03125 0.125 0.5 1.0 2.0)  # 碰撞阈值
 # THRESHOLDS=(0.25 0.5 1.0 2.0)  # 碰撞阈值
@@ -34,7 +34,7 @@ fi
 mkdir -p ../result_files
 
 # 写入CSV文件的表头
-echo "Density,CoordBits,RadiusBits,Threshold,SampleRate,PosePrecision,PoseRecall,PoseCollisionRatio,ElemPrecision,ElemRecall,ElemCollisionRatio,PredCost,BaselineCost,SpeedUp_Pct" > "$OUTPUT_FILE"
+echo "Density,QuantBits,RadiusBits,Threshold,SampleRate,PosePrecision,PoseRecall,PoseCollisionRatio,ElemPrecision,ElemRecall,ElemCollisionRatio,PredCost,BaselineCost,SpeedUp_Pct" > "$OUTPUT_FILE"
 
 echo "🚀 开始球体碰撞预测参数扫描 (包含成本分析)"
 echo "   结果将保存到 $OUTPUT_FILE"

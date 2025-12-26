@@ -12,11 +12,13 @@ ROBOT_NAME="iiwa"
 NUM_OOCDS=7
 START_BENCH=1
 END_BENCH=50
+# 算法类型（可通过第一个参数覆盖）
+ALGORITHM="${1:-bit_star}"
 
 # 结果文件目录
 RESULT_DIR="../result_files"
 mkdir -p "$RESULT_DIR"
-RESULT_FILE="${RESULT_DIR}/sphere_link_comparison_results.csv"
+RESULT_FILE="${RESULT_DIR}/sphere_link_comparison_results_${ALGORITHM}.csv"
 
 # 基础数据路径 (相对于脚本执行位置)
 BASE_DATA_DIR="../../trace_files/scene_benchmarks/bit_collision_data"
@@ -38,7 +40,7 @@ for STRATEGY in sphere_coord link_coord; do
         fi
 
         echo "--------------------------------------------------"
-        echo "正在处理: 策略=$STRATEGY, 难度=$DIFFICULTY"
+        echo "正在处理: 策略=$STRATEGY, 难度=$DIFFICULTY, 算法=$ALGORITHM"
         
         # 运行 Python 脚本并捕获输出
         OUTPUT=$(python prediction_simulation_sphere_link.py \
@@ -51,6 +53,7 @@ for STRATEGY in sphere_coord link_coord; do
             $END_BENCH \
             "$ROBOT_NAME" \
             "$STRATEGY" \
+            "$ALGORITHM" \
             $NUM_OOCDS)
             
         # 解析结果

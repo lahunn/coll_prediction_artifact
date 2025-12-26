@@ -1,5 +1,7 @@
 {
-  "contextFileName": "GEMINI.md",
+  "context": {
+    "fileName": "GEMINI.md"
+  },
   "mcpServers": {
     "filesystem": {
       "command": "npx",

@@ -66,9 +66,9 @@ def main():
 
     # 获取机器人参数
     robot_params = get_robot_params(robot_name)
-    obb_num = robot_params["obb_num"]
+    obb_num = robot_params["obb_num"]  # 使用Sphere数量来进行评估
     obb_cost = robot_params["obb_cost"]
-    num_links = obb_num
+    num_links = robot_params["obb_num"]  # 使用OBB数量来分组评估
 
     # 设置量化参数
     binnumber = 2**quantize_bits
@@ -123,7 +123,10 @@ def main():
             N=obb_num,
         )
         pred_cost = expected_checks * obb_cost
-        baseline_checks = obb_num
+        baseline_checks = calculate_baseline_expectation(
+            R=ele_collision_ratio,
+            N=obb_num,
+        )
         baseline_cost = baseline_checks * obb_cost
 
         # Compute cost ratio relative to baseline; report as percentage

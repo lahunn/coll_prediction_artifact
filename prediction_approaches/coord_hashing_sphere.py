@@ -171,8 +171,10 @@ def main():
             N=sphere_num,
         )
         pred_cost = expected_checks * sphere_cost
-
-        baseline_checks = sphere_num
+        baseline_checks = calculate_baseline_expectation(
+            R=ele_collision_ratio,
+            N=sphere_num,
+        )
         baseline_cost = baseline_checks * sphere_cost
 
         # Compute cost ratio relative to baseline; report as percentage
