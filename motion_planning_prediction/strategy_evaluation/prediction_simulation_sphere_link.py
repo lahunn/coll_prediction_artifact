@@ -7,9 +7,11 @@ Evaluates two strategies for collision prediction:
 2. Sphere collision detection, using link coordinates for prediction.
 
 Usage:
-    python prediction_simulation_sphere_link.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <num_benchmarks> <robot_name> <prediction_strategy>
+    python prediction_simulation_sphere_link.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <start_bench> <end_bench> <robot_name> <prediction_strategy> <algorithm> <num_oocds>
 
     prediction_strategy: "sphere_coord" or "link_coord"
+    algorithm: subdirectory name under each benchmark folder (e.g. 'bit_star')
+    num_oocds: number of parallel OOCDs used in simulation
 """
 
 import sys
@@ -42,25 +44,28 @@ total_oocd_utilization = 0.0
 total_edges = 0
 
 # --- Simulation Parameters from Command Line ---
-if len(sys.argv) < 10:
+if len(sys.argv) < 11:
     print(
-        "Usage: python prediction_simulation_sphere_link.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <start_bench> <end_bench> <robot_name> <prediction_strategy> <num_oocds>"
+        "Usage: python prediction_simulation_sphere_link.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <start_bench> <end_bench> <robot_name> <prediction_strategy> <algorithm> <num_oocds>"
     )
     print(
-        "Example: python prediction_simulation_sphere_link.py 0.5 0.1 8 ../../trace_files/scene_benchmarks/bit_collision_data iiwa_7 1 10 iiwa sphere_coord 7"
+        "Example: python prediction_simulation_sphere_link.py 0.5 0.1 8 ../../trace_files/scene_benchmarks/bit_collision_data iiwa_7 1 10 iiwa sphere_coord bit_star 7"
     )
     sys.exit(1)
 
 threshold = float(sys.argv[1])
 sample_rate = float(sys.argv[2])
 qnoncoll_multiplier = int(sys.argv[3])
+# data_folder should point to the base folder containing per-benchmark folders (e.g. .../bit_collision_data/G1)
 data_folder = sys.argv[4]
 basename = sys.argv[5]
 start_bench = int(sys.argv[6])
 end_bench = int(sys.argv[7])
 robot_name = sys.argv[8]
 prediction_strategy = sys.argv[9]
-num_oocds = int(sys.argv[10])
+# algorithm is the subdirectory under each benchmark folder (e.g. 'bit_star')
+algorithm = sys.argv[10]
+num_oocds = int(sys.argv[11])
 
 if prediction_strategy not in ["sphere_coord", "link_coord"]:
     print("Error: prediction_strategy must be 'sphere_coord' or 'link_coord'")
@@ -104,7 +109,8 @@ print(f"Sample Rate: {sample_rate}")
 print(f"Queue Multiplier: {qnoncoll_multiplier}")
 print(f"Non-Coll Queue Len: {qnoncoll_len}")
 print(f"Num OOCDs: {num_oocds}")
-print(f"Data Folder: {data_folder}")
+print(f"Data Folder (base): {data_folder}")
+print(f"Algorithm subdir: {algorithm}")
 print(f"Benchmarks: {start_bench} - {end_bench}")
 print(f"Strategy: {prediction_strategy}")
 print("=" * 50)
@@ -120,11 +126,13 @@ for benchid in tqdm(benchrange, desc="Processing Benchmarks"):
     colldict = {}
 
     # Load collision data with link coords
+    # data_folder may have an algorithm subdirectory; append algorithm to path
+    data_folder_with_algo = os.path.join(data_folder, algorithm)
     edge_link_data, edge_link_coll_data, edge_link_coords_data = (
         su.load_data_with_link_coords(
             basename,
             benchid,
-            data_folder,
+            data_folder_with_algo,
         )
     )
 

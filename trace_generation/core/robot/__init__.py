@@ -5,10 +5,10 @@ Robot modeling and environment management.
 """
 
 # 向后兼容导出
-from trace_generation.core.collision.collision_env import CollisionEnv
-from trace_generation.core.collision.data_manager import CollisionDataManager
+# from trace_generation.core.collision.collision_env import CollisionEnv
+# from trace_generation.core.collision.data_manager import CollisionDataManager
 
 __all__ = [
-    'CollisionEnv',
-    'CollisionDataManager',
+    # 'CollisionEnv',
+    # 'CollisionDataManager',
 ]
