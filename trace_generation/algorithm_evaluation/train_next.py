@@ -103,7 +103,8 @@ def train_env(str):
             replay.append((i, search_tree.path()[0]))
         else:
             BIT = BITStar(env, T=float('INF'), batch_size=50)
-            g_score = BIT.plan(float('INF'), time_budget=60, refine_time_budget=0)[-3]
+            result = BIT.plan(float('INF'), time_budget=60, refine_time_budget=0)
+            g_score = result.get("cost", float('INF'))
             if g_score != float('INF'):
                 replay.append((i, BIT.get_best_path()))
 

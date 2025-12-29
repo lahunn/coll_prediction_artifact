@@ -74,33 +74,24 @@ def eval_bit(str, seed, env, indexes, use_tqdm=False, batch=50, t_max=1000, **kw
         paths.append(bit.get_best_path())
 
     # ========================================
-    # 统计性能指标
+    # 统计性能指标（solution 现在是 dict）
     # ========================================
-    # solution格式: (samples, edges, path_cost, T, time)
-    # s[2]是路径成本, s[3]是采样数, s[4]是运行时间
+    # solution 字典包含: cost, collision_checks, total_time, success, path
+    n_success = sum([1 for s in solutions if s.get("cost", INFINITY) != INFINITY])
 
-    # 成功率: 路径成本不为无穷大的问题数
-    n_success = sum([s[2] != INFINITY for s in solutions])
+    collision = np.mean([s.get("collision_checks", 0) for s in solutions]) if solutions else 0.0
 
-    # 平均碰撞检测次数 (需要从env中获取)
-    collision = np.mean([env.collision_check_count for _ in solutions])
-
-    # 平均运行时间 (仅统计成功案例)
     if n_success > 0:
-        running_time = np.mean([s[4] for s in solutions if s[2] != INFINITY])
+        running_time = np.mean([s.get("total_time", 0.0) for s in solutions if s.get("cost", INFINITY) != INFINITY])
     else:
         running_time = 0.0
 
-    # 平均路径成本 (仅统计成功案例)
     if n_success > 0:
-        solution_cost = (
-            float(sum([s[2] for s in solutions if s[2] != INFINITY])) / n_success
-        )
+        solution_cost = float(sum([s.get("cost", INFINITY) for s in solutions if s.get("cost", INFINITY) != INFINITY])) / n_success
     else:
         solution_cost = 0.0
 
-    # 总运行时间
-    total_time = sum([s[4] for s in solutions])
+    total_time = sum([s.get("total_time", 0.0) for s in solutions])
 
     # 输出统计结果
     print("success rate: %d" % n_success)

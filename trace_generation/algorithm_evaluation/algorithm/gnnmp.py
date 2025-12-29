@@ -252,12 +252,16 @@ class GNNMP:
         c_smooth = self.env.collision_check_count() - c1
         total_time = time()
 
+        collision_checks = int(c_explore + c_smooth)
+
         return {
             "success": success,
             "path": path,
             "smooth_path": smooth_path,
+            "edges": {},  # GNNMP doesn't build a global edge dict; keep empty for compatibility
             "c_explore": c_explore,
             "c_smooth": c_smooth,
+            "collision_checks": collision_checks,
             "total_time": total_time - t0,
             "explore_time": t1 - t0,
             "graph_size": len(free),

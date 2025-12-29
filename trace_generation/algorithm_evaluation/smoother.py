@@ -252,7 +252,12 @@ if __name__ == "__main__":
     for index in range(2010, 2012):
         env.init_new_problem(index)
         BIT = BITStar(env)
-        nodes, edges, collision, path_length, n_samples, _ = BIT.plan(float('inf'), refine_time_budget=0, time_budget=5)
+        result = BIT.plan(float('inf'), refine_time_budget=0, time_budget=5)
+        nodes = result.get("samples", [])
+        edges = result.get("edges", {})
+        collision = result.get("collision_checks", 0)
+        path_length = result.get("cost", float('inf'))
+        n_samples = result.get("n_samples", 0)
         path = BIT.get_best_path()
         plot_edges(states=path, edges={path[i]: path[i+1] for i in range(len(path)-1)}, problem=env.get_problem())
         path = random_path_smoother(BIT.get_best_path(), env.RRT_EPS, env)

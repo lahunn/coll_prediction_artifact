@@ -250,7 +250,12 @@ if __name__ == "__main__":
         cur_time = time.time()
 
         BIT = BITStar(environment)
-        nodes, edges, collision, success, n_samples = BIT.plan(INF)
+        result = BIT.plan(INF)
+        nodes = result.get("samples", [])
+        edges = result.get("edges", {})
+        collision = result.get("collision_checks", 0)
+        success = result.get("success", False)
+        n_samples = result.get("n_samples", 0)
 
         solutions.append((nodes, edges, collision, success, n_samples))
 

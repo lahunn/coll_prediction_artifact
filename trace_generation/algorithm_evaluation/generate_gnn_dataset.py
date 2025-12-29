@@ -70,10 +70,16 @@ def partition_by_collision_counts(
     return index_to_level, level_counters, all_quantiles
 
 
-def setup_planner(seed, batch, t_max, collision_model_type="link"):
-    """创建 ModularEnv（手动加载问题集）并加载模型，返回 env, planner, device
+def setup_planner(
+    seed, batch, t_max, collision_model_type="link", planner_choice: str = "gnnmp"
+):
+    """创建 ModularEnv 并根据选择返回对应的 planner（GNNMP 或 BITStar）。
 
-    说明：我们手动创建 env 并传入给 str2name，这样可以在创建 env 时指定 collision_model_type（link/sphere）。
+    Args:
+        planner_choice: 'gnnmp' or 'bit_star'
+
+    Returns:
+        env, planner, device
     """
     # 构造数据集路径并创建 env（支持选择碰撞模型）
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -86,20 +92,36 @@ def setup_planner(seed, batch, t_max, collision_model_type="link"):
         robot_name="iiwa", map_file=data_path, collision_model_type=collision_model_type
     )
 
-    # 使用 str2name 创建并加载模型，同时 reuse 我们创建的 env（str2name 会尊重传入的 env）
-    _, model, _, model_s, _, _ = str2name("kuka7", get_data=True, load=True, env=env)
-
     set_random_seed(seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    planner = GNNMP(
-        env=env,
-        model_explore=model,
-        model_smooth=model_s,
-        batch=batch,
-        t_max=t_max,
-        device=device,
-    )
-    return env, planner, device
+
+    if planner_choice == "gnnmp":
+        # 使用 str2name 创建并加载模型，同时 reuse 我们创建的 env（str2name 会尊重传入的 env）
+        _, model, _, model_s, _, _ = str2name("kuka7", get_data=True, load=True, env=env)
+
+        planner = GNNMP(
+            env=env,
+            model_explore=model,
+            model_smooth=model_s,
+            batch=batch,
+            t_max=t_max,
+            device=device,
+        )
+        return env, planner, device
+
+    elif planner_choice == "bit_star":
+        # 使用 BITStar（基于树的采样式规划器），直接返回 BITStar 实例
+        from algorithm.bit_star import BITStar
+
+        # BITStar 的构造参数：environment, maxIter=..., plot_flag=False, batch_size=..., T=...
+        bit = BITStar(environment=env, batch_size=batch, T=t_max, plot_flag=False)
+
+        # NOTE: BITStar.plan 已被统一为返回 dict，包含字段：
+        #       'success', 'path', 'edges', 'collision_checks', 'total_time', 'cost', 'n_samples'
+        return env, bit, device
+
+    else:
+        raise ValueError(f"Unknown planner_choice: {planner_choice}")
 
 
 def save_current_problem_data(env, idx, collision_model, dry_run=False):
@@ -182,14 +204,24 @@ def evaluate_problems(
 
         res = planner.plan(smooth=smooth)
 
+        # collision checks: prefer c_explore + c_smooth (GNNMP), fallback to collision_checks (BITStar)
         checks = int(res.get("c_explore", 0) + res.get("c_smooth", 0))
+        if checks == 0:
+            checks = int(res.get("collision_checks", 0))
+
         success = bool(res.get("success", False))
         runtime = float(res.get("total_time", 0.0))
-        cost = (
-            float(path_cost(res["smooth_path"]))
-            if success and res.get("smooth_path")
-            else None
-        )
+
+        # cost: prefer smooth_path if available, else use path
+        if success:
+            if res.get("smooth_path"):
+                cost = float(path_cost(res["smooth_path"]))
+            elif res.get("path"):
+                cost = float(path_cost(res["path"]))
+            else:
+                cost = None
+        else:
+            cost = None
 
         records.append(
             {
@@ -420,6 +452,13 @@ def parse_args():
         help="Collision model type to use when creating env (link or sphere)",
     )
     parser.add_argument(
+        "--planner",
+        type=str,
+        choices=["gnnmp", "bit_star"],
+        default="gnnmp",
+        help="Planner to evaluate: 'gnnmp' (default) or 'bit_star'",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="If set, don't actually move files; only print planned moves",
@@ -431,9 +470,13 @@ def main():
     args = parse_args()
 
     env, planner, device = setup_planner(
-        args.seed, args.batch, args.t_max, collision_model_type=args.collision_model
+        args.seed,
+        args.batch,
+        args.t_max,
+        collision_model_type=args.collision_model,
+        planner_choice=args.planner,
     )
-    print(f"Device: {device}, collision_model: {args.collision_model}")
+    print(f"Device: {device}, collision_model: {args.collision_model}, planner: {args.planner}")
 
     total_problems = env.problem_manager.get_problem_count()
     start_idx = args.start

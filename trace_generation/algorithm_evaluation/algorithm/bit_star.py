@@ -446,14 +446,20 @@ class BITStar:
         print(f"Total edge free checks: {self.edge_free_checks}")  # 新增：输出总次数
         collision_checks = self.env.collision_check_count()
         print(f"Total collision checks: {collision_checks}")  # 新增：输出总次数
-        return (
-            self.samples,
-            self.edges,
-            collision_checks,
-            self.g_scores[self.goal],
-            self.T,
-            time() - init_time,
-        )
+        # 统一返回为 dict，包含下游经常使用的字段：success, path, edges, samples, collision_checks, cost, n_samples, total_time
+        success = self.g_scores[self.goal] != INF
+        path = self.get_best_path() if success else []
+        total_time = time() - init_time
+        return {
+            "success": bool(success),
+            "path": path,
+            "edges": self.edges,
+            "samples": self.samples,
+            "collision_checks": int(collision_checks),
+            "cost": float(self.g_scores[self.goal]),
+            "n_samples": int(self.T),
+            "total_time": float(total_time),
+        }
 
 
 if __name__ == "__main__":
@@ -479,7 +485,12 @@ if __name__ == "__main__":
         cur_time = time.time()
 
         BIT = BITStar(environment)
-        nodes, edges, collision, success, n_samples = BIT.plan(INF)
+        result = BIT.plan(INF)
+        nodes = result.get("samples", [])
+        edges = result.get("edges", {})
+        collision = result.get("collision_checks", 0)
+        success = result.get("success", False)
+        n_samples = result.get("n_samples", 0)
 
         solutions.append((nodes, edges, collision, success, n_samples))
 
