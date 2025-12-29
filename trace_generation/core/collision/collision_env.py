@@ -32,9 +32,7 @@ class CollisionEnv:
 
     不涉及具体的碰撞检测算法实现（由下层 detector 负责）
     """
-
-    RRT_EPS = 0.25
-
+    RRT_EPS = 0.5
     def __init__(
         self,
         robot_env,
@@ -127,7 +125,7 @@ class CollisionEnv:
         self,
         state: np.ndarray,
         new_state: np.ndarray,
-        RRT_EPS: float = 0.25,
+        RRT_EPS: float = RRT_EPS,
     ) -> List[np.ndarray]:
         """
         将边离散化为多个配置点

@@ -503,117 +503,117 @@ def main():
     output_dir = "figs/sphere_hashing"
     os.makedirs(output_dir, exist_ok=True)
 
-    print("\n" + "=" * 60)
-    print(
-        "Example 1: Threshold Analysis (fixed Density=dens6, CoordBits=4, RadiusBits=2, SampleRate=1.0)"
-    )
-    print("=" * 60)
-    plotter.plot_variable_analysis(
-        variable="Threshold",
-        fixed_params={
-            "Density": "dens9",
-            "CoordBits": 4,
-            "RadiusBits": 2,
-            "SampleRate": 1.0,
-        },
-        output_file=f"{output_dir}/threshold_analysis.png",
-        show_plot=False,
-    )
+    # print("\n" + "=" * 60)
+    # print(
+    #     "Example 1: Threshold Analysis (fixed Density=dens6, CoordBits=4, RadiusBits=2, SampleRate=1.0)"
+    # )
+    # print("=" * 60)
+    # plotter.plot_variable_analysis(
+    #     variable="Threshold",
+    #     fixed_params={
+    #         "Density": "dens9",
+    #         "CoordBits": 4,
+    #         "RadiusBits": 2,
+    #         "SampleRate": 1.0,
+    #     },
+    #     output_file=f"{output_dir}/threshold_analysis.png",
+    #     show_plot=False,
+    # )
 
-    print("\n" + "=" * 60)
-    print(
-        "Example 2: CoordBits Analysis (fixed Density=dens6, RadiusBits=2, Threshold=0.125, SampleRate=1.0)"
-    )
-    print("=" * 60)
-    plotter.plot_variable_analysis(
-        variable="CoordBits",
-        fixed_params={
-            "Density": "dens9",
-            "RadiusBits": 2,
-            "Threshold": 0.5,
-            "SampleRate": 1.0,
-        },
-        output_file=f"{output_dir}/coordbits_analysis.png",
-        show_plot=False,
-    )
+    # print("\n" + "=" * 60)
+    # print(
+    #     "Example 2: CoordBits Analysis (fixed Density=dens6, RadiusBits=2, Threshold=0.125, SampleRate=1.0)"
+    # )
+    # print("=" * 60)
+    # plotter.plot_variable_analysis(
+    #     variable="CoordBits",
+    #     fixed_params={
+    #         "Density": "dens9",
+    #         "RadiusBits": 2,
+    #         "Threshold": 0.5,
+    #         "SampleRate": 1.0,
+    #     },
+    #     output_file=f"{output_dir}/coordbits_analysis.png",
+    #     show_plot=False,
+    # )
 
-    print("\n" + "=" * 60)
-    print(
-        "Example 3: Multi-Density Comparison (Threshold vs Density, fixed CoordBits=4, RadiusBits=2, SampleRate=1.0)"
-    )
-    print("=" * 60)
-    plotter.plot_multi_curves(
-        x_variable="Threshold",
-        group_variable="Density",
-        fixed_params={"CoordBits": 4, "RadiusBits": 2, "SampleRate": 1.0},
-        output_file=f"{output_dir}/threshold_vs_density.png",
-        show_plot=False,
-    )
+    # print("\n" + "=" * 60)
+    # print(
+    #     "Example 3: Multi-Density Comparison (Threshold vs Density, fixed CoordBits=4, RadiusBits=2, SampleRate=1.0)"
+    # )
+    # print("=" * 60)
+    # plotter.plot_multi_curves(
+    #     x_variable="Threshold",
+    #     group_variable="Density",
+    #     fixed_params={"CoordBits": 4, "RadiusBits": 2, "SampleRate": 1.0},
+    #     output_file=f"{output_dir}/threshold_vs_density.png",
+    #     show_plot=False,
+    # )
 
-    print("\n" + "=" * 60)
-    print(
-        "Example 4: RadiusBits Comparison (Threshold vs RadiusBits, fixed Density=dens6, CoordBits=4, SampleRate=1.0)"
-    )
-    print("=" * 60)
-    plotter.plot_multi_curves(
-        x_variable="Threshold",
-        group_variable="RadiusBits",
-        fixed_params={"Density": "dens9", "CoordBits": 4, "SampleRate": 1.0},
-        output_file=f"{output_dir}/threshold_vs_radiusbits.png",
-        show_plot=False,
-    )
+    # print("\n" + "=" * 60)
+    # print(
+    #     "Example 4: RadiusBits Comparison (Threshold vs RadiusBits, fixed Density=dens6, CoordBits=4, SampleRate=1.0)"
+    # )
+    # print("=" * 60)
+    # plotter.plot_multi_curves(
+    #     x_variable="Threshold",
+    #     group_variable="RadiusBits",
+    #     fixed_params={"Density": "dens9", "CoordBits": 4, "SampleRate": 1.0},
+    #     output_file=f"{output_dir}/threshold_vs_radiusbits.png",
+    #     show_plot=False,
+    # )
 
-    print("\n" + "=" * 60)
-    print(
-        "Example 5: CoordBits vs Density (fixed RadiusBits=2, Threshold=0.5, SampleRate=1.0)"
-    )
-    print("=" * 60)
-    plotter.plot_multi_curves(
-        x_variable="CoordBits",
-        group_variable="Density",
-        fixed_params={"RadiusBits": 2, "Threshold": 0.5, "SampleRate": 1.0},
-        output_file=f"{output_dir}/coordbits_vs_density.png",
-        show_plot=False,
-    )
+    # print("\n" + "=" * 60)
+    # print(
+    #     "Example 5: CoordBits vs Density (fixed RadiusBits=2, Threshold=0.5, SampleRate=1.0)"
+    # )
+    # print("=" * 60)
+    # plotter.plot_multi_curves(
+    #     x_variable="CoordBits",
+    #     group_variable="Density",
+    #     fixed_params={"RadiusBits": 2, "Threshold": 0.5, "SampleRate": 1.0},
+    #     output_file=f"{output_dir}/coordbits_vs_density.png",
+    #     show_plot=False,
+    # )
 
-    print("\n" + "=" * 60)
-    print(
-        "Example 6: RadiusBits vs Density (fixed CoordBits=4, Threshold=0.5, SampleRate=1.0)"
-    )
-    print("=" * 60)
-    plotter.plot_multi_curves(
-        x_variable="RadiusBits",
-        group_variable="Density",
-        fixed_params={"CoordBits": 4, "Threshold": 0.5, "SampleRate": 1.0},
-        output_file=f"{output_dir}/radiusbits_vs_density.png",
-        show_plot=False,
-    )
+    # print("\n" + "=" * 60)
+    # print(
+    #     "Example 6: RadiusBits vs Density (fixed CoordBits=4, Threshold=0.5, SampleRate=1.0)"
+    # )
+    # print("=" * 60)
+    # plotter.plot_multi_curves(
+    #     x_variable="RadiusBits",
+    #     group_variable="Density",
+    #     fixed_params={"CoordBits": 4, "Threshold": 0.5, "SampleRate": 1.0},
+    #     output_file=f"{output_dir}/radiusbits_vs_density.png",
+    #     show_plot=False,
+    # )
 
-    print("\n" + "=" * 60)
-    print(
-        "Example 7: Element Metrics - CoordBits vs Density (fixed RadiusBits=2, Threshold=0.5, SampleRate=1.0)"
-    )
-    print("=" * 60)
-    plotter.plot_elem_metrics(
-        x_variable="CoordBits",
-        group_variable="Density",
-        fixed_params={"RadiusBits": 2, "Threshold": 0.5, "SampleRate": 1.0},
-        output_file=f"{output_dir}/elem_coordbits_vs_density.png",
-        show_plot=False,
-    )
+    # print("\n" + "=" * 60)
+    # print(
+    #     "Example 7: Element Metrics - CoordBits vs Density (fixed RadiusBits=2, Threshold=0.5, SampleRate=1.0)"
+    # )
+    # print("=" * 60)
+    # plotter.plot_elem_metrics(
+    #     x_variable="CoordBits",
+    #     group_variable="Density",
+    #     fixed_params={"RadiusBits": 2, "Threshold": 0.5, "SampleRate": 1.0},
+    #     output_file=f"{output_dir}/elem_coordbits_vs_density.png",
+    #     show_plot=False,
+    # )
 
-    print("\n" + "=" * 60)
-    print(
-        "Example 8: Element Metrics - RadiusBits vs Density (fixed CoordBits=4, Threshold=0.5, SampleRate=1.0)"
-    )
-    print("=" * 60)
-    plotter.plot_elem_metrics(
-        x_variable="RadiusBits",
-        group_variable="Density",
-        fixed_params={"CoordBits": 4, "Threshold": 0.5, "SampleRate": 1.0},
-        output_file=f"{output_dir}/elem_radiusbits_vs_density.png",
-        show_plot=False,
-    )
+    # print("\n" + "=" * 60)
+    # print(
+    #     "Example 8: Element Metrics - RadiusBits vs Density (fixed CoordBits=4, Threshold=0.5, SampleRate=1.0)"
+    # )
+    # print("=" * 60)
+    # plotter.plot_elem_metrics(
+    #     x_variable="RadiusBits",
+    #     group_variable="Density",
+    #     fixed_params={"CoordBits": 4, "Threshold": 0.5, "SampleRate": 1.0},
+    #     output_file=f"{output_dir}/elem_radiusbits_vs_density.png",
+    #     show_plot=False,
+    # )
 
     print("\n✅ All figures generated successfully!")
     print(f"📁 Output directory: {output_dir}")

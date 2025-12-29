@@ -4,9 +4,9 @@
 # 并将结果保存到 CSV 文件中
 
 # 参数设置
-THRESHOLD=0.5
-SAMPLE_RATE=0.1
-QNONCOLL_MULTIPLIER=16
+THRESHOLD=1
+SAMPLE_RATE=0.125
+QNONCOLL_MULTIPLIER=8
 BASENAME="iiwa_7"
 ROBOT_NAME="iiwa"
 NUM_OOCDS=7
@@ -20,8 +20,15 @@ RESULT_DIR="../result_files"
 mkdir -p "$RESULT_DIR"
 RESULT_FILE="${RESULT_DIR}/sphere_link_comparison_results_${ALGORITHM}.csv"
 
-# 基础数据路径 (相对于脚本执行位置)
-BASE_DATA_DIR="../../trace_files/scene_benchmarks/bit_collision_data"
+# 根据算法类型设置基础数据路径 (相对于脚本执行位置)
+if [ "$ALGORITHM" = "bit_star" ]; then
+    BASE_DATA_DIR="../../trace_files/scene_benchmarks/bit_collision_data"
+elif [ "$ALGORITHM" = "gnnmp" ]; then
+    BASE_DATA_DIR="../../trace_files/scene_benchmarks/gnn_collision_data"
+else
+    echo "警告: 未知算法 $ALGORITHM，使用默认 bit_collision_data 路径。"
+    BASE_DATA_DIR="../../trace_files/scene_benchmarks/bit_collision_data"
+fi
 
 # 初始化 CSV 文件
 echo "Difficulty,Strategy,Threshold,Sample_Rate,Total_Checks,Total_Pred_Queries,Total_Oracle_Queries,Query_Reduction_Rate,Query_Difference,Total_Pred_Cycles,Total_Oracle_Cycles,Cycle_Efficiency,OOCD_Utilization" > "$RESULT_FILE"
@@ -42,7 +49,8 @@ for STRATEGY in sphere_coord link_coord; do
         echo "--------------------------------------------------"
         echo "正在处理: 策略=$STRATEGY, 难度=$DIFFICULTY, 算法=$ALGORITHM"
         
-        # 运行 Python 脚本并捕获输出
+        # 输出即将执行的 Python 命令
+        echo "python prediction_simulation_sphere_link.py $THRESHOLD $SAMPLE_RATE $QNONCOLL_MULTIPLIER \"$DATA_FOLDER\" \"$BASENAME\" $START_BENCH $END_BENCH \"$ROBOT_NAME\" \"$STRATEGY\" $NUM_OOCDS"
         OUTPUT=$(python prediction_simulation_sphere_link.py \
             $THRESHOLD \
             $SAMPLE_RATE \
@@ -53,7 +61,6 @@ for STRATEGY in sphere_coord link_coord; do
             $END_BENCH \
             "$ROBOT_NAME" \
             "$STRATEGY" \
-            "$ALGORITHM" \
             $NUM_OOCDS)
             
         # 解析结果

@@ -73,7 +73,6 @@ class EncoderProcessDecoder(torch.nn.Module):
 
         self.node_attentions = torch.nn.ModuleList([Block(embed_size) for _ in range(3)])
         self.edge_attentions = torch.nn.ModuleList([Block(embed_size) for _ in range(3)])
-        # self.graph_attentions = torch.nn.ModuleList([Block(embed_size) for _ in range(3)])
 
         self.goal_encoder = nn.Parameter(torch.rand(embed_size))
         self.node_pos = Lin(config_size, embed_size)
@@ -135,7 +134,6 @@ class EncoderProcessDecoder(torch.nn.Module):
         h_i = h_0
 
         # value iteration on latent graph
-        # state = self.lstm(h_i, None)
         for i in range(loop):
 
             encode = self.encoder(torch.cat((node_code, node_free_code.detach(), h_0, h_i), dim=-1))
@@ -146,7 +144,7 @@ class EncoderProcessDecoder(torch.nn.Module):
                                         edge_free_code.detach()), dim=-1))
 
         policy_output = policy.new_zeros(len(v), len(v))
-        policy_output[edge_index[1, :], edge_index[0, :]] = policy.squeeze()
+        policy_output[edge_index[0, :], edge_index[1, :]] = policy.squeeze()
         return policy_output
 
 

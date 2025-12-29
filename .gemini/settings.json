@@ -1,4 +1,26 @@
 {
+  "checkpointing": true,
+  "autoAccept": false,
+  "ui": {
+    "theme": "custom",
+    "colors": {
+      "user": "cyan",
+      "assistant": "white",
+      "system": "dim",
+      "error": "red",
+      "success": "green",
+      "// 关键部分：提升高亮可见度": "",
+      "highlight": "bold yellow",
+      "accent": "brightMagenta",
+      "selection": "inverse",
+      "code": "brightCyan"
+    },
+    "symbols": {
+      "prefix": "❯",
+      "success": "✔",
+      "error": "✖"
+    }
+  },
   "context": {
     "fileName": "GEMINI.md"
   },
@@ -25,7 +47,7 @@
         "@modelcontextprotocol/server-github"
       ],
       "env": {
-        "GITHUB_TOKEN": "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"
+        "GITHUB_TOKEN": "YOUR_GITHUB_TOKEN_HERE"
       }
     },
     "sequential-thinking": {

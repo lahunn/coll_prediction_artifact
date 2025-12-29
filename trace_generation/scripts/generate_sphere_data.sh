@@ -9,8 +9,11 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 ROBOT_NAME="iiwa"
 
 # 默认范围
-START=11
+START=1
 END=100
+
+# 支持选择算法类型（bit_star 或 gnnmp）。当选择 gnnmp 时，会使用 gnn_traces / gnn_collision_data 目录
+ALGO="bit"
 
 # 难度等级列表
 DIFFICULTY_LEVELS=("G1" "G2" "G3" "G4" "G5")
@@ -26,13 +29,19 @@ while [[ $# -gt 0 ]]; do
       END="$2"
       shift 2
       ;;
+    --algo)
+      ALGO="$2"
+      shift 2
+      ;;
     *)
       echo "未知参数: $1"
-            echo "用法: $0 [--start START_ID] [--end END_ID]"
+      echo "用法: $0 [--start START_ID] [--end END_ID] [--algo bit|gnnmp]"
       exit 1
       ;;
   esac
 done
+
+echo "算法: $ALGO"
 
 echo "处理范围: $START 到 $END"
 echo "难度等级: ${DIFFICULTY_LEVELS[*]}"
@@ -45,15 +54,21 @@ for DIFFICULTY in "${DIFFICULTY_LEVELS[@]}"; do
     echo "处理难度等级: $DIFFICULTY"
     echo "=========================================="
     
-    OBSTACLE_DIR="$SCRIPT_DIR/../../trace_files/bit_traces/$DIFFICULTY"
-    COLLISION_DIR="$SCRIPT_DIR/../../trace_files/scene_benchmarks/bit_collision_data/$DIFFICULTY"
-    
+    # 根据算法类型选择目录
+    if [ "$ALGO" = "gnnmp" ]; then
+        OBSTACLE_DIR="$SCRIPT_DIR/../../trace_files/gnn_traces/$DIFFICULTY"
+        COLLISION_DIR="$SCRIPT_DIR/../../trace_files/scene_benchmarks/gnn_collision_data/$DIFFICULTY"
+    else
+        OBSTACLE_DIR="$SCRIPT_DIR/../../trace_files/bit_traces/$DIFFICULTY"
+        COLLISION_DIR="$SCRIPT_DIR/../../trace_files/scene_benchmarks/bit_collision_data/$DIFFICULTY"
+    fi
+
     # 检查目录是否存在
     if [ ! -d "$OBSTACLE_DIR" ]; then
         echo "警告: 障碍物目录不存在，跳过 $DIFFICULTY: $OBSTACLE_DIR"
         continue
     fi
-    
+
     if [ ! -d "$COLLISION_DIR" ]; then
         echo "警告: 碰撞数据目录不存在，跳过 $DIFFICULTY: $COLLISION_DIR"
         continue

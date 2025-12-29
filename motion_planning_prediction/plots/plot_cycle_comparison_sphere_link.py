@@ -24,8 +24,27 @@ LINK_COLOR = "#0072B2"
 SPHERE_COLOR = "#D55E00"
 ORACLE_COLOR = "#009E73"
 
-# 设置文件路径
-csv_file = "../result_files/sphere_link_comparison_results.csv"
+
+import sys
+
+# 允许通过命令行参数指定算法
+
+if len(sys.argv) > 1:
+    algorithm = sys.argv[1]
+else:
+    algorithm = "bit_star"
+
+if algorithm == "bit_star":
+    csv_file = "../result_files/sphere_link_comparison_results_bit_star.csv"
+elif algorithm == "gnnmp":
+    csv_file = "../result_files/sphere_link_comparison_results_gnnmp.csv"
+else:
+    print(f"Warning: unknown algorithm '{algorithm}', using bit_star csv by default.")
+    csv_file = "../result_files/sphere_link_comparison_results_bit_star.csv"
+
+# 用于图片文件名的tag
+algorithm_tag = f"_{algorithm}" if algorithm else ""
+
 output_dir = "figs"
 os.makedirs(output_dir, exist_ok=True)
 
@@ -182,7 +201,7 @@ def plot_total_prediction_cycles(difficulties, link_cycles, sphere_cycles, oracl
             )
 
     plt.tight_layout()
-    output_path = os.path.join(output_dir, "cycle_comparison_sphere_link.png")
+    output_path = os.path.join(output_dir, f"cycle_comparison_sphere_link{algorithm_tag}.png")
     plt.savefig(output_path)
     print(f"Plot saved to {output_path}")
 
@@ -249,7 +268,7 @@ def plot_total_prediction_queries(
     # 移除相对 Baseline 的百分比标注，保持图面简洁
 
     plt.tight_layout()
-    output_path = os.path.join(output_dir, "query_comparison_sphere_link.png")
+    output_path = os.path.join(output_dir, f"query_comparison_sphere_link{algorithm_tag}.png")
     plt.savefig(output_path)
     print(f"Plot saved to {output_path}")
 
@@ -318,7 +337,7 @@ def plot_oocd_utilization(difficulties, link_utilization, sphere_utilization):
             )
 
     plt.tight_layout()
-    output_path = os.path.join(output_dir, "utilization_comparison_sphere_link.png")
+    output_path = os.path.join(output_dir, f"utilization_comparison_sphere_link{algorithm_tag}.png")
     plt.savefig(output_path)
     print(f"Plot saved to {output_path}")
 

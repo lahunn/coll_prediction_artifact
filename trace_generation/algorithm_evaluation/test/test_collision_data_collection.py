@@ -8,6 +8,7 @@ from robot_as.robot_method import RobotEnv
 from trace_generation.robot_as.obstacle_manager import ObstacleManager
 import numpy as np
 
+
 def main():
     print("=== 碰撞数据收集示例 ===\n")
 
@@ -43,7 +44,7 @@ def main():
     print("场景2: 边检测")
     state_start = np.array([0.0, 0.0, 0.0, -0.5, 0.0, 1.0, 0.0])
     state_end = np.array([0.5, -0.5, 0.3, -1.0, 0.0, 1.5, 0.0])
-    result2 = env._edge_fp(state_start, state_end, RRT_EPS=0.25)
+    result2 = env._edge_fp(state_start, state_end, RRT_EPS=0.5)
     print(f"  边检测: {'无碰撞' if result2 else '碰撞'}")
     print(f"  总收集边数: {len(env.data_manager.obb_link_data)}\n")
 
@@ -64,6 +65,7 @@ def main():
     env.close()
     robot_env.close()
     print("\n=== 测试完成 ===")
+
 
 if __name__ == "__main__":
     main()

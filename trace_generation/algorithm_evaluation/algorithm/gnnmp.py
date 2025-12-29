@@ -1,34 +1,11 @@
-import os
-import pickle
-import time
-from typing import Any, Dict, List, Optional, cast
-
-import numpy as np
 import torch
+import numpy as np
 from torch_geometric.data import Data
-from torch_geometric.nn import knn_graph
 from torch_sparse import coalesce
-
-from trace_generation.bit_planning.algorithm.config import set_random_seed
+from torch_geometric.nn import knn_graph
+from time import time
 from smoother import model_smooth, joint_smoother
-from str2model import str2model
-
-
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-
-def path_cost(path):
-    """Calculate total Euclidean path length."""
-    path = np.array(path)
-    cost = 0
-    for i in range(len(path) - 1):
-        cost += np.linalg.norm(path[i + 1] - path[i])
-    return cost
-
-
-def to_np(tensor):
-    """Convert torch tensor to numpy array."""
-    return tensor.data.cpu().numpy()
+from environment.timer import Timer
 
 
 class DotDict(dict):
@@ -39,338 +16,249 @@ class DotDict(dict):
     __delattr__ = dict.__delitem__
 
 
-def obs_data(env, free, collided):
-    """Package obstacle and sampled config data for GNN input."""
-    # 获取障碍物数据：ModularEnv 通过 obstacle_manager 存储障碍物
-    if hasattr(env, "obstacle_manager") and hasattr(env.obstacle_manager, "obstacles"):
-        obstacles = (
-            np.array(env.obstacle_manager.obstacles)
-            if env.obstacle_manager.obstacles
-            else np.array([])
-        )
-    else:
-        # 降级处理：如果没有 obstacle_manager，使用空障碍物
-        obstacles = np.array([])
-
-    data = DotDict(
-        {
-            "free": torch.FloatTensor(np.array(free)).to(device),
-            "collided": torch.FloatTensor(np.array(collided))[: len(free)].to(device),
-            "obstacles": torch.FloatTensor(obstacles).to(device)
-            if obstacles.size > 0
-            else torch.FloatTensor([]).to(device),
-        }
-    )
-    return data
+def path_cost(path):
+    path = np.array(path)
+    cost = 0
+    for i in range(0, len(path) - 1):
+        cost += np.linalg.norm(path[i + 1] - path[i])
+    return cost
 
 
-def create_data(free, collided, env, k):
-    """Construct torch_geometric Data object for GNN policy network."""
-    data = Data(goal=torch.FloatTensor(env.goal_state))
-    data.v = torch.cat(
-        (torch.FloatTensor(np.array(free)), torch.FloatTensor(np.array(collided))),
-        dim=0,
-    )
-    data.labels = torch.zeros(len(data.v), 3)
-    data.labels[: len(free), 0] = 1
-    data.labels[len(free) :, 1] = 1
-    data.labels[1, 2] = 1
-    k1 = int(np.ceil(k * np.log(len(free)) / np.log(100)))
-    edge_index = knn_graph(torch.FloatTensor(data.v), k=k1, loop=True)
-    edge_index = torch.cat((edge_index, edge_index.flip(0)), dim=-1)
-    edge_index_free = knn_graph(torch.FloatTensor(data.v[: len(free)]), k=k1, loop=True)
-    edge_index = torch.cat(
-        (edge_index, edge_index_free, edge_index_free.flip(0)), dim=-1
-    )
-    data.edge_index, _ = coalesce(edge_index, None, len(data.v), len(data.v))
-    return data
+def to_np(tensor):
+    return tensor.data.cpu().numpy()
 
 
-@torch.no_grad()
-def explore(
-    env,
-    model,
-    model_s,
-    pbindex=2000,
-    smooth=True,
-    batch=500,
-    t_max=1000,
-    k=30,
-    smoother="model",
-    loop=5,
-):
-    """
-    GNN-guided exploration to find collision-free path.
-
-    Returns dict with success, paths, collision counts, timing, and search trace.
-    """
-    c0 = env.collision_check_count()
-    t0 = time.time()
-    forward = 0
-
-    success = False
-    path, smooth_path = [], []
-    n_batch = batch
-    free, collided, link_info, link_feas_info = env.sample_n_points_probe(
-        n_batch, need_negative=True
-    )
-
-    collided = collided[: len(free)]
-    free = [env.init_state] + [env.goal_state] + list(free)
-
-    explored = [0]
-    explored_edges = [[0, 0]]
-    costs = {0: 0.0}
-    prev = {0: 0}
-
-    data = create_data(free, collided, env, k)
-
-    while not success and (len(free) - 2) <= t_max:
-        t1 = time.time()
-        policy = model(
-            **data.to(device).to_dict(), **obs_data(env, free, collided), loop=loop
-        )
-        policy = policy.cpu()
-        forward += time.time() - t1
-
-        policy[torch.arange(len(data.v)), torch.arange(len(data.v))] = 0
-
-        policy[:, explored] = 0
-
-        policy[:, data.labels[:, 1] == 1] = 0
-        policy[data.labels[:, 1] == 1, :] = 0
-        explored_edges_arr = np.array(explored_edges)
-        if len(explored_edges_arr) > 0:
-            policy[explored_edges_arr[:, 0], explored_edges_arr[:, 1]] = 0
-
-        while policy[explored, :].sum() != 0:
-            agent = policy[
-                np.array(explored)[torch.where(policy[explored, :] != 0)[0]],
-                torch.where(policy[explored, :] != 0)[1],
-            ].argmax()
-
-            end_a, end_b = (
-                torch.where(policy[explored, :] != 0)[0][agent],
-                torch.where(policy[explored, :] != 0)[1][agent],
-            )
-            end_a, end_b = int(end_a), int(end_b)
-            end_a = explored[end_a]
-            explored_edges.extend([[end_a, end_b], [end_b, end_a]])
-
-            edgefeas, sample_info, sample_feas_info = env._edge_fp_probe(
-                to_np(data.v[end_a]), to_np(data.v[end_b])
-            )
-            link_info.append(sample_info)
-            link_feas_info.append(sample_feas_info)
-
-            if edgefeas:
-                explored.append(end_b)
-                costs[end_b] = costs[end_a] + float(
-                    np.linalg.norm(to_np(data.v[end_a]) - to_np(data.v[end_b]))
-                )
-                prev[end_b] = end_a
-
-                policy[:, end_b] = 0
-                if env.in_goal_region(to_np(data.v[end_b])):
-                    success = True
-                    path = [end_b]
-                    node = end_b
-                    while node != 0:
-                        path.append(prev[node])
-                        node = prev[node]
-                    path.reverse()
-                    break
-            else:
-                policy[end_a, end_b] = 0
-                policy[end_b, end_a] = 0
-
-        if not success:
-            if not smooth:
-                return []
-            if (n_batch + len(free) - 2) > t_max:
-                break
-            new_free, new_collided, sample_info, sample_feas_info = (
-                env.sample_n_points_probe(n_batch, need_negative=True)
-            )
-            link_info += sample_info
-            link_feas_info += sample_feas_info
-            free = free + list(new_free)
-            collided = collided + list(new_collided)
-            collided = collided[: len(free)]
-            data = create_data(free, collided, env, k)
-
-    c_explore = env.collision_check_count() - c0
-    c1 = env.collision_check_count()
-    t1 = time.time()
-
-    if success and smooth:
-        path = list(data.v[path].data.cpu().numpy())
-        if smoother == "model":
-            smooth_path, edge_info, edge_feas_info = model_smooth(
-                model_s, free, collided, path, env
-            )
-            link_info += edge_info
-            link_feas_info += edge_feas_info
-        elif smoother == "oracle":
-            smooth_path = joint_smoother(path, env, iter=5)
-        else:
-            smooth_path = path
-
-    c_smooth = env.collision_check_count() - c1
-
-    os.makedirs("logfiles_GNN_2D", exist_ok=True)
-    with open(f"logfiles_GNN_2D/link_info_{pbindex}.pkl", "wb") as f:
-        pickle.dump((link_info, link_feas_info), f)
-
-    if smooth:
-        total_time = time.time()
-        return {
-            "c_explore": c_explore,
-            "c_smooth": c_smooth,
-            "data": data,
-            "explored": explored,
-            "forward": forward,
-            "total": total_time - t0,
-            "total_explore": t1 - t0,
-            "success": success,
-            "t0": t0,
-            "path": path,
-            "smooth_path": smooth_path,
-            "explored_edges": explored_edges,
-        }
-    else:
-        return list(data.v[path].data.cpu().numpy()), free, collided
-
-
-def _load_models(model_key: str, device: torch.device) -> Dict[str, Any]:
-    """Load exploration and smoothing models by key using existing helpers."""
-    model, model_path, smoother, smoother_path = str2model(model_key)
-    model.load_state_dict(torch.load(model_path, map_location=device))
-    smoother.load_state_dict(torch.load(smoother_path, map_location=device))
-    model.to(device).eval()
-    smoother.to(device).eval()
-
-    # 重要：设置模型属性以启用障碍物处理
-    model.use_obstacles = True
-
-    return {"model": model, "smoother": smoother}
-
-
-class GNNPlanner:
-    """Planner wrapper that exposes a BIT*-like plan() entry for GNN inference."""
-
+class GNNMP:
     def __init__(
         self,
-        environment: Any,
-        model: Optional[torch.nn.Module] = None,
-        smoother: Optional[torch.nn.Module] = None,
-        model_key: Optional[str] = None,
-        seed: Optional[int] = None,
-        device: Optional[torch.device] = None,
-    ) -> None:
-        self.env = environment
-        self.device = device or torch.device(
-            "cuda:0" if torch.cuda.is_available() else "cpu"
-        )
-        self.seed = seed
-        self.model_key = model_key
-
-        if model is None or smoother is None:
-            if model_key is None:
-                raise ValueError("Provide either models or a model_key to load them.")
-            models = _load_models(model_key, self.device)
-            model = models["model"]
-            smoother = models["smoother"]
-        else:
-            model.to(self.device).eval()
-            smoother.to(self.device).eval()
-
-        self.model = model
-        self.smoother = smoother
-        self.best_path: List[Any] = []
-        self.latest_result: Optional[Dict[str, Any]] = None
-
-    def plan(
-        self,
-        path_length_limit: Optional[float] = None,
-        problem_index: Optional[int] = None,
-        smooth: bool = True,
-        batch: int = 500,
-        t_max: int = 1000,
-        k: int = 30,
-        loop: int = 5,
-    ) -> Dict[str, Any]:
+        env,
+        model_explore,
+        model_smooth=None,
+        batch=500,
+        t_max=1000,
+        k=30,
+        loop=5,
+        device=None,
+    ):
         """
-        Run a single planning episode using the GNN explorer and smoother.
+        Initialize the GNN-Motion-Planning wrapper.
 
         Args:
-            path_length_limit: Optional upper bound for accepting a solution.
-            problem_index: Problem id used to reset the environment before planning.
-            smooth: Whether to call the learned smoother after exploration.
-            batch: Number of samples per expansion batch.
-            t_max: Maximum number of sampled states during exploration.
-            k: k-NN value used when building the policy graph.
-            loop: Message-passing iterations used by the GNN policy.
+            env: The environment object (e.g., KukaEnv, MazeEnv).
+            model_explore: The trained exploration GNN model.
+            model_smooth: The trained smoothing GNN model (optional).
+            batch: Number of points to sample per iteration.
+            t_max: Maximum number of nodes in the graph (budget).
+            k: K for KNN graph construction.
+            loop: Number of message passing loops in the GNN.
+            device: torch.device (cpu or cuda). If None, auto-detects.
+        """
+        self.env = env
+        self.model = model_explore
+        self.model_s = model_smooth
+        self.batch = batch
+        self.t_max = t_max
+        self.k = k
+        self.loop = loop
+
+        if device is None:
+            self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        else:
+            self.device = device
+
+        self.model.to(self.device)
+        self.model.eval()
+        if self.model_s:
+            self.model_s.to(self.device)
+            self.model_s.eval()
+
+    def _obs_data(self, free, collided):
+        data = DotDict(
+            {
+                "free": torch.FloatTensor(np.array(free)).to(self.device),
+                "collided": torch.FloatTensor(np.array(collided))[: len(free)].to(
+                    self.device
+                ),
+                "obstacles": torch.FloatTensor(
+                    np.array(self.env.obstacle_manager.obstacles)
+                ).to(self.device),
+            }
+        )
+        return data
+
+    def _create_data(self, free, collided):
+        data = Data(goal=torch.FloatTensor(self.env.goal_state))
+        data.v = torch.cat(
+            (torch.FloatTensor(np.array(free)), torch.FloatTensor(np.array(collided))),
+            dim=0,
+        )
+
+        # create labels
+        data.labels = torch.zeros(len(data.v), 3)
+        data.labels[: len(free), 0] = 1
+        data.labels[len(free) :, 1] = 1
+        data.labels[1, 2] = 1
+
+        k1 = int(np.ceil(self.k * np.log(len(free)) / np.log(100)))
+        edge_index = knn_graph(torch.FloatTensor(data.v), k=k1, loop=True)
+        edge_index = torch.cat((edge_index, edge_index.flip(0)), dim=-1)
+        edge_index_free = knn_graph(
+            torch.FloatTensor(data.v[: len(free)]), k=k1, loop=True
+        )
+        edge_index = torch.cat(
+            (edge_index, edge_index_free, edge_index_free.flip(0)), dim=-1
+        )
+        data.edge_index, _ = coalesce(edge_index, None, len(data.v), len(data.v))
+        return data
+
+    @torch.no_grad()
+    def plan(self, smooth=True, smoother="model"):
+        """
+        Execute the GNNMP planning pipeline.
+
+        Args:
+            smooth (bool): Whether to perform path smoothing.
+            smoother (str): 'model' for GNN smoother, 'oracle' for joint_smoother.
 
         Returns:
-            Dictionary with success flag, paths, collision stats, timing,
-            and search trace.
+            dict: Contains result statistics and paths.
         """
-        if self.seed is not None:
-            set_random_seed(self.seed)
-        if problem_index is not None:
-            self.env.init_new_problem(problem_index)
+        c0 = self.env.collision_check_count()
+        t0 = time()
+        forward = 0
 
-        start_wall = time.time()
-        result = cast(
-            Dict[str, Any],
-            explore(
-                self.env,
-                self.model,
-                self.smoother,
-                pbindex=problem_index if problem_index is not None else 0,
-                smooth=smooth,
-                batch=batch,
-                t_max=t_max,
-                k=k,
-                loop=loop,
-            ),
-        )
-        wall_time = time.time() - start_wall
+        success = False
+        path, smooth_path = [], []
+        n_batch = self.batch
 
-        if smooth:
-            chosen_path = result.get("smooth_path", result.get("path", []))
-        else:
-            chosen_path = result.get("path", [])
-        self.best_path = chosen_path
+        # Initial sampling
+        free, collided = self.env.sample_n_points(n_batch, need_negative=True)
+        collided = collided[: len(free)]
+        free = [self.env.init_state] + [self.env.goal_state] + list(free)
 
-        collision_checks_explore = result.get("c_explore", 0)
-        collision_checks_smooth = result.get("c_smooth", 0)
-        collision_checks_total = collision_checks_explore + collision_checks_smooth
-        total_cost = path_cost(chosen_path) if result.get("success") else float("inf")
+        explored = [0]
+        explored_edges = [[0, 0]]
+        costs = {0: 0.0}
+        prev = {0: 0}
 
-        if path_length_limit is not None and total_cost > path_length_limit:
-            result["success"] = False
+        data = self._create_data(free, collided)
 
-        summary: Dict[str, Any] = {
-            "success": result.get("success", False),
-            "path": chosen_path,
-            "raw_path": result.get("path", []),
-            "smooth_path": result.get("smooth_path", chosen_path),
-            "collision_checks": collision_checks_total,
-            "collision_checks_explore": collision_checks_explore,
-            "collision_checks_smooth": collision_checks_smooth,
-            "explored": result.get("explored", []),
-            "explored_edges": result.get("explored_edges", []),
-            "forward_time": result.get("forward", 0.0),
-            "total_time": result.get("total", wall_time),
-            "total_explore_time": result.get("total_explore", 0.0),
-            "wall_time": wall_time,
-            "path_cost": total_cost,
+        # 防止在无法采到新的 free 点时陷入无限重采样，设置最大重试次数
+        resample_attempts = 0
+        max_resample_attempts = 2
+
+        while not success and (len(free) - 2) <= self.t_max:
+            # print("DEBUG: GNNMP iteration with graph size:", len(free))
+            t1 = time()
+            # GNN Inference
+            policy = self.model(
+                **data.to(self.device).to_dict(),
+                **self._obs_data(free, collided),
+                loop=self.loop,
+            )
+            policy = policy.cpu()
+            inference_time = time() - t1
+            forward += inference_time
+
+            # Masking logic
+            policy[torch.arange(len(data.v)), torch.arange(len(data.v))] = 0
+            policy[:, explored] = 0
+            policy[:, data.labels[:, 1] == 1] = 0
+            policy[data.labels[:, 1] == 1, :] = 0
+
+            # Mask explored edges using correct coordinate indexing
+            if len(explored_edges) > 0:
+                ee = np.array(explored_edges)
+                policy[ee[:, 0], ee[:, 1]] = 0
+
+            success = False
+            # Greedy search on policy
+            while policy[explored, :].sum() != 0:
+                agent = policy[
+                    np.array(explored)[torch.where(policy[explored, :] != 0)[0]],
+                    torch.where(policy[explored, :] != 0)[1],
+                ].argmax()
+
+                end_a, end_b = (
+                    torch.where(policy[explored, :] != 0)[0][agent],
+                    torch.where(policy[explored, :] != 0)[1][agent],
+                )
+                end_a, end_b = int(end_a), int(end_b)
+                end_a = explored[end_a]
+                explored_edges.extend([[end_a, end_b], [end_b, end_a]])
+
+                # Collision check edge
+                if self.env._edge_fp(to_np(data.v[end_a]), to_np(data.v[end_b])):
+                    explored.append(end_b)
+                    costs[end_b] = costs[end_a] + np.linalg.norm(
+                        to_np(data.v[end_a]) - to_np(data.v[end_b])
+                    )
+                    prev[end_b] = end_a
+
+                    policy[:, end_b] = 0
+                    if self.env.in_goal_region(to_np(data.v[end_b])):
+                        success = True
+                        cost = costs[end_b]
+                        path = [end_b]
+                        node = end_b
+                        while node != 0:
+                            path.append(prev[node])
+                            node = prev[node]
+                        path.reverse()
+                        break
+                else:
+                    policy[end_a, end_b] = 0
+                    policy[end_b, end_a] = 0
+
+            if not success:
+                if (n_batch + len(free) - 2) > self.t_max:
+                    break
+
+                # Resample and rebuild graph
+                new_free, new_collided = self.env.sample_n_points(
+                    n_batch, need_negative=True
+                )
+                # 如果没有采到新的 free 点，累积重试次数，超过阈值则放弃
+                if len(new_free) == 0:
+                    resample_attempts += 1
+                    if resample_attempts >= max_resample_attempts:
+                        print("WARNING: max resample attempts reached, aborting search")
+                        break
+                else:
+                    resample_attempts = 0
+
+                free = free + list(new_free)
+                collided = collided + list(new_collided)
+                collided = collided[: len(free)]
+
+                data = self._create_data(free, collided)
+
+        c_explore = self.env.collision_check_count() - c0
+        c1 = self.env.collision_check_count()
+        t1 = time()
+
+        if success and smooth:
+            path = list(data.v[path].data.cpu().numpy())
+            if smoother == "model" and self.model_s:
+                smooth_path = model_smooth(self.model_s, free, collided, path, self.env)
+            elif smoother == "oracle":
+                smooth_path = joint_smoother(path, self.env, iter=5)
+            else:
+                smooth_path = path
+        elif success:
+            path = list(data.v[path].data.cpu().numpy())
+            smooth_path = path
+
+        c_smooth = self.env.collision_check_count() - c1
+        total_time = time()
+
+        return {
+            "success": success,
+            "path": path,
+            "smooth_path": smooth_path,
+            "c_explore": c_explore,
+            "c_smooth": c_smooth,
+            "total_time": total_time - t0,
+            "explore_time": t1 - t0,
+            "graph_size": len(free),
         }
-
-        self.latest_result = summary
-        return summary
-
-    def get_best_path(self) -> List[Any]:
-        return self.best_path

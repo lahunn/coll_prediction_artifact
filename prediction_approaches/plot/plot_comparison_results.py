@@ -7,6 +7,7 @@ import matplotlib.pylab as plt
 import numpy as np
 import pandas as pd
 import matplotlib
+import os
 
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
@@ -18,11 +19,17 @@ font = {
 }
 
 # ===== 全局配色方案 =====
-LINK_COLOR = "#0072B2"      # Link-based 方法主色
-SPHERE_COLOR = "#D55E00"    # Sphere-based 方法主色
+LINK_COLOR = "#0072B2"  # Link-based 方法主色
+SPHERE_COLOR = "#D55E00"  # Sphere-based 方法主色
 # 供多曲线使用的渐变色（由深到浅）
-LINK_COLOR_SET = ["#00558a", "#1f78b4", "#6baed6"]
-SPHERE_COLOR_SET = ["#a34700", "#d55e00", "#f4a582"]
+LINK_COLOR_SET = ["#003366", "#0072B2", "#88CCEE"]  # Dark Blue, Base Blue, Light Cyan
+SPHERE_COLOR_SET = [
+    "#663300",
+    "#D55E00",
+    "#FFCC99",
+]  # Dark Brown, Base Orange, Light Peach
+# Precision: Blue, Recall: Vermilion (Orange-Red), SpeedUp: Bluish Green
+METRIC_COLORS = ["#0072B2", "#D55E00", "#009E73"]
 # ======================
 
 # ===== 全局字号配置参数 =====
@@ -37,7 +44,7 @@ FONT_SIZE_TEXT = 18  # 数值标签、注释等字号5
 def plot_accuracy_recall_comparison():
     """
     图1: 不同密度场景下OBB和Sphere策略的准确率和召回率对比
-    统一取QuantBits=4(OBB)和CoordBits=4(Sphere)，对不同Threshold和SampleRate计算平均值
+    统一取QuantBits=4(OBB)和QuantBits=4(Sphere)，对不同Threshold和SampleRate计算平均值
     输出两张独立图: 精确率和召回率
     """
     # 读取OBB详细结果
@@ -65,9 +72,9 @@ def plot_accuracy_recall_comparison():
         obb_precision.append(obb_density["PosePrecision"].mean())
         obb_recall.append(obb_density["PoseRecall"].mean())
 
-        # Sphere: 固定CoordBits=4，对所有Threshold和SampleRate求平均
+        # Sphere: 固定QuantBits=4，对所有Threshold和SampleRate求平均
         sphere_density = sphere_data[
-            (sphere_data["Density"] == density) & (sphere_data["CoordBits"] == 4)
+            (sphere_data["Density"] == density) & (sphere_data["QuantBits"] == 4)
         ]
         sphere_precision.append(sphere_density["PosePrecision"].mean())
         sphere_recall.append(sphere_density["PoseRecall"].mean())
@@ -292,7 +299,7 @@ def plot_cost_comparison():
 def plot_threshold_comparison(density="dens6"):
     """
     图3: 不同阈值下,OBB和Sphere策略的准确率和召回率对比
-    为每个QuantBits/CoordBits生成独立的图表
+    为每个QuantBits/QuantBits生成独立的图表
 
     Args:
         density: 密度级别 ('dens3', 'dens6', 'dens9', 'dens12')
@@ -337,7 +344,9 @@ def plot_threshold_comparison(density="dens6"):
             label="Precision",
         )
         axes[0].set_ylabel("Precision (%)", fontsize=FONT_SIZE_LABEL)
-        axes[0].set_title(f"Link-based (Q={qb}) - {density.upper()}", fontsize=FONT_SIZE_TITLE)
+        axes[0].set_title(
+            f"Link-based (Q={qb}) - {density.upper()}", fontsize=FONT_SIZE_TITLE
+        )
         axes[0].set_xticks(x)
         axes[0].set_xticklabels(
             threshold_labels, rotation=45, ha="right", fontsize=FONT_SIZE_TICK
@@ -357,7 +366,9 @@ def plot_threshold_comparison(density="dens6"):
             label="Recall",
         )
         axes[1].set_ylabel("Recall (%)", fontsize=FONT_SIZE_LABEL)
-        axes[1].set_title(f"Link-based (Q={qb}) - {density.upper()}", fontsize=FONT_SIZE_TITLE)
+        axes[1].set_title(
+            f"Link-based (Q={qb}) - {density.upper()}", fontsize=FONT_SIZE_TITLE
+        )
         axes[1].set_xticks(x)
         axes[1].set_xticklabels(
             threshold_labels, rotation=45, ha="right", fontsize=FONT_SIZE_TICK
@@ -383,11 +394,11 @@ def plot_threshold_comparison(density="dens6"):
         print(f"✅ 图3已保存: figs/fig_threshold_comparison_{density}_obb_q{qb}.png")
         plt.close()
 
-    # 为每个CoordBits生成Sphere图表
+    # 为每个QuantBits生成Sphere图表
     for cb in coord_bits:
         sphere_fixed = sphere_data[
             (sphere_data["Density"] == density)
-            & (sphere_data["CoordBits"] == cb)
+            & (sphere_data["QuantBits"] == cb)
             & (sphere_data["RadiusBits"] == 1)
         ].sort_values("Threshold")
 
@@ -471,7 +482,7 @@ def plot_threshold_comparison(density="dens6"):
 def plot_combined_threshold_comparison():
     """
     图3综合版: 在同一张图中对比OBB和Sphere在不同阈值下的表现
-    为每个QuantBits/CoordBits绘制单独的曲线
+    为每个QuantBits/QuantBits绘制单独的曲线
     """
     # 读取详细结果
     obb_data = pd.read_csv("../result_files/coord_hashing_cost_results.csv", header=0)
@@ -533,11 +544,11 @@ def plot_combined_threshold_comparison():
                 alpha=0.8,
             )
 
-        # 绘制不同CoordBits的Sphere曲线
+        # 绘制不同QuantBits的Sphere曲线
         for cb_idx, cb in enumerate(coord_bits):
             sphere_subset = sphere_data[
                 (sphere_data["Density"] == density)
-                & (sphere_data["CoordBits"] == cb)
+                & (sphere_data["QuantBits"] == cb)
                 & (sphere_data["RadiusBits"] == 1)
             ].sort_values("Threshold")
             ax_prec.plot(
@@ -584,11 +595,11 @@ def plot_combined_threshold_comparison():
                 alpha=0.8,
             )
 
-        # 绘制不同CoordBits的Sphere曲线
+        # 绘制不同QuantBits的Sphere曲线
         for cb_idx, cb in enumerate(coord_bits):
             sphere_subset = sphere_data[
                 (sphere_data["Density"] == density)
-                & (sphere_data["CoordBits"] == cb)
+                & (sphere_data["QuantBits"] == cb)
                 & (sphere_data["RadiusBits"] == 1)
             ].sort_values("Threshold")
             ax_rec.plot(
@@ -958,7 +969,7 @@ def plot_cost_vs_threshold():
 
 def plot_cost_vs_quantbits():
     """
-    图6: 分析Cost随QuantBits/CoordBits的变化情况
+    图6: 分析Cost随QuantBits/QuantBits的变化情况
     OBB和Sphere分别生成独立的图表,展示不同密度下最小成本随量化位数的变化
     """
     # 读取详细结果
@@ -1043,10 +1054,10 @@ def plot_cost_vs_quantbits():
     for idx, density in enumerate(densities):
         min_costs = []
         for cb in coord_bits:
-            # 找到该密度和CoordBits下成本最小的配置(只考虑RadiusBits=1)
+            # 找到该密度和QuantBits下成本最小的配置(只考虑RadiusBits=1)
             subset = sphere_data[
                 (sphere_data["Density"] == density)
-                & (sphere_data["CoordBits"] == cb)
+                & (sphere_data["QuantBits"] == cb)
                 & (sphere_data["RadiusBits"] == 1)
             ]
             if len(subset) > 0:
@@ -1068,9 +1079,9 @@ def plot_cost_vs_quantbits():
             alpha=0.8,
         )
 
-    ax.set_xlabel("CoordBits", fontsize=28)
+    ax.set_xlabel("QuantBits", fontsize=28)
     ax.set_ylabel("Minimum Prediction Cost", fontsize=FONT_SIZE_LABEL)
-    ax.set_title("Sphere: Cost vs CoordBits", fontsize=FONT_SIZE_TITLE)
+    ax.set_title("Sphere: Cost vs QuantBits", fontsize=FONT_SIZE_TITLE)
     ax.set_xticks(coord_bits)
     ax.set_xticklabels([str(cb) for cb in coord_bits], fontsize=FONT_SIZE_TICK)
     ax.tick_params(axis="y", labelsize=FONT_SIZE_TICK)
@@ -1078,19 +1089,21 @@ def plot_cost_vs_quantbits():
     ax.set_ylim(bottom=0)
 
     plt.tight_layout()
-    plt.savefig("figs/fig_cost_vs_coordbits_sphere.png", dpi=300)
-    print("✅ 图6-Sphere已保存: figs/fig_cost_vs_coordbits_sphere.png")
+    plt.savefig("figs/fig_cost_vs_QuantBits_sphere.png", dpi=300)
+    print("✅ 图6-Sphere已保存: figs/fig_cost_vs_QuantBits_sphere.png")
     plt.close()
 
 
 def plot_threshold_metrics_by_density():
     """
-    绘制QuantBits=4和CoordBits=4情况下不同密度场景的性能指标
+    绘制QuantBits=4和QuantBits=4情况下不同密度场景的性能指标
     每个密度场景生成一个图，对比OBB和Sphere在不同Threshold下的Precision、Recall和SpeedUp_Pct
     """
     obb_data = pd.read_csv("../result_files/coord_hashing_cost_results.csv", header=0)
-    sphere_data = pd.read_csv("../result_files/sphere_hashing_cost_results.csv", header=0)
-    
+    sphere_data = pd.read_csv(
+        "../result_files/sphere_hashing_cost_results.csv", header=0
+    )
+
     densities = ["dens3", "dens6", "dens9", "dens12"]
     density_labels = {
         "dens3": "Density 3",
@@ -1098,111 +1111,875 @@ def plot_threshold_metrics_by_density():
         "dens9": "Density 9",
         "dens12": "Density 12",
     }
-    
+
     for density in densities:
         obb_density = obb_data[
             (obb_data["Density"] == density) & (obb_data["QuantBits"] == 4)
         ].sort_values("Threshold")
-        
+
         sphere_density = sphere_data[
-            (sphere_data["Density"] == density) & 
-            (sphere_data["CoordBits"] == 4) &
-            (sphere_data["RadiusBits"] == 1)
+            (sphere_data["Density"] == density)
+            & (sphere_data["QuantBits"] == 4)
+            & (sphere_data["RadiusBits"] == 0)
         ].sort_values("Threshold")
-        
+
         if len(obb_density) == 0 or len(sphere_density) == 0:
-            print(f"⚠️  {density}: Missing data for QuantBits=4 or CoordBits=4")
+            print(f"⚠️  {density}: Missing data for QuantBits=4 or QuantBits=4")
             continue
-        
+
         # 创建1x3子图
         fig, axes = plt.subplots(1, 3, figsize=(20, 6))
         plt.rc("font", **font)
         fig.patch.set_facecolor("white")
         for ax in axes:
             ax.set_facecolor("white")
-        
+
         # 提取数据
         thresholds_obb = obb_density["Threshold"].values
         metrics_obb = [
             obb_density["PosePrecision"].values,
             obb_density["PoseRecall"].values,
-            obb_density["SpeedUp_Pct"].values
+            obb_density["SpeedUp_Pct"].values,
         ]
-        
+
         thresholds_sphere = sphere_density["Threshold"].values
         metrics_sphere = [
             sphere_density["PosePrecision"].values,
             sphere_density["PoseRecall"].values,
-            sphere_density["SpeedUp_Pct"].values
+            sphere_density["SpeedUp_Pct"].values,
         ]
-        
+
         metric_names = ["Precision (%)", "Recall (%)", "SpeedUp_Pct (%)"]
         metric_titles = ["Precision", "Recall", "SpeedUp_Pct"]
-        
+
         # 绘制三个指标
         for i, (ax, name, title) in enumerate(zip(axes, metric_names, metric_titles)):
             x = np.arange(len(thresholds_obb))
             width = 0.35
-            
-            ax.bar(x - width/2, metrics_obb[i], width, label="Link-based", 
-                   color=LINK_COLOR, alpha=0.8)
-            ax.bar(x + width/2, metrics_sphere[i], width, label="Sphere-based", 
-                   color=SPHERE_COLOR, alpha=0.8)
-            
+
+            ax.bar(
+                x - width / 2,
+                metrics_obb[i],
+                width,
+                label="Link-based",
+                color=LINK_COLOR,
+                alpha=0.8,
+            )
+            ax.bar(
+                x + width / 2,
+                metrics_sphere[i],
+                width,
+                label="Sphere-based",
+                color=SPHERE_COLOR,
+                alpha=0.8,
+            )
+
             ax.set_ylabel(name, fontsize=FONT_SIZE_LABEL)
             ax.set_title(title, fontsize=FONT_SIZE_TITLE)
             ax.set_xticks(x)
-            ax.set_xticklabels([f"{t:.3f}" for t in thresholds_obb], 
-                              rotation=45, ha="right", fontsize=FONT_SIZE_TICK)
+            ax.set_xticklabels(
+                [f"{t:.3f}" for t in thresholds_obb],
+                rotation=45,
+                ha="right",
+                fontsize=FONT_SIZE_TICK,
+            )
             ax.set_xlabel("Threshold Value (S)", fontsize=FONT_SIZE_LABEL)
             ax.grid(axis="y", alpha=0.2, linestyle="--")
             ax.tick_params(axis="y", labelsize=FONT_SIZE_TICK)
-            ax.set_ylim([0, max(np.max(metrics_obb[i]), np.max(metrics_sphere[i])) * 1.15]) # type: ignore
-            
+            ax.set_ylim(
+                [0, max(np.max(metrics_obb[i]), np.max(metrics_sphere[i])) * 1.15]  # type: ignore
+            )
+
             # 添加数值标签
             for bars in [ax.containers[0], ax.containers[1]]:
                 for bar in bars:
                     height = bar.get_height()
-                    ax.text(bar.get_x() + bar.get_width()/2, height, f"{height:.1f}",
-                           ha="center", va="bottom", fontsize=FONT_SIZE_TEXT - 4)
-        
+                    ax.text(
+                        bar.get_x() + bar.get_width() / 2,
+                        height,
+                        f"{height:.1f}",
+                        ha="center",
+                        va="bottom",
+                        fontsize=FONT_SIZE_TEXT - 4,
+                    )
+
         # 添加共享图例
         handles, labels = axes[0].get_legend_handles_labels()
-        fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 0.98),
-                  ncol=2, frameon=False, fontsize=FONT_SIZE_LEGEND)
-        
-        fig.suptitle(f"{density_labels[density]} - Performance Metrics Comparison", 
-                    fontsize=FONT_SIZE_TITLE + 2, y=1.02)
-        
+        fig.legend(
+            handles,
+            labels,
+            loc="upper center",
+            bbox_to_anchor=(0.5, 0.98),
+            ncol=2,
+            frameon=False,
+            fontsize=FONT_SIZE_LEGEND,
+        )
+
+        fig.suptitle(
+            f"{density_labels[density]} - Performance Metrics Comparison",
+            fontsize=FONT_SIZE_TITLE + 2,
+            y=1.02,
+        )
+
         plt.tight_layout(rect=(0, 0.02, 1, 0.95))
         plt.savefig(f"figs/fig_threshold_metrics_{density}_comparison.png", dpi=300)
         print(f"✅ 图已保存: figs/fig_threshold_metrics_{density}_comparison.png")
         plt.close()
 
 
+def plot_precision_recall_by_density():
+    """
+    图8: 针对每个密度场景，使用分组直方图(bar)比较Sphere与Link在不同阈值下的Precision和Recall（每个密度单独保存一张图）
+
+    - 对每个阈值，计算Link（OBB）在所有QuantBits下的平均Precision/Recall
+    - 对每个阈值，计算Sphere在所有QuantBits（且RadiusBits==1）下的平均Precision/Recall
+    - 使用分组柱状图显示两种方法的平均值，便于直观比较
+    """
+    # 读取数据时增加错误处理，防止文件不存在导致崩溃
+    try:
+        obb_data = pd.read_csv(
+            "../result_files/coord_hashing_cost_results.csv", header=0
+        )
+    except Exception as e:
+        print(f"⚠️  无法读取 coord_hashing_cost_results.csv: {e}")
+        return
+
+    try:
+        sphere_data = pd.read_csv(
+            "../result_files/sphere_hashing_cost_results.csv",
+            header=0,
+        )
+    except Exception as e:
+        print(f"⚠️  无法读取 sphere_hashing_cost_results.csv: {e}")
+        # 继续，但 sphere_data 设为空 DataFrame，后续会处理
+        sphere_data = pd.DataFrame()
+
+    densities = ["dens3", "dens6", "dens9", "dens12"]
+    density_labels = {
+        "dens3": "Density 3",
+        "dens6": "Density 6",
+        "dens9": "Density 9",
+        "dens12": "Density 12",
+    }
+
+    for density in densities:
+        obb_density = obb_data[obb_data["Density"] == density]
+        # 直接选择 RadiusBits == 0 的 sphere 数据（如无匹配则为空）
+        if not sphere_data.empty:
+            sphere_density = sphere_data[
+                (sphere_data["Density"] == density) & (sphere_data["RadiusBits"] == 0)
+            ]
+        else:
+            sphere_density = pd.DataFrame()
+
+        if obb_density.empty and sphere_density.empty:
+            print(f"⚠️  {density}: No data available for plotting")
+            continue
+
+        # 合并阈值列表（取并集并排序）
+        thresholds = sorted(
+            set(
+                obb_density["Threshold"].unique().tolist()
+                if not obb_density.empty
+                else []
+            )
+            | set(
+                sphere_density["Threshold"].unique().tolist()
+                if not sphere_density.empty
+                else []
+            )
+        )
+        if len(thresholds) == 0:
+            print(f"⚠️  {density}: Empty thresholds, skipping")
+            continue
+
+        x = np.arange(len(thresholds))
+        # 将常见阈值转换为分数标签，未命中的使用小数字格式
+        frac_map = {
+            0.0: "S=0",
+            0.03125: "S=1/32",
+            0.125: "S=1/8",
+            0.25: "S=1/4",
+            0.5: "S=1/2",
+            1.0: "S=1",
+            2.0: "S=2",
+        }
+        threshold_labels = [frac_map.get(round(t, 5), f"S={t:.3f}") for t in thresholds]
+
+        # 计算每个阈值上的平均Precision/Recall
+        obb_prec = []
+        obb_rec = []
+        sphere_prec = []
+        sphere_rec = []
+        for t in thresholds:
+            obb_rows = obb_density[obb_density["Threshold"] == t]
+            sphere_rows = sphere_density[sphere_density["Threshold"] == t]
+
+            obb_prec.append(
+                obb_rows["PosePrecision"].mean() if not obb_rows.empty else np.nan
+            )
+            obb_rec.append(
+                obb_rows["PoseRecall"].mean() if not obb_rows.empty else np.nan
+            )
+
+            sphere_prec.append(
+                sphere_rows["PosePrecision"].mean() if not sphere_rows.empty else np.nan
+            )
+            sphere_rec.append(
+                sphere_rows["PoseRecall"].mean() if not sphere_rows.empty else np.nan
+            )
+
+        # 绘图：分组柱状图（假定源文件数值完整，无 NaN）
+        fig, axes = plt.subplots(1, 2, figsize=(18, 7))
+        plt.rc("font", **font)
+        fig.patch.set_facecolor("white")
+        for ax in axes:
+            ax.set_facecolor("white")
+
+        width = 0.35
+
+        # 子图1: Precision（grouped bar）
+        ax0 = axes[0]
+        bars_link = ax0.bar(
+            x - width / 2, obb_prec, width, label="Link-based (avg)", color=LINK_COLOR
+        )
+        bars_sphere = ax0.bar(
+            x + width / 2,
+            sphere_prec,
+            width,
+            label="Sphere-based (avg)",
+            color=SPHERE_COLOR,
+        )
+
+        ax0.set_title(
+            f"{density_labels[density]} - Precision", fontsize=FONT_SIZE_TITLE
+        )
+        ax0.set_xticks(x)
+        ax0.set_xticklabels(
+            threshold_labels, rotation=45, ha="right", fontsize=FONT_SIZE_TICK
+        )
+        ax0.set_ylabel("Precision (%)", fontsize=FONT_SIZE_LABEL)
+
+        # y 上限基于最大值
+        combined_prec = [v for v in (obb_prec + sphere_prec) if not np.isnan(v)]
+        max_prec = max(combined_prec) if combined_prec else 100
+        ax0.set_ylim([0, 100])
+        ax0.grid(axis="y", alpha=0.2, linestyle="--")
+        ax0.tick_params(axis="y", labelsize=FONT_SIZE_TICK)
+
+        # 子图2: Recall（grouped bar）
+        ax1 = axes[1]
+        bars_link_r = ax1.bar(
+            x - width / 2, obb_rec, width, label="Link-based (avg)", color=LINK_COLOR
+        )
+        bars_sphere_r = ax1.bar(
+            x + width / 2,
+            sphere_rec,
+            width,
+            label="Sphere-based (avg)",
+            color=SPHERE_COLOR,
+        )
+
+        ax1.set_title(f"{density_labels[density]} - Recall", fontsize=FONT_SIZE_TITLE)
+        ax1.set_xticks(x)
+        ax1.set_xticklabels(
+            threshold_labels, rotation=45, ha="right", fontsize=FONT_SIZE_TICK
+        )
+        ax1.set_ylabel("Recall (%)", fontsize=FONT_SIZE_LABEL)
+        ax1.set_ylim([0, 100])
+        ax1.grid(axis="y", alpha=0.2, linestyle="--")
+        ax1.tick_params(axis="y", labelsize=FONT_SIZE_TICK)
+
+        # 共享图例（仅在 dens3 显示）
+        if density == "dens3":
+            handles, labels = ax0.get_legend_handles_labels()
+            fig.legend(
+                handles,
+                labels,
+                loc="upper center",
+                bbox_to_anchor=(0.5, 1.02),
+                ncol=2,
+                frameon=False,
+                fontsize=FONT_SIZE_LEGEND,
+            )
+
+        plt.tight_layout(rect=(0, 0.03, 1, 0.95))
+        plt.savefig(f"figs/fig_precision_recall_{density}_hist.png", dpi=300)
+        print(f"✅ 图已保存: figs/fig_precision_recall_{density}_hist.png")
+        plt.close()
+
+
+def plot_link_sphere_comparison_by_density():
+    # 添加所有柱子的数值标签
+    def add_bar_labels(bars):
+        for bar in bars:
+            height = bar.get_height()
+            if not np.isnan(height):
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2,
+                    height,
+                    f"{height:.1f}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=FONT_SIZE_TEXT,
+                )
+
+    """
+    分别生成各个密度场景下，基于sphere的预测准确率/召回率/Computation/召回率/Computation
+    使用分组直方图，横坐标为S(threshold)，每组依次为：link-准确率、link-召回率、link-Computation sphere-准确率、sphere-召回率、sphere-Computation
+    """
+
+    obb_data = pd.read_csv("../result_files/coord_hashing_cost_results.csv", header=0)
+    sphere_data = pd.read_csv(
+        "../result_files/sphere_hashing_cost_results.csv", header=0
+    )
+
+    densities = ["dens3", "dens6", "dens9", "dens12"]
+    density_labels = {
+        "dens3": "Density 3",
+        "dens6": "Density 6",
+        "dens9": "Density 9",
+        "dens12": "Density 12",
+    }
+
+    for density in densities:
+        obb_density = obb_data[obb_data["Density"] == density]
+        sphere_density = sphere_data[
+            (sphere_data["Density"] == density) & (sphere_data["RadiusBits"] == 0)
+        ]
+
+        # 仅使用预定义的阈值集合（忽略 S=4 等非目标值）
+        allowed_thresholds = [0.0, 0.03125, 0.125, 0.5, 1.0, 2.0]
+        present = set(obb_density["Threshold"]).union(set(sphere_density["Threshold"]))
+        thresholds = [t for t in allowed_thresholds if t in present]
+        if len(thresholds) == 0:
+            print(
+                f"⚠️  {density}: No matching thresholds from allowed set {allowed_thresholds} found."
+            )
+            continue
+
+        # 构造x轴标签
+        frac_map = {
+            0.0: "S=0",
+            0.03125: "S=1/32",
+            0.125: "S=1/8",
+            0.25: "S=1/4",
+            0.5: "S=1/2",
+            1.0: "S=1",
+            2.0: "S=2",
+        }
+        threshold_labels = [frac_map.get(round(t, 5), f"S={t:.3f}") for t in thresholds]
+
+        # 计算每个阈值下的指标
+        link_prec, link_rec, link_speed = [], [], []
+        sphere_prec, sphere_rec, sphere_speed = [], [], []
+        for t in thresholds:
+            obb_rows = obb_density[obb_density["Threshold"] == t]
+            sphere_rows = sphere_density[sphere_density["Threshold"] == t]
+            link_prec.append(
+                obb_rows["PosePrecision"].mean() if not obb_rows.empty else np.nan
+            )
+            link_rec.append(
+                obb_rows["PoseRecall"].mean() if not obb_rows.empty else np.nan
+            )
+            link_speed.append(
+                obb_rows["SpeedUp_Pct"].mean() if not obb_rows.empty else np.nan
+            )
+            sphere_prec.append(
+                sphere_rows["PosePrecision"].mean() if not sphere_rows.empty else np.nan
+            )
+            sphere_rec.append(
+                sphere_rows["PoseRecall"].mean() if not sphere_rows.empty else np.nan
+            )
+            sphere_speed.append(
+                sphere_rows["SpeedUp_Pct"].mean() if not sphere_rows.empty else np.nan
+            )
+
+        # 定义指标颜色方案 (Colorblind-friendly)
+        # Precision: Blue, Recall: Vermilion (Orange-Red), SpeedUp: Bluish Green
+        METRIC_COLORS = ["#0072B2", "#D55E00", "#009E73"]
+
+        # 画图
+        n = len(thresholds)
+        ind = np.arange(n)
+        width = 0.12
+        # Use a slightly taller figure to accommodate the legend without squashing the plot
+        fig, ax = plt.subplots(figsize=(2.5 * n + 4, 5.5))
+        plt.rc("font", **font)
+        fig.patch.set_facecolor("white")
+        ax.set_facecolor("white")
+
+        # Link-based (斜线填充: 白底+彩色边框/斜线)
+        bars1 = ax.bar(
+            ind - 2.5 * width,
+            link_prec,
+            width,
+            label="Link-Precision",
+            facecolor="white",
+            edgecolor=METRIC_COLORS[0],
+            hatch="///",
+            linewidth=1.5,
+        )
+        bars2 = ax.bar(
+            ind - 1.5 * width,
+            link_rec,
+            width,
+            label="Link-Recall",
+            facecolor="white",
+            edgecolor=METRIC_COLORS[1],
+            hatch="///",
+            linewidth=1.5,
+        )
+        bars3 = ax.bar(
+            ind - 0.5 * width,
+            link_speed,
+            width,
+            label="Link-Computation",
+            facecolor="white",
+            edgecolor=METRIC_COLORS[2],
+            hatch="///",
+            linewidth=1.5,
+        )
+
+        # Sphere-based (实心填充)
+        bars4 = ax.bar(
+            ind + 0.5 * width,
+            sphere_prec,
+            width,
+            label="Sphere-Precision",
+            color=METRIC_COLORS[0],
+        )
+        bars5 = ax.bar(
+            ind + 1.5 * width,
+            sphere_rec,
+            width,
+            label="Sphere-Recall",
+            color=METRIC_COLORS[1],
+        )
+        bars6 = ax.bar(
+            ind + 2.5 * width,
+            sphere_speed,
+            width,
+            label="Sphere-Computation",
+            color=METRIC_COLORS[2],
+        )
+
+        ax.set_xticks(ind)
+        ax.set_xticklabels(threshold_labels, rotation=0, ha="center", fontsize=FONT_SIZE_TICK)
+        # 取消纵轴label
+        # ax.set_ylabel("Metric Value (%)", fontsize=FONT_SIZE_LABEL)
+        ax.grid(axis="y", alpha=0.2, linestyle="--")
+        ax.tick_params(axis="y", labelsize=FONT_SIZE_TICK)
+        # 纵轴加%符号
+        ax.yaxis.set_major_formatter(lambda x, pos: f"{x:.0f}%")
+
+        # Use a consistent layout for all densities to keep the plot area size consistent
+        plt.tight_layout(rect=(0, 0.03, 1, 0.82))
+
+        # 只在dens6显示图例
+        if density == "dens6":
+            handles, labels = ax.get_legend_handles_labels()
+            # Reorder for 2 rows x 3 columns, filling column-major
+            # Row 1: Link-P, Link-R, Link-C
+            # Row 2: Sphere-P, Sphere-R, Sphere-C
+            order = [0, 3, 1, 4, 2, 5]
+            handles = [handles[i] for i in order]
+            labels = [labels[i] for i in order]
+            
+            fig.legend(
+                handles,
+                labels,
+                loc="upper center",
+                bbox_to_anchor=(0.5, 1.0),
+                ncol=3,
+                frameon=False,
+                fontsize=FONT_SIZE_LEGEND,
+            )
+        
+        # for bars in [bars1, bars2, bars3, bars4, bars5, bars6]:
+        #     add_bar_labels(bars)
+        outdir = "figs"
+        os.makedirs(outdir, exist_ok=True)
+        outpath = os.path.join(outdir, f"fig_link_sphere_metrics_{density}.png")
+        plt.savefig(outpath, dpi=300)
+        print(f"✅ 图已保存: {outpath}")
+        plt.close()
+
+
+def plot_metrics_at_fixed_S_U():
+    """
+    在每个密度下，对固定的 (S, U) 配置进行 Link / Sphere 三指标对比。
+
+    固定组合 (Threshold S, SampleRate U):
+      - S=0,   U=0.0
+      - S=0.5, U=1.0
+      - S=1.0, U=0.5
+      - S=2.0, U=0.25
+      - S=4.0, U=0.125
+
+    结果以每个密度生成一张 1x3 子图（Precision / Recall / SpeedUp_Pct），每个阈值处展示 Link 与 Sphere 的并列柱状图。
+    """
+    try:
+        obb_data = pd.read_csv(
+            "../result_files/coord_hashing_cost_results.csv", header=0
+        )
+        sphere_data = pd.read_csv(
+            "../result_files/sphere_hashing_cost_results.csv", header=0
+        )
+    except Exception as e:
+        print(f"⚠️  无法读取数据文件: {e}")
+        return
+
+    densities = ["dens3", "dens6", "dens9", "dens12"]
+    density_labels = {
+        "dens3": "Density 3",
+        "dens6": "Density 6",
+        "dens9": "Density 9",
+        "dens12": "Density 12",
+    }
+
+    # 固定的 (S, U) 列表
+    fixed_pairs = [(0.0, 0.0), (0.5, 1.0), (1.0, 0.5), (2.0, 0.25), (4.0, 0.125)]
+    frac_map = {0.0: "S=0", 0.5: "S=1/2", 1.0: "S=1", 2.0: "S=2", 4.0: "S=4"}
+
+    for density in densities:
+        # 为稳定对比限制到 QuantBits=4 与 RadiusBits==0 的 Sphere
+        obb_subset = obb_data[
+            (obb_data["Density"] == density) & (obb_data["QuantBits"] == 4)
+        ]
+        sphere_subset = sphere_data[
+            (sphere_data["Density"] == density)
+            & (sphere_data["QuantBits"] == 4)
+            & (sphere_data["RadiusBits"] == 0)
+        ]
+
+        if obb_subset.empty and sphere_subset.empty:
+            print(f"⚠️  {density}: No data available for fixed S/U comparison")
+            continue
+
+        S_vals = [s for s, u in fixed_pairs]
+        labels = [frac_map.get(s, f"S={s}") for s in S_vals]
+
+        # 收集指标值
+        link_prec, link_rec, link_speed = [], [], []
+        sphere_prec, sphere_rec, sphere_speed = [], [], []
+
+        for s, u in fixed_pairs:
+            # 使用 isclose 来匹配浮点数
+            obb_rows = obb_subset[
+                np.isclose(obb_subset["Threshold"], s)
+                & np.isclose(obb_subset["SampleRate"], u)
+            ]
+            sphere_rows = sphere_subset[
+                np.isclose(sphere_subset["Threshold"], s)
+                & np.isclose(sphere_subset["SampleRate"], u)
+            ]
+
+            link_prec.append(
+                obb_rows["PosePrecision"].mean() if not obb_rows.empty else np.nan
+            )
+            link_rec.append(
+                obb_rows["PoseRecall"].mean() if not obb_rows.empty else np.nan
+            )
+            link_speed.append(
+                obb_rows["SpeedUp_Pct"].mean() if not obb_rows.empty else np.nan
+            )
+
+            sphere_prec.append(
+                sphere_rows["PosePrecision"].mean() if not sphere_rows.empty else np.nan
+            )
+            sphere_rec.append(
+                sphere_rows["PoseRecall"].mean() if not sphere_rows.empty else np.nan
+            )
+            sphere_speed.append(
+                sphere_rows["SpeedUp_Pct"].mean() if not sphere_rows.empty else np.nan
+            )
+
+        # 绘图：按阈值分组，每组 6 个柱（Link: Precision/Recall/Computation，Sphere: Precision/Recall/Computation）
+        fig, ax = plt.subplots(figsize=(2.5 * len(S_vals) + 5, 5.5))
+        plt.rc("font", **font)
+        fig.patch.set_facecolor("white")
+        ax.set_facecolor("white")
+
+        x = np.arange(len(S_vals))
+        # 每组内6个bar，宽度按比例设置
+        w = 0.10
+
+        # Link-based (斜线填充)
+        b1 = ax.bar(
+            x - 2.5 * w,
+            link_prec,
+            w,
+            label="Link-Precision",
+            facecolor="white",
+            edgecolor=METRIC_COLORS[0],
+            hatch="///",
+            linewidth=1.2,
+        )
+        b2 = ax.bar(
+            x - 1.5 * w,
+            link_rec,
+            w,
+            label="Link-Recall",
+            facecolor="white",
+            edgecolor=METRIC_COLORS[1],
+            hatch="///",
+            linewidth=1.2,
+        )
+        b3 = ax.bar(
+            x - 0.5 * w,
+            link_speed,
+            w,
+            label="Link-Computation",
+            facecolor="white",
+            edgecolor=METRIC_COLORS[2],
+            hatch="///",
+            linewidth=1.2,
+        )
+
+        # Sphere-based (实心填充)
+        b4 = ax.bar(
+            x + 0.5 * w,
+            sphere_prec,
+            w,
+            label="Sphere-Precision",
+            color=METRIC_COLORS[0],
+        )
+        b5 = ax.bar(
+            x + 1.5 * w, sphere_rec, w, label="Sphere-Recall", color=METRIC_COLORS[1]
+        )
+        b6 = ax.bar(
+            x + 2.5 * w,
+            sphere_speed,
+            w,
+            label="Sphere-Computation",
+            color=METRIC_COLORS[2],
+        )
+
+        # x 轴标签包括 S 和 U，U 使用分数表示（0, 1/8, 1/4, 1/2, 1）
+        u_frac_map = {0.0: "0", 0.125: "1/8", 0.25: "1/4", 0.5: "1/2", 1.0: "1"}
+        xu_labels = [
+            f"{lbl}\nU={u_frac_map.get(round(u, 5), f'{u:.3f}')}"
+            for lbl, (s, u) in zip(labels, fixed_pairs)
+        ]
+        ax.set_xticks(x)
+        ax.set_xticklabels(xu_labels, rotation=0, ha="center", fontsize=FONT_SIZE_TICK)
+        # 取消纵轴label
+        # ax.set_ylabel("Metric Value (%)", fontsize=FONT_SIZE_LABEL)
+        ax.grid(axis="y", alpha=0.2, linestyle="--")
+        ax.tick_params(axis="y", labelsize=FONT_SIZE_TICK)
+        # 纵轴加%符号
+        ax.yaxis.set_major_formatter(lambda x, pos: f"{x:.0f}%")
+
+        # 动态y上限，考虑所有值
+        combined_vals = [
+            v
+            for v in (
+                link_prec
+                + link_rec
+                + link_speed
+                + sphere_prec
+                + sphere_rec
+                + sphere_speed
+            )
+            if not np.isnan(v)
+        ]
+        max_all = max(combined_vals) if combined_vals else 100
+        ax.set_ylim([0, max_all * 1.15 if max_all > 0 else 100])
+
+        # # 添加数值标签
+        # def add_bar_labels(bars):
+        #     for bar in bars:
+        #         h = bar.get_height()
+        #         if not np.isnan(h):
+        #             ax.text(
+        #                 bar.get_x() + bar.get_width() / 2,
+        #                 h,
+        #                 f"{h:.1f}",
+        #                 ha="center",
+        #                 va="bottom",
+        #                 fontsize=FONT_SIZE_TEXT - 2,
+        #             )
+
+        # for bars in [b1, b2, b3, b4, b5, b6]:
+        #     add_bar_labels(bars)
+
+        # 仅在 dens3 显示图例，并上移
+        if density == "dens3":
+            handles, labels_ = ax.get_legend_handles_labels()
+            fig.legend(
+                handles,
+                labels_,
+                loc="upper center",
+                bbox_to_anchor=(0.5, 1.08),
+                ncol=3,
+                frameon=False,
+                fontsize=FONT_SIZE_LEGEND,
+            )
+            plt.tight_layout(rect=(0, 0.03, 1, 0.80))
+        else:
+            plt.tight_layout(rect=(0, 0.03, 1, 0.95))
+
+        fig.suptitle(
+            f"Fixed S/U Comparison - {density_labels[density]}",
+            fontsize=FONT_SIZE_TITLE + 2,
+            y=1.06,
+        )
+        plt.tight_layout(rect=(0, 0.02, 1, 0.95))
+        outdir = "figs"
+        os.makedirs(outdir, exist_ok=True)
+        outpath = os.path.join(outdir, f"fig_fixed_S_U_{density}.png")
+        plt.savefig(outpath, dpi=300)
+        print(f"✅ 图已保存: {outpath}")
+        plt.close()
+
+
 def plot_update_frequency_impact():
     """
-    图7: 不同更新频率下准确率和召回率的对比
-    注意: 当前数据只有update_prob=0.5的结果,这里演示如何绘制
-    如需完整图表,需要运行不同update_prob参数的优化脚本
+    图7: 不同SampleRate下准确率、召回率和加速比的对比 (Density 6, QuantBits 4)
     """
-    # 这里假设我们有不同更新频率的数据
-    # 实际使用时需要先运行optimize_s_parameters.py和optimize_s_parameters_sphere.py
-    # 使用不同的update_prob参数(如0.1, 0.3, 0.5, 0.7, 0.9)
+    try:
+        obb_data = pd.read_csv(
+            "../result_files/coord_hashing_cost_results.csv", header=0
+        )
+        sphere_data = pd.read_csv(
+            "../result_files/sphere_hashing_cost_results.csv",
+            header=0,
+        )
+    except Exception as e:
+        print(f"⚠️  无法读取数据文件: {e}")
+        return
 
-    print("\n⚠️  注意: 图6需要运行不同update_prob参数的优化脚本")
-    print("示例命令:")
-    print("  python optimize_s_parameters.py 4 0.1")
-    print("  python optimize_s_parameters.py 4 0.3")
-    print("  python optimize_s_parameters.py 4 0.5")
-    print("  python optimize_s_parameters.py 4 0.7")
-    print("  python optimize_s_parameters.py 4 0.9")
-    print("\n  同样对optimize_s_parameters_sphere.py执行相同操作")
+    density = "dens6"
+    qb = 4
+
+    # 筛选数据
+    obb_subset = obb_data[
+        (obb_data["Density"] == density) & (obb_data["QuantBits"] == qb)
+    ]
+    sphere_subset = sphere_data[
+        (sphere_data["Density"] == density)
+        & (sphere_data["QuantBits"] == qb)
+        & (sphere_data["RadiusBits"] == 0)
+    ]
+
+    if obb_subset.empty or sphere_subset.empty:
+        print(f"⚠️  {density} Q={qb}: No data available for SampleRate plot")
+        return
+
+    # 按SampleRate分组求均值
+    obb_grouped = obb_subset.groupby("SampleRate")[
+        ["PosePrecision", "PoseRecall", "SpeedUp_Pct"]
+    ].mean()
+    sphere_grouped = sphere_subset.groupby("SampleRate")[
+        ["PosePrecision", "PoseRecall", "SpeedUp_Pct"]
+    ].mean()
+
+    # 绘图
+    fig, ax1 = plt.subplots(figsize=(12, 8))
+    plt.rc("font", **font)
+    fig.patch.set_facecolor("white")
+    ax1.set_facecolor("white")
+
+    x_obb = obb_grouped.index.values
+    x_sphere = sphere_grouped.index.values
+
+    # 左轴: Precision / Recall
+    ax1.set_xlabel("Sample Rate", fontsize=FONT_SIZE_LABEL)
+    ax1.set_ylabel("Precision / Recall (%)", fontsize=FONT_SIZE_LABEL)
+
+    # Link Lines
+    l1 = ax1.plot(
+        x_obb,
+        obb_grouped["PosePrecision"],
+        "o-",
+        color=METRIC_COLORS[0],
+        label="Link-Precision",
+        linewidth=2,
+    )
+    l2 = ax1.plot(
+        x_obb,
+        obb_grouped["PoseRecall"],
+        "o--",
+        color=METRIC_COLORS[1],
+        label="Link-Recall",
+        linewidth=2,
+    )
+
+    # Sphere Lines
+    l3 = ax1.plot(
+        x_sphere,
+        sphere_grouped["PosePrecision"],
+        "s-",
+        color=METRIC_COLORS[0],
+        label="Sphere-Precision",
+        linewidth=2,
+        markerfacecolor="white",
+    )
+    l4 = ax1.plot(
+        x_sphere,
+        sphere_grouped["PoseRecall"],
+        "s--",
+        color=METRIC_COLORS[1],
+        label="Sphere-Recall",
+        linewidth=2,
+        markerfacecolor="white",
+    )
+
+    ax1.set_ylim([0, 105])
+    ax1.tick_params(axis="y", labelsize=FONT_SIZE_TICK)
+    ax1.tick_params(axis="x", labelsize=FONT_SIZE_TICK)
+
+    # 右轴: SpeedUp
+    ax2 = ax1.twinx()
+    ax2.set_ylabel("SpeedUp (%)", fontsize=FONT_SIZE_LABEL, color=METRIC_COLORS[2])
+
+    l5 = ax2.plot(
+        x_obb,
+        obb_grouped["SpeedUp_Pct"],
+        "^-",
+        color=METRIC_COLORS[2],
+        label="Link-SpeedUp",
+        linewidth=2,
+    )
+    l6 = ax2.plot(
+        x_sphere,
+        sphere_grouped["SpeedUp_Pct"],
+        "^--",
+        color=METRIC_COLORS[2],
+        label="Sphere-SpeedUp",
+        linewidth=2,
+        markerfacecolor="white",
+    )
+
+    ax2.tick_params(axis="y", labelcolor=METRIC_COLORS[2], labelsize=FONT_SIZE_TICK)
+    # ax2.set_ylim([0, max(obb_grouped["SpeedUp_Pct"].max(), sphere_grouped["SpeedUp_Pct"].max()) * 1.1])
+
+    # 合并图例
+    lines = l1 + l2 + l3 + l4 + l5 + l6
+    labels = [l.get_label() for l in lines]
+    fig.legend(
+        lines,
+        labels,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 0.99),
+        ncol=3,
+        frameon=False,
+        fontsize=FONT_SIZE_LEGEND - 4,
+    )
+
+    plt.title(
+        f"Impact of Sample Rate ({density}, Q={qb})", fontsize=FONT_SIZE_TITLE, y=1.02
+    )
+    plt.tight_layout(rect=(0, 0.03, 1, 0.92))
+
+    plt.savefig("figs/fig_sample_rate_impact.png", dpi=300)
+    print("✅ 图7 (SampleRate Impact) 已保存: figs/fig_sample_rate_impact.png")
+    plt.close()
 
 
 def main():
     """主函数"""
-    import os
 
     # 确保figs目录存在
     os.makedirs("figs", exist_ok=True)
@@ -1237,14 +2014,24 @@ def main():
     # plot_cost_vs_threshold()
 
     # # 图6: 成本vs量化位数分析
-    # print("\n生成图6: Cost随QuantBits/CoordBits变化分析...")
+    # print("\n生成图6: Cost随QuantBits/QuantBits变化分析...")
     # plot_cost_vs_quantbits()
 
     # 图7: QuantBits=4下不同密度场景的Threshold对比
-    print("\n生成图7: QuantBits=4下不同Threshold的性能指标对比...")
-    plot_threshold_metrics_by_density()
+    # print("\n生成图7: QuantBits=4下不同Threshold的性能指标对比...")
+    # plot_threshold_metrics_by_density()
 
-    # 图8提示
+    # 图8: 每个密度下Precision/Recall对比
+    print("\n生成图8: 每个密度下Sphere vs Link Precision/Recall对比...")
+    plot_precision_recall_by_density()
+    # 新增: 各密度下Link/Sphere三指标对比
+    print("\n生成图9: 各密度下Link/Sphere三指标对比...")
+    plot_link_sphere_comparison_by_density()
+    # 图9: Sample Rate 影响
+    print("\n生成图10: Sample Rate 影响分析...")
+    plot_metrics_at_fixed_S_U()
+    # # 图9: Sample Rate 影响
+    # print("\n生成图9: Sample Rate 影响分析...")
     # plot_update_frequency_impact()
 
     print("\n" + "=" * 70)

@@ -62,9 +62,10 @@ class ModularEnv:
         self.init_state = tuple(self.robot_env.init_state)
         self.goal_state = tuple(self.robot_env.goal_state)
         self.config_dim = self.robot_env.config_dim
+        self.dim = 3  # 假设都是3D空间
         self.bound = self.robot_env.bound
         self.collision_model_type = collision_model_type
-        self.RRT_EPS = 0.25  # 默认平滑系数
+        self.RRT_EPS = 0.5  # 默认平滑系数
 
     def init_new_problem(self, index):
         """
@@ -167,17 +168,27 @@ class ModularEnv:
         """
         return self.robot_env.get_robot_points(config, end_point)
 
-    def sample_n_points(self, n):
-        """
-        采样配置点（不进行碰撞检测）
-
-        Args:
-            n: 采样数量
-
-        Returns:
-            采样点列表或单个点
-        """
-        return self.robot_env.sample_n_points(n)
+    def sample_n_points(self, n, need_negative=False):
+        negative = []
+        samples = []
+        # 最大循环次数：对每个需要采样的点，最多尝试 10 * n 次，以防止在高密度障碍下陷入无限循环
+        max_attempts_per_sample = 10 * n if n > 0 else 20
+        for i in range(n):
+            attempts = 0
+            while attempts < max_attempts_per_sample:
+                # print(f"debug: sampling point {attempts}/{max_attempts_per_sample}")
+                sample = self.robot_env.sample_n_points(1)
+                if self._state_fp(sample):
+                    samples.append(sample)
+                    break
+                elif need_negative:
+                    negative.append(sample)
+                attempts += 1
+            else:
+                # 达到最大尝试次数仍未采到自由点，跳过该采样（返回的 samples 可能少于请求的 n）
+                # 不抛出异常以保持调用方的鲁棒性
+                pass
+        return samples, negative
 
     def sample_n_points_probe(self, n, need_negative=False):
         """
@@ -191,8 +202,8 @@ class ModularEnv:
             如果 need_negative=False: 返回 (free, [], info_list, info_coll_list)
             如果 need_negative=True: 返回 (free, collided, info_list, info_coll_list)
         """
-        free = []
-        collided = []
+        negative = []
+        samples = []
         info_list = []
         info_coll_list = []
 
@@ -204,17 +215,17 @@ class ModularEnv:
 
                 if is_free:
                     # 找到自由配置，加入正样本并退出内循环
-                    free.append(sample)
+                    samples.append(sample)
                     info_list.append(info)
                     info_coll_list.append(info_coll)
                     break
                 elif need_negative:
                     # 碰撞配置，加入负样本并继续尝试
-                    collided.append(sample)
+                    negative.append(sample)
                     info_list.append(info)
                     info_coll_list.append(info_coll)
 
-        return free, collided, info_list, info_coll_list
+        return samples, negative, info_list, info_coll_list
 
     def interpolate(self, from_state, to_state, ratio):
         """

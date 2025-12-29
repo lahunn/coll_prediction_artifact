@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 from torch_geometric.data import Data
-from trace_generation.bit_planning.algorithm.config import set_random_seed
+from trace_generation.utils.config import set_random_seed
 from tqdm import tqdm as tqdm
 from torch_sparse import coalesce
 from torch_geometric.nn import knn_graph
@@ -10,7 +10,7 @@ from smoother import model_smooth, proposed_path_smoother, joint_smoother, inter
 # from model_smoother2 import ModelSmoother
 from str2name import str2name
 from environment.timer import Timer
-import pickle
+
 loop = 5
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -111,13 +111,12 @@ def eval_gnn(str, seed, env, indexes, model=None, model_s=None, use_tqdm=False, 
 
     pbar = tqdm(indexes) if use_tqdm else indexes
     for index in pbar:
-        print("Environement",index)
+
         env.init_new_problem(index)
-        result = explore(env, model, model_s, pbindex=index, smooth=smooth, batch=batch, t_max=t_max, k=k, **kwargs)
+        result = explore(env, model, model_s, smooth, batch=batch, t_max=t_max, k=k, **kwargs)
 
         paths.append(result['path'])
         smooth_paths.append(result['smooth_path'])
-        print(result['c_explore'],result['c_smooth'])
         solutions.append(
             (result['success'], path_cost(result['path']), path_cost(result['smooth_path']),
              result['c_explore'], result['c_smooth'], result['total'], result['total_explore']))
@@ -129,8 +128,12 @@ def eval_gnn(str, seed, env, indexes, model=None, model_s=None, use_tqdm=False, 
     n_success = sum([s[0] for s in solutions])
     collision_explore = np.mean([s[3] for s in solutions])
     collision = np.mean([(s[3] + s[4]) for s in solutions])
-    running_time = float(sum([s[5] for s in solutions if s[0]])) / n_success
-    solution_cost = float(sum([(s[2]) for s in solutions if s[0]])) / n_success
+    if n_success > 0:
+        running_time = float(sum([s[5] for s in solutions if s[0]])) / n_success
+        solution_cost = float(sum([(s[2]) for s in solutions if s[0]])) / n_success
+    else:
+        running_time = 0.0
+        solution_cost = 0.0
     total_time = sum([s[5] for s in solutions])
     total_time_explore = sum([s[6] for s in solutions])
 
@@ -167,11 +170,9 @@ def create_data(free, collided, env, k):
 
 
 @torch.no_grad()
-def explore(env, model, model_s, pbindex=2000,smooth=True, batch=500, t_max=1000, k=30, smoother='model', loop=5):
-    #link_info=[]
-    #link_feas_info=[]
+def explore(env, model, model_s, smooth=True, batch=500, t_max=1000, k=30, smoother='model', loop=5):
+    
     c0 = env.collision_check_count
-    print("Starting the exploration")
     t0 = time()
     forward = 0
     
@@ -179,9 +180,7 @@ def explore(env, model, model_s, pbindex=2000,smooth=True, batch=500, t_max=1000
     path, smooth_path = [], []
     n_batch = batch
     #     n_batch = min(batch, t_max)
-    free, collided,link_info,link_feas_info = env.sample_n_points_probe(n_batch, need_negative=True)
-    #link_info.append(sample_info)
-    #link_feas_info.append(sample_feas_info)
+    free, collided = env.sample_n_points(n_batch, need_negative=True)
     collided = collided[:len(free)]
     free = [env.init_state] + [env.goal_state] + list(free)
     
@@ -199,12 +198,16 @@ def explore(env, model, model_s, pbindex=2000,smooth=True, batch=500, t_max=1000
         policy = model(**data.to(device).to_dict(), **obs_data(env, free, collided), loop=loop)
         policy = policy.cpu()
         forward += time() - t1
-
+        
         policy[torch.arange(len(data.v)), torch.arange(len(data.v))] = 0
         policy[:, explored] = 0
         policy[:, data.labels[:, 1] == 1] = 0
         policy[data.labels[:, 1] == 1, :] = 0
-        policy[np.array(explored_edges).reshape(2, -1)] = 0
+        
+        if len(explored_edges) > 0:
+            ee = np.array(explored_edges)
+            policy[ee[:, 0], ee[:, 1]] = 0
+            
         success = False
         while policy[explored, :].sum() != 0:
 
@@ -217,12 +220,7 @@ def explore(env, model, model_s, pbindex=2000,smooth=True, batch=500, t_max=1000
             end_a, end_b = int(end_a), int(end_b)
             end_a = explored[end_a]
             explored_edges.extend([[end_a, end_b], [end_b, end_a]])
-            #print("edge_main")
-            edgefeas,sample_info,sample_feas_info=env._edge_fp_probe(to_np(data.v[end_a]), to_np(data.v[end_b]))
-            #print(sample_feas_info,link_feas_info[-1])
-            link_info.append(sample_info)
-            link_feas_info.append(sample_feas_info)
-            if edgefeas:
+            if env._edge_fp(to_np(data.v[end_a]), to_np(data.v[end_b])):
                 explored.append(end_b)
                 costs[end_b] = costs[end_a] + np.linalg.norm(to_np(data.v[end_a]) - to_np(data.v[end_b]))
                 prev[end_b] = end_a
@@ -249,9 +247,7 @@ def explore(env, model, model_s, pbindex=2000,smooth=True, batch=500, t_max=1000
             if (n_batch + len(free) - 2) > t_max:
                 break
             # ----------------------------------------resample----------------------------------------
-            new_free, new_collided,sample_info,sample_feas_info = env.sample_n_points_probe(n_batch, need_negative=True)
-            link_info+=sample_info
-            link_feas_info+=sample_feas_info
+            new_free, new_collided = env.sample_n_points(n_batch, need_negative=True)
             free = free + list(new_free)
             collided = collided + list(new_collided)
             collided = collided[:len(free)]
@@ -264,19 +260,12 @@ def explore(env, model, model_s, pbindex=2000,smooth=True, batch=500, t_max=1000
     if success and smooth:
         path = list(data.v[path].data.cpu().numpy())
         if smoother == 'model':
-            #print("here")
-            smooth_path,edge_info,edge_feas_info = model_smooth(model_s, free, collided, path, env)
-            #print(edge_feas_info)
-            link_info+=edge_info
-            link_feas_info+=edge_feas_info
+            smooth_path = model_smooth(model_s, free, collided, path, env)
         elif smoother == 'oracle':
             smooth_path = joint_smoother(path, env, iter=5)
         else:
             smooth_path = path
     c_smooth = env.collision_check_count - c1
-    f=open("logfiles_GNN_2D/link_info_"+str(pbindex)+".pkl","wb")
-    pickle.dump((link_info,link_feas_info),f)
-    f.close()
     if smooth:
         total_time = time()
         return {'c_explore': c_explore,

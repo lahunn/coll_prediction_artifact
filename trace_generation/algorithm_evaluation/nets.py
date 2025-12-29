@@ -351,28 +351,8 @@ from torch_sparse import SparseTensor
 
 from torch_geometric.nn import LEConv
 from torch_geometric.utils import softmax
+from torch_geometric.nn.pool.select.topk import topk
 from torch_geometric.utils import add_remaining_self_loops
-
-
-def topk(x, ratio, batch=None):
-    """Batch-aware top-k selection (replacement for deprecated torch_geometric.nn.pool.topk_pool.topk)."""
-    if batch is None:
-        # No batch: simple global topk
-        k = max(1, int(x.size(0) * ratio))
-        _, perm = torch.topk(x, k)
-        return perm
-    
-    # Batch-aware: select ratio*batch_size for each batch
-    perm = []
-    for batch_idx in batch.unique():
-        mask = batch == batch_idx
-        batch_x = x[mask]
-        k = max(1, int(batch_x.size(0) * ratio))
-        _, local_perm = torch.topk(batch_x, min(k, batch_x.size(0)))
-        # Convert local indices to global indices
-        global_perm = mask.nonzero(as_tuple=True)[0][local_perm]
-        perm.append(global_perm)
-    return torch.cat(perm) if perm else torch.tensor([], dtype=torch.long, device=x.device)
 
 
 class ASAPooling(torch.nn.Module):
