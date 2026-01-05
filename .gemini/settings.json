@@ -1,28 +1,6 @@
 {
-  "checkpointing": true,
-  "autoAccept": false,
-  "ui": {
-    "theme": "custom",
-    "colors": {
-      "user": "cyan",
-      "assistant": "white",
-      "system": "dim",
-      "error": "red",
-      "success": "green",
-      "// 关键部分：提升高亮可见度": "",
-      "highlight": "bold yellow",
-      "accent": "brightMagenta",
-      "selection": "inverse",
-      "code": "brightCyan"
-    },
-    "symbols": {
-      "prefix": "❯",
-      "success": "✔",
-      "error": "✖"
-    }
-  },
-  "context": {
-    "fileName": "GEMINI.md"
+  "tools": {
+    "autoAccept": false
   },
   "mcpServers": {
     "filesystem": {
@@ -57,5 +35,8 @@
         "@modelcontextprotocol/server-sequential-thinking"
       ]
     }
+  },
+  "context": {
+    "fileName": "GEMINI.md"
   }
 }
