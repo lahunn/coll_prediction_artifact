@@ -49,10 +49,13 @@ class ModularEnv:
         self.robot_env = RobotEnv(
             robot_name, OBB_GUI=GUI, enable_self_collision=enable_self_collision
         )
+        # 中央管理 RRT_EPS（默认为 0.25），并将其注入 CollisionEnv
+        self.RRT_EPS = 0.25
         self.collision_env = CollisionEnv(
             self.robot_env,
             collision_model_type=collision_model_type,
             return_cycles=return_cycles,
+            RRT_EPS=self.RRT_EPS,
         )
         self.obstacle_manager = ObstacleManager(
             physics_client=self.robot_env.physics_client
@@ -65,7 +68,6 @@ class ModularEnv:
         self.dim = 3  # 假设都是3D空间
         self.bound = self.robot_env.bound
         self.collision_model_type = collision_model_type
-        self.RRT_EPS = 0.5  # 默认平滑系数
 
     def init_new_problem(self, index):
         """

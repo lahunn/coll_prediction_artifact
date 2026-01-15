@@ -1,6 +1,11 @@
 import random
 from tqdm import tqdm
 
+# ------------------------
+# Plotting utilities
+# ------------------------
+import numpy as np
+
 
 def find_sim_cost(R, C, A, N):
     """
@@ -52,6 +57,7 @@ def find_sim_cost(R, C, A, N):
     # 返回所有模拟的平均运行次数
     return all_runs / 10000
 
+
 def calculate_expected_checks(R, C, A, N):
     """
     使用精确的封闭形式公式计算期望的碰撞检测次数。
@@ -74,44 +80,44 @@ def calculate_expected_checks(R, C, A, N):
     if A == 0 and C * R > 0:
         raise ValueError("当 A=0 时, C*R 必须也为0。")
     # P(Y) = C*R/A 必须小于等于1
-    if C * R > A + 1e-9: # 加上一个小的容差避免浮点数问题
-        raise ValueError(f"参数组合无效: C*R ({C*R}) 不能大于 A ({A})。")
-        
+    if C * R > A + 1e-9:  # 加上一个小的容差避免浮点数问题
+        raise ValueError(f"参数组合无效: C*R ({C * R}) 不能大于 A ({A})。")
+
     # --- 边界情况处理 ---
     # 如果实际碰撞概率为0，则永远不会碰撞，必须执行完所有N次检测。
     if R == 0:
         return float(N)
-    
+
     # 如果精确率为0 (且C*R=0)，则所有预测为碰撞的都不是碰撞。
     # 此时组1为空或无用，相当于无策略。
     if A == 0:
-        return (1 - (1 - R)**N) / R
+        return (1 - (1 - R) ** N) / R
 
     # --- 计算中间变量 ---
-    
+
     # 任务被预测为"碰撞"的概率 P(Y)
     prob_predicted_positive = (C * R) / A
 
     # 组2内任务实际为碰撞的概率 P2
     if abs(prob_predicted_positive - 1.0) < 1e-9:
         # 如果所有任务都被预测为碰撞，则组2为空，P2无意义，且第二项为0。
-        P2 = 0 # 设为0以避免除零错误
+        P2 = 0  # 设为0以避免除零错误
     else:
         P2 = ((1 - C) * R) / (1 - prob_predicted_positive)
 
     # --- 计算精确期望 ---
-    
+
     # E = (1 - (1 - CR)^N)/A + ((1 - CR)^N - (1-R)^N)/P2
-    
-    term1 = (1 - (1 - C * R)**N) / A
-    
+
+    term1 = (1 - (1 - C * R) ** N) / A
+
     # (1 - CR)^N
-    term_1_minus_cr_pow_n = (1 - C * R)**N
+    term_1_minus_cr_pow_n = (1 - C * R) ** N
     # (1 - R)^N
-    term_1_minus_r_pow_n = (1 - R)**N
-    
+    term_1_minus_r_pow_n = (1 - R) ** N
+
     numerator_term2 = term_1_minus_cr_pow_n - term_1_minus_r_pow_n
-    
+
     if abs(P2) < 1e-9:
         # 如果P2为0，意味着组2中没有碰撞。
         # 此时需要检查分子是否也为0。 (1-CR)^N - (1-R)^N 只有在C=1或R=0时为0。
@@ -123,6 +129,7 @@ def calculate_expected_checks(R, C, A, N):
     else:
         term2 = numerator_term2 / P2
     return term1 + term2
+
 
 def calculate_baseline_expectation(N: int, R: float) -> float:
     """
@@ -138,19 +145,42 @@ def calculate_baseline_expectation(N: int, R: float) -> float:
     返回:
     float: 执行的碰撞检测任务总次数的期望值。
     """
-    
+
     # --- 输入验证 ---
     if not 0.0 <= R <= 1.0:
         raise ValueError("概率 P 必须在 [0.0, 1.0] 范围内。")
-        
+
     # --- 边界情况处理 ---
     # 如果碰撞概率为 0，那么永远不会发生碰撞，
     # 必须执行完所有 N 次检测才能结束。
     if R == 0.0:
         return float(N)
-        
+
     # --- 应用主公式 ---
     # E = (1 - (1-P)^N) / P
-    expected_value = (1 - (1 - R)**N) / R
-    
+    expected_value = (1 - (1 - R) ** N) / R
+
     return expected_value
+
+
+def add_bar_labels(ax, bars, fmt="{:.1f}", fontsize=8):
+    """Add numeric labels above matplotlib bar containers.
+
+    Args:
+        ax: matplotlib Axes instance to draw labels on.
+        bars: iterable of matplotlib.patches.Rectangle (returned by ax.bar).
+        fmt: format string or callable to format the number; default "{:.1f}".
+        fontsize: label font size.
+    """
+    for bar in bars:
+        height = bar.get_height()
+        if not np.isnan(height):
+            label = fmt.format(height) if isinstance(fmt, str) else fmt(height)
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                height,
+                label,
+                ha="center",
+                va="bottom",
+                fontsize=fontsize,
+            )

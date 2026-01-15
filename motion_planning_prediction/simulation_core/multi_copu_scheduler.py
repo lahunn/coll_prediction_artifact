@@ -6,7 +6,7 @@ from collections import deque
 from .constants import NUM_OOCDS
 from .copu_module import COPUModule
 from .cht_access_scheduler import CHT_AccessScheduler
-import simulation_utils as su
+from .data_preprocessing import allocate_edge_data_to_copus
 
 
 class MultiCOPU_Scheduler:
@@ -186,7 +186,7 @@ class MultiCOPU_Scheduler:
         edge_coll = self.all_coll[edge_idx]
         edge_cycle = self.all_cycles[edge_idx] if self.all_cycles else None
 
-        sub_coords, sub_colls, sub_cycles = su.allocate_edge_data_to_copus(
+        sub_coords, sub_colls, sub_cycles = allocate_edge_data_to_copus(
             edge_data, edge_coll, edge_cycle, self.copus_per_edge
         )
 

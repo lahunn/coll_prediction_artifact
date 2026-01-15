@@ -109,13 +109,15 @@ def generate_single_problem(
         modular_env.goal_state = goal
         planner = BITStar(modular_env)
 
-        result = planner.plan(pathLengthLimit=float("inf"), time_budget=max_planning_time)
+        result = planner.plan(
+            pathLengthLimit=float("inf"), time_budget=max_planning_time
+        )
         samples = result.get("samples", [])
         edges = result.get("edges", {})
         collision_check_count = result.get("collision_checks", 0)
         cost = result.get("cost", float("inf"))
         num_samples = result.get("n_samples", 0)
-        planning_time = result.get("total_time", 0.0) 
+        planning_time = result.get("total_time", 0.0)
 
         if cost < float("inf"):
             path = reconstruct_path(edges, start, goal)
@@ -392,9 +394,11 @@ def generate_problem_dataset(
         modular_env_sphere.init_state = start
         modular_env_sphere.goal_state = goal
         planner_sphere = BITStar(modular_env_sphere)
-        _, edges_sphere, _, cost_sphere, _, _ = planner_sphere.plan(
+        result_sphere = planner_sphere.plan(
             pathLengthLimit=float("inf"), time_budget=max_planning_time
         )
+        edges_sphere = result_sphere.get("edges", {})
+        cost_sphere = result_sphere.get("cost", float("inf"))
 
         path_sphere = None
         if cost_sphere < float("inf"):

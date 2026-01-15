@@ -6,7 +6,7 @@ echo "Starting data generation pipeline..."
 echo "Step 1: Generating scene files..."
 ROBOT_NAME="iiwa"
 NUM_PROBLEMS=100
-NUM_SAMPLES=3000
+NUM_SAMPLES=1000
 BASE_SEED=0
 DENSITIES=("dens3" "dens6" "dens9" "dens12")
 
@@ -20,7 +20,7 @@ do
     for density in "${DENSITIES[@]}"
     do  
         echo "  Processing density: ${density}"
-        obstacle_file="../trace_files/scene_benchmarks/${density}/obstacles_${i}.pkl"
+        obstacle_file="../../trace_files/scene_benchmarks/${density}/obstacles_${i}.pkl"
         if [[ ! -f "${obstacle_file}" ]]; then
             echo "    Warning: obstacle file not found at ${obstacle_file}, skipping."
             continue

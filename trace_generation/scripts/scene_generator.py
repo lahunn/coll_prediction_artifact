@@ -8,7 +8,7 @@ import tqdm
 
 # Add parent directory to path
 
-from data.workspace_bounds.workspace_analyzer import WorkspaceAnalyzer
+from trace_generation.data.workspace_bounds.workspace_analyzer import WorkspaceAnalyzer
 from trace_generation.core.robot.environment import robot_urdf_mapping
 
 # 配置参数
@@ -25,6 +25,7 @@ if len(sys.argv) > 2:
 
 print(f"使用机器人: {ROBOT_NAME}")
 print(f"生成场景数量: {num_problems}")
+
 
 def get_robot_workspace_bounds(robot_name):
     """
@@ -78,6 +79,7 @@ def get_robot_workspace_bounds(robot_name):
 
     return workspace_bounds, robot_urdf_path
 
+
 # 获取机器人工作空间边界
 workspace_bounds, ROBOT_URDF_PATH = get_robot_workspace_bounds(ROBOT_NAME)
 print(f"机器人URDF路径: {ROBOT_URDF_PATH}")
@@ -115,6 +117,7 @@ while t < zend:
     t = t + length
 # num_ob=sys.argv[1]
 
+
 def find_nearest(x1, x2, xlist):
     """改进版本，使用二分查找提高效率"""
     import bisect
@@ -124,6 +127,7 @@ def find_nearest(x1, x2, xlist):
     upper = max(0, bisect.bisect_right(xlist, x2) - 1)
 
     return (lower, upper)
+
 
 def find_collision(x1, y1, z1, x2, y2, z2):
     list_voxels = []
@@ -138,12 +142,14 @@ def find_collision(x1, y1, z1, x2, y2, z2):
                 list_voxels.append((k, j, i))
     return list_voxels
 
+
 def remove_dup(list_voxels):
     new = []
     for i in list_voxels:
         if i not in new:
             new.append(i)
     return new
+
 
 # 定义一个机器人基座周围的避让区域（立方体），防止障碍物生成得太近
 # 尺寸为 [min, max]，单位为米
@@ -164,6 +170,7 @@ for num_ob in [3, 6, 9, 12]:
             for k in range(0, len(xlist)):
                 voxel_dict[(k, j, i1)] = 0
     output_dir = os.path.join(
+        "..",
         "..",
         "trace_files",
         "scene_benchmarks",

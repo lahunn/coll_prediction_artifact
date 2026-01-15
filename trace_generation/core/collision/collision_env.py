@@ -32,13 +32,14 @@ class CollisionEnv:
 
     不涉及具体的碰撞检测算法实现（由下层 detector 负责）
     """
-    RRT_EPS = 0.5
+
     def __init__(
         self,
         robot_env,
         collision_model_type: str = "link",
         config_output_file: Optional[str] = None,
         return_cycles: bool = False,
+        RRT_EPS: float = 0.1,
     ):
         """
         初始化碰撞检测环境
@@ -50,11 +51,13 @@ class CollisionEnv:
                 - "sphere": 使用 SphereEnvGeometric
             config_output_file: 配置输出文件路径（可选）
             return_cycles: 是否返回硬件周期成本（仅Sphere模型支持）
+            RRT_EPS: 离散化步长（可选，未提供时使用类默认）
         """
         self.robot_env = robot_env
         self.collision_model_type = collision_model_type
         self.config_output_file = config_output_file
         self.config_list = []
+        self.RRT_EPS = RRT_EPS
 
         # 根据模型类型选择合适的检测器
         if collision_model_type == "link":
@@ -122,10 +125,7 @@ class CollisionEnv:
         return is_free
 
     def _discretize_edge(
-        self,
-        state: np.ndarray,
-        new_state: np.ndarray,
-        RRT_EPS: float = RRT_EPS,
+        self, state: np.ndarray, new_state: np.ndarray
     ) -> List[np.ndarray]:
         """
         将边离散化为多个配置点
@@ -133,11 +133,13 @@ class CollisionEnv:
         Args:
             state: 起点配置
             new_state: 终点配置
-            RRT_EPS: 离散化步长
+            RRT_EPS: 离散化步长（可选，默认使用实例的 self.RRT_EPS）
 
         Returns:
             list: 离散化的配置列表 [起点, 中间点..., 终点]
         """
+        RRT_EPS = self.RRT_EPS
+
         disp = new_state - state
         d = np.linalg.norm(disp)
         K = int(d / RRT_EPS)
@@ -152,12 +154,7 @@ class CollisionEnv:
         edge_configs.append(new_state.copy())
         return edge_configs
 
-    def _edge_fp(
-        self,
-        state: np.ndarray,
-        new_state: np.ndarray,
-        RRT_EPS: Optional[float] = None,
-    ) -> bool:
+    def _edge_fp(self, state: np.ndarray, new_state: np.ndarray) -> bool:
         """
         检查边并收集数据
 
@@ -171,14 +168,12 @@ class CollisionEnv:
         Returns:
             bool: 整条边是否无碰撞
         """
-        if RRT_EPS is None:
-            RRT_EPS = self.RRT_EPS
 
         self.data_manager.edge_fp_call_count += 1
         assert state.size == new_state.size
 
         # 离散化边
-        edge_configs = self._discretize_edge(state, new_state, RRT_EPS)
+        edge_configs = self._discretize_edge(state, new_state)
 
         # 对边上的每个 pose 进行检测，聚合整条边的数据
         edge_free = True
@@ -235,7 +230,7 @@ class CollisionEnv:
         Returns:
             bool: 路径段是否可行
         """
-        edge_configs = self._discretize_edge(left, right, self.RRT_EPS)
+        edge_configs = self._discretize_edge(left, right)
         for config in edge_configs:
             if not self._state_fp(config):
                 return False
