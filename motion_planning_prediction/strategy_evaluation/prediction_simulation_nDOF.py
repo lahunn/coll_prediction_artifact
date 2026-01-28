@@ -37,6 +37,7 @@ import simulation_utils as su
 # 添加 trace_generation 目录到 Python 路径
 from trace_generation.config.ana_parameters import get_robot_params
 
+from common_simulation_utils import get_bins, print_final_statistics
 # --- Simulation Settings ---
 num_oocds = 7
 quant_bits = 4
@@ -73,7 +74,6 @@ collision_model_type = sys.argv[8] if len(sys.argv) > 8 else "link"
 # 获取机器人参数
 robot_params = get_robot_params(robot_name)
 
-# 使用workspace信息计算bins
 bins = su.calculate_bins_from_workspace(robot_name, quant_bits)
 
 if collision_model_type == "sphere":
@@ -199,23 +199,18 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
             f"[{benchid}/{num_benchmarks}] 预测查询: {all_prediction:.2f}, Oracle查询: {all_oracle}"
         )
 
-print("\n" + "=" * 50)
-print("Final Statistics:")
-print(f"  Total Actual Checks: {total_checks}")
-print(f"  Total Prediction Queries: {fall_prediction:.2f}")
-print(f"  Total Oracle Queries: {fall_oracle}")
-print(f"  Query Reduction Rate: {(1 - fall_prediction / total_checks) * 100:.2f}%")
-print(
-    f"  Query Difference (Prediction - Oracle): {(fall_prediction - fall_oracle) / fall_oracle * 100:.2f}%"
+
+print_final_statistics(
+    total_checks=total_checks,
+    fall_prediction=fall_prediction,
+    fall_oracle=fall_oracle,
+    fall_cycle=fall_cycle,
+    theoretical_min_cycles=theoretical_min_cycles,
+    total_pred_coll_cycles=total_pred_coll_cycles,
+    total_pred_noncoll_cycles=total_pred_noncoll_cycles,
+    total_oracle_coll_cycles=total_oracle_coll_cycles,
+    total_oracle_noncoll_cycles=total_oracle_noncoll_cycles
 )
-print(f"\n  Total Cycles (Prediction): {fall_cycle}")
-print(f"  Total Cycles (Oracle): {theoretical_min_cycles}")
-print(f"  Cycle Efficiency: {(theoretical_min_cycles / fall_cycle) * 100:.2f}%")
-print(f"\n  Prediction Coll Edge Cycles: {total_pred_coll_cycles}")
-print(f"  Prediction Non-Coll Edge Cycles: {total_pred_noncoll_cycles}")
-print(f"  Oracle Coll Edge Cycles: {total_oracle_coll_cycles}")
-print(f"  Oracle Non-Coll Edge Cycles: {total_oracle_noncoll_cycles}")
-print("=" * 50)
 
 # 输出到CSV
 reduction_rate = (1 - fall_prediction / total_checks) * 100 if total_checks > 0 else 0

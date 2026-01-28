@@ -46,3 +46,5 @@ trace_files/gnn_traces/*.pkl
 trace_files/gnn_kuka7_difficulty/*/*.pkl
 trace_files/gnn_kuka7_difficulty/metadata.csv
 trace_files/gnn_traces/*/*.pkl
+motion_planning_prediction/strategy_evaluation/*.csv
+GEMINI.md

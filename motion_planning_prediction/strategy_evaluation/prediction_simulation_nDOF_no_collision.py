@@ -6,6 +6,7 @@
 只对无碰撞边数据进行仿真模拟
 
 数据格式:
+from common_simulation_utils import get_bins, print_final_statistics
 - sphere_link_data[edge][pose][sphere] = [x, y, z, radius]
 - sphere_link_coll_data[edge][pose][sphere] = 1 or 0
 

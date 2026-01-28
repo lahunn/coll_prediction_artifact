@@ -18,6 +18,8 @@
 
 import sys
 import numpy as np
+
+from common_simulation_utils import get_bins, print_final_statistics
 from tqdm import tqdm
 import simulation_utils as su
 import csv
@@ -176,19 +178,17 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
             f"[{benchid + 1}/{num_benchmarks}] 预测查询: {all_prediction:.2f}, Oracle查询: {all_oracle}"
         )
 
-print("\n" + "=" * 50)
-print("最终统计:")
-print(f"  有周期数据的Benchmark: {benchmarks_with_cycles}/{num_benchmarks}")
-print(f"  无周期数据的Benchmark: {benchmarks_without_cycles}/{num_benchmarks}")
-print(f"  实际查询总数: {total_checks}")
-print(f"  预测查询总数: {fall_prediction:.2f}")
-print(f"  Oracle查询总数: {fall_oracle}")
-print(f"  预测周期总数 (真实周期): {fall_cycle}")
-if total_checks > 0:
-    print(f"  查询减少率: {(1 - fall_prediction / total_checks) * 100:.2f}%")
-else:
-    print("  查询减少率: N/A")
-print("=" * 50)
+
+print_final_statistics(
+    total_checks=total_checks,
+    fall_prediction=fall_prediction,
+    fall_oracle=fall_oracle,
+    fall_cycle=fall_cycle,
+    extra_stats={
+        "有周期数据的Benchmark": f"{benchmarks_with_cycles}/{num_benchmarks}",
+        "无周期数据的Benchmark": f"{benchmarks_without_cycles}/{num_benchmarks}"
+    }
+)
 
 # 输出到CSV
 reduction_rate = (1 - fall_prediction / total_checks) * 100 if total_checks > 0 else 0

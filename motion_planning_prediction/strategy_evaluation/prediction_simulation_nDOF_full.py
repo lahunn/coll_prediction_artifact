@@ -1,16 +1,9 @@
 import sys
-import numpy as np
 from tqdm import tqdm
 import simulation_utils as su
+from common_simulation_utils import get_bins, print_final_statistics
 
-# --- Simulation Settings ---
-binnumber = 16
-intervalsize = 2 / binnumber
-bins = np.zeros(binnumber)
-start = -1
-for i in range(binnumber):
-    bins[i] = start
-    start += intervalsize
+bins = get_bins(binnumber=16, minval=-1, maxval=1)
 
 # --- Global Statistics ---
 fall_prediction = 0
@@ -70,4 +63,9 @@ for benchid in tqdm(benchrange):
     fall_prediction += all_prediction
     print(all_prediction, all_oracle)
 
-print(f"Final Prediction Queries: {fall_prediction}, Final Oracle Queries: {fall_oracle}")
+print_final_statistics(
+    total_checks=None,
+    fall_prediction=fall_prediction,
+    fall_oracle=fall_oracle,
+    title="\nFinal Prediction Queries"
+)

@@ -6,7 +6,7 @@ Usage:
   python analyze_collision_pose_counts.py --file path/to/file.pkl
 
 Or provide dataset identifiers (uses existing loader conventions):
-  python analyze_collision_pose_counts.py --basename iiwa_7 --benchid 1 --data_folder ../../trace_files/scene_benchmarks/bit_collision_data --type link
+  python analyze_collision_pose_counts.py --basename iiwa_7 --benchid 1 --data_folder ../../trace_files/scene_benchmarks/bit_collision_data/G1 --type link
 
 Outputs:
   - Prints per-edge pose counts and summary statistics (min, max, mean, median)

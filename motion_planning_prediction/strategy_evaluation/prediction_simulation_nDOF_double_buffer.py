@@ -27,6 +27,8 @@
 import sys
 import os
 import numpy as np
+
+from common_simulation_utils import get_bins, print_final_statistics
 from tqdm import tqdm
 from collections import Counter
 
@@ -249,23 +251,22 @@ for benchid in tqdm(benchrange, desc="Processing benchmarks"):
             f"Cycles: {bench_cycles}"
         )
 
-print("\n" + "=" * 50)
-print("Final Statistics:")
-print(f"  Total Actual Checks: {total_checks}")
-print(f"  Total Prediction Queries: {total_prediction_queries:.2f}")
-print(f"  Total Oracle Queries: {total_oracle_queries}")
-print(
-    f"  Query Reduction Rate: {(1 - total_prediction_queries / total_checks) * 100:.2f}%"
+# 统计打印
+print_final_statistics(
+    total_checks=total_checks,
+    fall_prediction=total_prediction_queries,
+    fall_oracle=total_oracle_queries,
+    fall_cycle=total_cycles,
+    theoretical_min_cycles=total_oracle_cycles,
+    total_pred_coll_cycles=total_coll_edge_cycles,
+    total_pred_noncoll_cycles=total_noncoll_edge_cycles,
+    total_oracle_coll_cycles=total_oracle_coll_edge_cycles,
+    total_oracle_noncoll_cycles=total_oracle_noncoll_edge_cycles,
+    extra_stats={
+        "Total Collision Edges": total_coll_edges,
+        "Total Non-Collision Edges": total_noncoll_edges
+    }
 )
-print(f"\n  Total Cycles (Prediction): {total_cycles}")
-print(f"  Total Cycles (Oracle): {total_oracle_cycles}")
-print(f"  Cycle Efficiency: {(total_oracle_cycles / total_cycles) * 100:.2f}%")
-print(f"\n  Prediction Coll Edge Cycles: {total_coll_edge_cycles}")
-print(f"  Prediction Non-Coll Edge Cycles: {total_noncoll_edge_cycles}")
-print(f"  Oracle Coll Edge Cycles: {total_oracle_coll_edge_cycles}")
-print(f"  Oracle Non-Coll Edge Cycles: {total_oracle_noncoll_edge_cycles}")
-print(f"\n  Total Collision Edges: {total_coll_edges}")
-print(f"  Total Non-Collision Edges: {total_noncoll_edges}")
 
 # Calculate average checks for collision edges
 total_coll_edge_queries = total_prediction_queries - total_noncoll_edge_queries
@@ -312,13 +313,13 @@ print(f"  ✓ Total Benchmarks Processed: {len(list(benchrange))}")
 print("=" * 50)
 
 # 输出到CSV
-reduction_rate = (
-    (1 - total_prediction_queries / total_checks) * 100 if total_checks > 0 else 0
-)
-cycle_efficiency = (total_oracle_cycles / total_cycles) * 100 if total_cycles > 0 else 0
-cdu_utilization = (
-    (1.0 - total_cdu_idle_cycles / (total_cycles * 7)) * 100 if total_cycles > 0 else 0
-)
+# reduction_rate = (
+#     (1 - total_prediction_queries / total_checks) * 100 if total_checks > 0 else 0
+# )
+# cycle_efficiency = (total_oracle_cycles / total_cycles) * 100 if total_cycles > 0 else 0
+# cdu_utilization = (
+#     (1.0 - total_cdu_idle_cycles / (total_cycles * 7)) * 100 if total_cycles > 0 else 0
+# )
 
 # with open(csv_file, "a", newline="") as csvfile:
 #     writer = csv.writer(csvfile)

@@ -28,6 +28,8 @@
 import sys
 import os
 import glob
+
+from common_simulation_utils import get_bins, print_final_statistics
 from tqdm import tqdm
 import csv
 
@@ -217,24 +219,19 @@ for problem_idx in tqdm(range(min(num_problems, num_benchmarks)), desc="处理�
             f"[{problem_idx + 1}/{num_problems}] 预测查询: {all_prediction:.2f}, Oracle查询: {all_oracle}"
         )
 
-print("\n" + "=" * 50)
-print("Final Statistics:")
-print(f"  Strategy: {strategy}")
-print(f"  Total Actual Checks: {total_checks}")
-print(f"  Total Prediction Queries: {fall_prediction:.2f}")
-print(f"  Total Oracle Queries: {fall_oracle}")
-print(f"  Query Reduction Rate: {(1 - fall_prediction / total_checks) * 100:.2f}%")
-print(
-    f"  Query Difference (Prediction - Oracle): {(fall_prediction - fall_oracle) / fall_oracle * 100:.2f}%"
+
+print_final_statistics(
+    total_checks=total_checks,
+    fall_prediction=fall_prediction,
+    fall_oracle=fall_oracle,
+    fall_cycle=fall_cycle,
+    theoretical_min_cycles=theoretical_min_cycles,
+    total_pred_coll_cycles=total_pred_coll_cycles,
+    total_pred_noncoll_cycles=total_pred_noncoll_cycles,
+    total_oracle_coll_cycles=total_oracle_coll_cycles,
+    total_oracle_noncoll_cycles=total_oracle_noncoll_cycles,
+    extra_stats={"Strategy": strategy}
 )
-print(f"\n  Total Cycles (Prediction): {fall_cycle}")
-print(f"  Total Cycles (Oracle): {theoretical_min_cycles}")
-print(f"  Cycle Efficiency: {(theoretical_min_cycles / fall_cycle) * 100:.2f}%")
-print(f"\n  Prediction Coll Edge Cycles: {total_pred_coll_cycles}")
-print(f"  Prediction Non-Coll Edge Cycles: {total_pred_noncoll_cycles}")
-print(f"  Oracle Coll Edge Cycles: {total_oracle_coll_cycles}")
-print(f"  Oracle Non-Coll Edge Cycles: {total_oracle_noncoll_cycles}")
-print("=" * 50)
 
 # 输出到CSV
 reduction_rate = (1 - fall_prediction / total_checks) * 100 if total_checks > 0 else 0

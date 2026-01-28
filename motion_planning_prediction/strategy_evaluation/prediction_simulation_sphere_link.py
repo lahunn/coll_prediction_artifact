@@ -201,7 +201,7 @@ for benchid in tqdm(benchrange, desc="Processing Benchmarks"):
                     link_to_spheres,
                     sphere_to_link,
                     num_spheres_per_pose,
-                    qnoncoll_len=qnoncoll_len,
+                    qnoncoll_len=qnoncoll_len * 4,
                     cycle_check=check_cost,
                     num_oocds=num_oocds,
                 )
@@ -223,7 +223,19 @@ for benchid in tqdm(benchrange, desc="Processing Benchmarks"):
                     num_oocds=num_oocds,
                 )
             )
-
+            # edge_query_count, colldict, coll_found, cycle, oocd_utilization = (
+            #     su.simulate_parallel_collision_detection(
+            #         linklist,
+            #         linklist_coll,
+            #         colldict,
+            #         threshold,
+            #         sample_rate,
+            #         bins,
+            #         qnoncoll_len=qnoncoll_len,
+            #         cycle_check=check_cost,
+            #         num_oocds=num_oocds,
+            #     )
+            # )
         total_oocd_utilization += oocd_utilization
         total_edges += 1
 
@@ -245,22 +257,16 @@ for benchid in tqdm(benchrange, desc="Processing Benchmarks"):
         )
 
 avg_oocd_utilization = total_oocd_utilization / total_edges
-print("\n" + "=" * 50)
-print("Final Statistics:")
-print(f"  Total Actual Checks: {total_checks}")
-print(f"  Total Prediction Queries: {fall_prediction:.2f}")
-print(f"  Total Oracle Queries: {fall_oracle}")
-if total_checks > 0:
-    print(f"  Query Reduction Rate: {(1 - fall_prediction / total_checks) * 100:.2f}%")
-else:
-    print("  Query Reduction Rate: N/A")
-
-if fall_oracle > 0:
-    print(
-        f"  Query Difference (Prediction - Oracle): {(fall_prediction - fall_oracle) / fall_oracle * 100:.2f}%"
-    )
-else:
-    print("  Query Difference: N/A")
+print_final_statistics(
+    total_checks=total_checks,
+    fall_prediction=fall_prediction,
+    fall_oracle=fall_oracle,
+    total_pred_coll_cycles=total_pred_coll_cycles,
+    total_pred_noncoll_cycles=total_pred_noncoll_cycles,
+    total_oracle_coll_cycles=total_oracle_coll_cycles,
+    total_oracle_noncoll_cycles=total_oracle_noncoll_cycles,
+    extra_stats={"Avg OOCD Utilization": f"{avg_oocd_utilization:.4f}"}
+)
 
 print(f"\n  Total Cycles (Prediction): {fall_cycle}")
 print(f"  Total Cycles (Oracle): {theoretical_min_cycles}")

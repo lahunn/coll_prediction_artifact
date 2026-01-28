@@ -30,6 +30,8 @@
 import sys
 import os
 import numpy as np
+
+from common_simulation_utils import get_bins, print_final_statistics
 from tqdm import tqdm
 
 # 添加上级目录到path以导入simulation_utils
@@ -183,14 +185,13 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
             f"[{benchid}/{num_benchmarks}] 预测查询: {all_prediction:.2f}, Oracle查询: {all_oracle}"
         )
 
-print("\n" + "=" * 50)
-print("最终统计:")
-print(f"  实际查询总数: {total_checks}")
-print(f"  预测查询总数: {fall_prediction:.2f}")
-print(f"  Oracle查询总数: {fall_oracle}")
-print(f"  预测周期总数 (成本): {fall_cycle}")
-print(f"  查询减少率: {(1 - fall_prediction / total_checks) * 100:.2f}%")
-print("=" * 50)
+
+print_final_statistics(
+    total_checks=total_checks,
+    fall_prediction=fall_prediction,
+    fall_oracle=fall_oracle,
+    fall_cycle=fall_cycle
+)
 
 # 输出到CSV
 reduction_rate = (1 - fall_prediction / total_checks) * 100 if total_checks > 0 else 0
