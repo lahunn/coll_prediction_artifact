@@ -26,7 +26,7 @@ import simulation_utils as su
 from trace_generation.config.ana_parameters import get_robot_params
 from trace_generation.core.robot.environment import RobotEnv
 from trace_generation.core.collision.sphere_detector import SphereEnvGeometric
-
+from common_simulation_utils import get_bins, print_final_statistics
 
 # --- Simulation Settings ---
 quant_bits = 4

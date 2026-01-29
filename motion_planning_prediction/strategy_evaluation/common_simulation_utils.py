@@ -23,6 +23,82 @@ def get_bins(binnumber=16, minval=-1, maxval=1):
     return bins
 
 # =====================
+# 仿真配置工具
+# =====================
+def setup_simulation(robot_name, quant_bits, collision_model_type, qnoncoll_multiplier):
+    """
+    统一设置仿真参数，包括bins计算、机器人参数获取等
+    
+    Returns:
+        bins, num_elements, check_cost, qnoncoll_len, print_title
+    """
+    # 延迟导入以避免潜在的循环依赖
+    import sys
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
+    import simulation_utils as su
+    from trace_generation.config.ana_parameters import get_robot_params
+
+    # 获取机器人参数
+    robot_params = get_robot_params(robot_name)
+    
+    # 计算bins
+    bins = su.calculate_bins_from_workspace(robot_name, quant_bits)
+    
+    if collision_model_type == "sphere":
+        num_elements = robot_params["sphere_num"]
+        check_cost = robot_params["sphere_cost"]
+        title_prefix = "Sphere"
+    else:
+        num_elements = robot_params["obb_num"]
+        check_cost = robot_params["obb_cost"]
+        title_prefix = "OBB"
+        
+    qnoncoll_len = num_elements * qnoncoll_multiplier
+    print_title = f"=== {title_prefix} Collision Detection Prediction Simulation ==="
+    
+    return bins, num_elements, check_cost, qnoncoll_len, print_title
+
+# =====================
+# Oracle计算工具
+# =====================
+def calculate_oracle_metrics(edge_coll, num_elements, num_oocds, check_cost):
+    """
+    计算单条Edge的Oracle指标（理论最优值）
+    
+    Returns:
+        actual_checks: 顺序检查所需的总次数
+        oracle_queries: Oracle预测的查询数
+        oracle_cycles: Oracle预测的周期数
+        coll_found_oracle: 是否发现碰撞
+    """
+    import sys
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
+    import simulation_utils as su
+    
+    actual_checks = 0
+    # 累计实际查询总数（理想的顺序检查）
+    for pose_coll in edge_coll:
+        try:
+            first_collision_index = pose_coll.index(0)
+            actual_checks += first_collision_index + 1
+        except ValueError:
+            actual_checks += len(pose_coll)
+
+    # Oracle 计算
+    coll_found_oracle = any(
+        link_coll == 0 for pose_coll in edge_coll for link_coll in pose_coll
+    )
+    
+    if coll_found_oracle:
+        oracle_queries = 1
+    else:
+        oracle_queries = num_elements * len(edge_coll)
+        
+    oracle_cycles = su.calculate_oracle_cycles(edge_coll, num_oocds, check_cost)
+
+    return actual_checks, oracle_queries, oracle_cycles, coll_found_oracle
+
+# =====================
 # 打印统计信息
 # =====================
 def print_final_statistics(
@@ -46,10 +122,11 @@ def print_final_statistics(
     else:
         print("\n" + "=" * 50)
     print("Final Statistics:")
-    print(f"  Total Actual Checks: {total_checks}")
+    if total_checks is not None:
+        print(f"  Total Actual Checks: {total_checks}")
     print(f"  Total Prediction Queries: {fall_prediction:.2f}")
     print(f"  Total Oracle Queries: {fall_oracle}")
-    if total_checks > 0:
+    if total_checks is not None and total_checks > 0:
         print(f"  Query Reduction Rate: {(1 - fall_prediction / total_checks) * 100:.2f}%")
     if fall_oracle > 0:
         print(f"  Query Difference (Prediction - Oracle): {(fall_prediction - fall_oracle) / fall_oracle * 100:.2f}%")

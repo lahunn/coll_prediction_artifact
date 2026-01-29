@@ -12,7 +12,7 @@ BENCHID="1-10"
 BASE_DATA_FOLDER="../../trace_files/scene_benchmarks/bit_collision_data"
 THRESHOLD=0.5
 SAMPLE_RATE=0.1
-QNONCOLL_MULTIPLIER=8
+QNONCOLL_MULTIPLIER=2
 ROBOT_NAME="iiwa"
 NUM_PREDICTIONS=2
 # 专用CDU数量（传递给仿真脚本的 num_dedicated_oocds）
@@ -21,7 +21,7 @@ DEDICATED_OOCDS=8
 mkdir -p "../result_files"
 
 # 遍历碰撞模型
-for COLLISION_MODEL in link sphere; do
+for COLLISION_MODEL in sphere; do
     # 结果文件路径
     RESULT_CSV="../result_files/double_buffer_${COLLISION_MODEL}_results.csv"
 
@@ -54,7 +54,7 @@ for COLLISION_MODEL in link sphere; do
             "$ROBOT_NAME" \
             "$NUM_PREDICTIONS" \
             "$COLLISION_MODEL" \
-            "$DEDICATED_OOCDS" 2>&1)
+            "$DEDICATED_OOCDS")
         
         # 检查 python 脚本是否执行成功
         if [ $? -ne 0 ]; then

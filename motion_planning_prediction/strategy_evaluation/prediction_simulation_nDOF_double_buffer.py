@@ -39,6 +39,8 @@ import simulation_utils as su
 
 # 添加 trace_generation 目录到 Python 路径
 from trace_generation.config.ana_parameters import get_robot_params
+from trace_generation.core.robot.environment import RobotEnv
+from trace_generation.core.collision.sphere_detector import SphereEnvGeometric
 
 # --- Simulation Settings ---
 quant_bits = 4  # 4 bits per dimension (16 bins)
@@ -117,6 +119,28 @@ else:
     print_title = "=== OBB Collision Detection - Double Buffer Architecture ==="
 
 qnoncoll_len = num_elements * qnoncoll_multiplier
+
+# Create temporary environment to get sphere-link mapping
+# Must do this before main loop to set up global mappings
+print("Initializing robot environment to extract sphere-link mapping...")
+temp_env = RobotEnv(robot_name, OBB_GUI=False, enable_self_collision=False)
+temp_sphere_env = SphereEnvGeometric(robot_env=temp_env, robot_name=robot_name)
+temp_sphere_env._initialize_sphere_metadata()
+
+sphere_link_ids = temp_sphere_env.sphere_link_ids
+link_to_spheres = {}
+sphere_to_link = []
+for idx, link_id in enumerate(sphere_link_ids):
+    lid = int(link_id)
+    link_to_spheres.setdefault(lid, []).append(idx)
+    sphere_to_link.append(lid)
+num_spheres_per_pose = len(sphere_link_ids)
+
+# Clean up temporary environments
+temp_sphere_env.close()
+temp_env.close()
+print(f"Mapping extracted. Total spheres: {num_spheres_per_pose}")
+
 
 print(print_title)
 print(f"Threshold: {threshold}")
@@ -219,7 +243,10 @@ for benchid in tqdm(benchrange, desc="Processing benchmarks"):
             threshold,
             sample_rate,
             bins,
-            qnoncoll_len=qnoncoll_len,
+            link_to_spheres=link_to_spheres,
+            sphere_to_link=sphere_to_link,
+            num_spheres_per_pose=num_spheres_per_pose,
+            qnoncoll_len=qnoncoll_len * 4,
             cycle_check=check_cost,
             num_oocds=7,
             num_predictions=num_predictions,
@@ -264,8 +291,8 @@ print_final_statistics(
     total_oracle_noncoll_cycles=total_oracle_noncoll_edge_cycles,
     extra_stats={
         "Total Collision Edges": total_coll_edges,
-        "Total Non-Collision Edges": total_noncoll_edges
-    }
+        "Total Non-Collision Edges": total_noncoll_edges,
+    },
 )
 
 # Calculate average checks for collision edges
@@ -311,37 +338,3 @@ print("\n" + "=" * 50)
 print("Validation Checks:")
 print(f"  ✓ Total Benchmarks Processed: {len(list(benchrange))}")
 print("=" * 50)
-
-# 输出到CSV
-# reduction_rate = (
-#     (1 - total_prediction_queries / total_checks) * 100 if total_checks > 0 else 0
-# )
-# cycle_efficiency = (total_oracle_cycles / total_cycles) * 100 if total_cycles > 0 else 0
-# cdu_utilization = (
-#     (1.0 - total_cdu_idle_cycles / (total_cycles * 7)) * 100 if total_cycles > 0 else 0
-# )
-
-# with open(csv_file, "a", newline="") as csvfile:
-#     writer = csv.writer(csvfile)
-#     writer.writerow(
-#         [
-#             threshold,
-#             sample_rate,
-#             qnoncoll_multiplier,
-#             basename,
-#             num_benchmarks,
-#             robot_name,
-#             total_checks,
-#             total_prediction_queries,
-#             total_oracle_queries,
-#             total_cycles,
-#             total_oracle_cycles,
-#             total_coll_edge_cycles,
-#             total_noncoll_edge_cycles,
-#             total_oracle_coll_edge_cycles,
-#             total_oracle_noncoll_edge_cycles,
-#             reduction_rate,
-#             cycle_efficiency,
-#             cdu_utilization,
-#         ]
-#     )

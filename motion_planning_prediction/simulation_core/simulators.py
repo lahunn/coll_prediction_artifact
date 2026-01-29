@@ -597,6 +597,9 @@ def simulate_edge_double_buffer(
     threshold,
     bins,
     num_predictions,
+    link_to_spheres,
+    sphere_to_link,
+    num_spheres_per_pose,
 ):
     """
     Simulate collision detection for a single edge in double buffer architecture.
@@ -633,7 +636,8 @@ def simulate_edge_double_buffer(
         )
 
         for pred in predictions:
-            enqueue_predictions(
+            # 使用 enqueue_predictions_by_link
+            enqueue_predictions_by_link(
                 pred.linklist,
                 pred.linklist_coll,
                 pred.qcoll,
@@ -643,6 +647,10 @@ def simulate_edge_double_buffer(
                 bins,
                 qcoll_len,
                 qnoncoll_len,
+                link_to_spheres,
+                sphere_to_link,
+                num_spheres_per_pose,
+                pred.pose_cursor,
             )
 
         everything_free = (
@@ -674,6 +682,9 @@ def simulate_parallel_collision_detection_double_buffer(
     threshold,
     sample_rate,
     bins,
+    link_to_spheres,
+    sphere_to_link,
+    num_spheres_per_pose,
     qnoncoll_len=DEFAULT_QNONCOLL_LEN,
     qcoll_len=DEFAULT_QCOLL_LEN,
     cycle_check=DEFAULT_CYCLE_CHECK,
@@ -687,6 +698,9 @@ def simulate_parallel_collision_detection_double_buffer(
     oocds = [OOCDState() for _ in range(num_oocds)]
 
     predictions = [Prediction(qcoll_len, qnoncoll_len) for _ in range(num_predictions)]
+    # 为每个Prediction对象初始化pose_cursor
+    for pred in predictions:
+        pred.pose_cursor = [0]
 
     active_index = 0
     next_load_edge_idx = 0
@@ -730,6 +744,9 @@ def simulate_parallel_collision_detection_double_buffer(
             threshold,
             bins,
             num_predictions,
+            link_to_spheres,
+            sphere_to_link,
+            num_spheres_per_pose,
         )
 
         active_index = edge_idx % num_predictions
@@ -739,6 +756,8 @@ def simulate_parallel_collision_detection_double_buffer(
             oocd.reset()
         active_pred.qcoll.clear()
         active_pred.qnoncoll.clear()
+        # 重置pose_cursor
+        active_pred.pose_cursor[0] = 0
 
         if next_load_edge_idx < len(edges_data):
             edge_flat, edge_coll_flat = csp_rearrange(
