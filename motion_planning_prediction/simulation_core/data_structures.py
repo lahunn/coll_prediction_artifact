@@ -106,6 +106,8 @@ class Prediction:
         self.linklist_coll = []
         self.edge_idx = -1  # 当前处理的edge索引
         self.collision_detected = False  # 碰撞检测结果
+        self.pose_cursor = [0]
+        self.pending_spheres = deque()
 
     def reset(self):
         """重置prediction状态"""
@@ -115,3 +117,5 @@ class Prediction:
         self.linklist_coll = []
         self.edge_idx = -1
         self.collision_detected = False
+        self.pose_cursor = [0]
+        self.pending_spheres = deque()

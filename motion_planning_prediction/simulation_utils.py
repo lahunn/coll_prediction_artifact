@@ -54,12 +54,9 @@ from simulation_core.oocd_processor import (
 )
 from simulation_core.simulators import (
     simulate_parallel_collision_detection,
-    simulate_parallel_collision_detection_sphere,
-    simulate_parallel_collision_detection_link,
     simulate_parallel_collision_detection_real_cycles,
     simulate_parallel_collision_detection_with_tracking,
     simulate_parallel_collision_detection_preemptive,
-    simulate_parallel_collision_detection_dedicated,
     simulate_parallel_collision_detection_double_buffer,
 )
 from simulation_core.oracle_utils import (
@@ -109,12 +106,9 @@ __all__ = [
     "process_oocd_states_dedicated",
     # Simulators
     "simulate_parallel_collision_detection",
-    "simulate_parallel_collision_detection_sphere",
-    "simulate_parallel_collision_detection_link",
     "simulate_parallel_collision_detection_real_cycles",
     "simulate_parallel_collision_detection_with_tracking",
     "simulate_parallel_collision_detection_preemptive",
-    "simulate_parallel_collision_detection_dedicated",
     "simulate_parallel_collision_detection_double_buffer",
     # Oracle Utils
     "calculate_oracle_cycles",

@@ -16,64 +16,45 @@ import sys
 import os
 import numpy as np
 
-from common_simulation_utils import get_bins, print_final_statistics
+from common_simulation_utils import (
+    print_final_statistics, 
+    setup_simulation, 
+    calculate_oracle_metrics,
+    create_common_parser,
+    parse_benchrange,
+    aggregate_oracle_stats,
+    initialize_statistics,
+    DEFAULT_QUANT_BITS
+)
 from tqdm import tqdm
 import csv
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
 # 添加 trace_generation 目录到 Python 路径
-from trace_generation.config.ana_parameters import get_robot_params
 import simulation_utils as su
 
-# --- Simulation Settings ---
-quant_bits = 4  # 4 bits per dimension (16 bins)
-bins = su.calculate_bins_from_workspace("iiwa", quant_bits)
-
-# --- Global Statistics ---
-fall_prediction = 0
-fall_oracle = 0
-total_checks = 0
-fall_cycle = 0
-fall_preemption = 0
+# --- Simulation Settings & Global Statistics ---
+quant_bits = DEFAULT_QUANT_BITS
+stats = initialize_statistics(extra_keys=["fall_preemption"])
 
 # --- Simulation Parameters from Command Line ---
-if len(sys.argv) < 8:
-    print(
-        "Usage: python prediction_simulation_nDOF_preemptive.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <num_benchmarks> <robot_name> [collision_model_type]"
-    )
-    print(
-        "Example: python prediction_simulation_nDOF_preemptive.py 0.5 0.1 8 ../trace_files/scene_benchmarks/bit_collision_data iiwa_7 10 iiwa link"
-    )
-    sys.exit(1)
+parser = create_common_parser("球体碰撞检测预测仿真程序（nDOF机器人）- 预先调度版本")
+args = parser.parse_args()
 
-threshold = float(sys.argv[1])
-sample_rate = float(sys.argv[2])
-qnoncoll_multiplier = int(sys.argv[3])
-data_folder = sys.argv[4]
-basename = sys.argv[5]
-num_benchmarks = int(sys.argv[6])
-robot_name = sys.argv[7]
-collision_model_type = sys.argv[8] if len(sys.argv) > 8 else "link"
+threshold = args.threshold
+sample_rate = args.sample_rate
+qnoncoll_multiplier = args.qnoncoll_multiplier
+data_folder = args.data_folder
+basename = args.basename
+benchmarks_arg = args.benchmarks
+robot_name = args.robot_name
+collision_model_type = args.collision_model_type
+num_oocds = args.num_oocds
 
-# 获取机器人参数
-robot_params = get_robot_params(robot_name)
-
-if collision_model_type == "sphere":
-    num_elements = robot_params["sphere_num"]
-    check_cost = robot_params["sphere_cost"]
-    csv_file = "result_files/sphere_results_preemptive.csv"
-    print_title = (
-        "=== Sphere Collision Detection Prediction Simulation (Preemptive Version) ==="
-    )
-else:
-    num_elements = robot_params["obb_num"]
-    check_cost = robot_params["obb_cost"]
-    csv_file = "result_files/obb_results_preemptive.csv"
-    print_title = (
-        "=== OBB Collision Detection Prediction Simulation (Preemptive Version) ==="
-    )
-
-qnoncoll_len = num_elements * qnoncoll_multiplier
+# 使用通用工具设置仿真参数
+bins, num_elements, check_cost, qnoncoll_len, print_title = setup_simulation(
+    robot_name, quant_bits, collision_model_type, qnoncoll_multiplier
+)
 
 print(print_title)
 print(f"Threshold: {threshold}")
@@ -81,12 +62,14 @@ print(f"Sample Rate: {sample_rate}")
 print(f"Queue Length Multiplier: {qnoncoll_multiplier}")
 print(f"Non-collision Queue Length: {qnoncoll_len}")
 print(f"Data Folder: {data_folder}")
-print(f"Number of Benchmarks: {num_benchmarks}")
+print(f"基准测试: {benchmarks_arg}")
 print(f"Collision Model: {collision_model_type}")
+print(f"OOCD数量: {num_oocds}")
 print("=" * 50)
 
 # --- Benchmark Range ---
-benchrange = range(1, num_benchmarks + 1)
+benchrange = parse_benchrange(benchmarks_arg)
+num_benchmarks = len(benchrange)
 
 # --- Main Simulation Loop ---
 for benchid in tqdm(benchrange, desc="处理基准测试"):
@@ -104,36 +87,18 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
     if edge_link_data is None or edge_link_coll_data is None:
         continue
 
-    # 累计理论查询总数 (模拟理想的顺序Oracle)
-    for edge_coll in edge_link_coll_data:
-        for pose_coll in edge_coll:
-            # 理想的顺序检查器：检查直到发现第一个碰撞，或者检查完所有元素都没有碰撞。
-            try:
-                # 找到第一个碰撞(值为0)的索引
-                first_collision_index = pose_coll.index(0)
-                # 加上找到它所需的检查次数 (索引从0开始，所以+1)
-                total_checks += first_collision_index + 1
-            except ValueError:
-                # 如果 pose_coll 中没有0 (即当前姿态无碰撞)，则需要检查该姿态下的所有元素
-                total_checks += len(pose_coll)
+    # --- Oracle Metrics Calculation ---
+    oracle_stats = aggregate_oracle_stats(edge_link_coll_data, num_elements, num_oocds=num_oocds, check_cost=check_cost)
+    
+    stats["total_checks"] += oracle_stats["total_checks"]
+    all_oracle = oracle_stats["total_oracle_queries"]
 
-    # 处理每条边
+    # 处理每条边执行仿真
     for edge_idx, (edge, edge_coll) in enumerate(
         zip(edge_link_data, edge_link_coll_data)
     ):
         if not edge_coll:
             continue
-
-        # --- Oracle Calculation ---
-        # Oracle: 检测到碰撞就停止，否则检查所有元素
-        coll_found_oracle = any(
-            link_coll == 0 for pose_coll in edge_coll for link_coll in pose_coll
-        )
-        if coll_found_oracle:
-            all_oracle += 1
-        else:
-            # 如果没有碰撞，需要检查所有姿态的所有元素
-            all_oracle += num_elements * len(edge_coll)
 
         # --- CSP Rearrangement ---
         # 将edge数据重排为适合CSP策略的顺序
@@ -150,7 +115,7 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
                 bins,
                 qnoncoll_len=qnoncoll_len,
                 cycle_check=check_cost,
-                num_oocds=7,
+                num_oocds=num_oocds,
             )
         )
 
@@ -158,10 +123,10 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
         all_cycle += cycle
         all_preemption += preemption_count
 
-    fall_oracle += all_oracle
-    fall_prediction += all_prediction
-    fall_cycle += all_cycle
-    fall_preemption += all_preemption
+    stats["fall_oracle"] += all_oracle
+    stats["fall_prediction"] += all_prediction
+    stats["fall_cycle"] += all_cycle
+    stats["fall_preemption"] += all_preemption
 
     # 每处理10个benchmark打印一次
     if (benchid + 1) % 10 == 0:
@@ -171,31 +136,9 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
 
 
 print_final_statistics(
-    total_checks=total_checks,
-    fall_prediction=fall_prediction,
-    fall_oracle=fall_oracle,
-    fall_cycle=fall_cycle,
-    extra_stats={"抢占事件总数": fall_preemption}
+    total_checks=stats["total_checks"],
+    fall_prediction=stats["fall_prediction"],
+    fall_oracle=stats["fall_oracle"],
+    fall_cycle=stats["fall_cycle"],
+    extra_stats={"抢占事件总数": stats["fall_preemption"]}
 )
-
-# 输出到CSV
-reduction_rate = (1 - fall_prediction / total_checks) * 100 if total_checks > 0 else 0
-
-# with open(csv_file, "a", newline="") as csvfile:
-#     writer = csv.writer(csvfile)
-#     writer.writerow(
-#         [
-#             threshold,
-#             sample_rate,
-#             qnoncoll_multiplier,
-#             basename,
-#             num_benchmarks,
-#             robot_name,
-#             total_checks,
-#             fall_prediction,
-#             fall_oracle,
-#             fall_cycle,
-#             fall_preemption,
-#             reduction_rate,
-#         ]
-#     )

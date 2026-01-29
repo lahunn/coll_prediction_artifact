@@ -325,3 +325,88 @@ def predict_next_config(
                     qnoncoll.append([keyy, linkcoll])
                     del linklist[0]
                     del linklist_coll[0]
+
+
+def enqueue_predictions_with_mode(
+    mode,
+    linklist,
+    linklist_coll,
+    qcoll,
+    qnoncoll,
+    colldict,
+    threshold,
+    bins,
+    qcoll_len,
+    qnoncoll_len,
+    link_to_spheres=None,
+    sphere_to_link=None,
+    num_spheres_per_pose=None,
+    pose_cursor=None,
+):
+    """
+    Unified enqueue function supporting different processing modes.
+
+    Args:
+        mode (str): 'simple', 'batch', or 'hierarchical'.
+        ... (other args passed to specific enqueue functions)
+    """
+    if mode == "simple":
+        enqueue_predictions(
+            linklist,
+            linklist_coll,
+            qcoll,
+            qnoncoll,
+            colldict,
+            threshold,
+            bins,
+            qcoll_len,
+            qnoncoll_len,
+        )
+    elif mode == "batch":
+        if (
+            link_to_spheres is None
+            or sphere_to_link is None
+            or num_spheres_per_pose is None
+            or pose_cursor is None
+        ):
+            raise ValueError("Missing required arguments for 'batch' mode.")
+        enqueue_predictions_by_link(
+            linklist,
+            linklist_coll,
+            qcoll,
+            qnoncoll,
+            colldict,
+            threshold,
+            bins,
+            qcoll_len,
+            qnoncoll_len,
+            link_to_spheres,
+            sphere_to_link,
+            num_spheres_per_pose,
+            pose_cursor,
+        )
+    elif mode == "hierarchical":
+        if (
+            link_to_spheres is None
+            or sphere_to_link is None
+            or num_spheres_per_pose is None
+            or pose_cursor is None
+        ):
+            raise ValueError("Missing required arguments for 'hierarchical' mode.")
+        enqueue_link_predictions(
+            linklist,
+            linklist_coll,
+            qcoll,
+            qnoncoll,
+            colldict,
+            threshold,
+            bins,
+            qcoll_len,
+            qnoncoll_len,
+            link_to_spheres,
+            sphere_to_link,
+            num_spheres_per_pose,
+            pose_cursor,
+        )
+    else:
+        raise ValueError(f"Unknown mode: {mode}")

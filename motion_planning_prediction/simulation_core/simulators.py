@@ -14,6 +14,7 @@ from .collision_prediction import (
     enqueue_predictions,
     enqueue_link_predictions,
     enqueue_predictions_by_link,
+    enqueue_predictions_with_mode,
 )
 from .oocd_processor import (
     process_oocds,
@@ -21,6 +22,7 @@ from .oocd_processor import (
     handle_preemption,
     process_oocd_states_dedicated,
     process_oocds_link,
+    process_oocds_with_mode,
 )
 from .data_preprocessing import csp_rearrange
 
@@ -36,98 +38,28 @@ def simulate_parallel_collision_detection(
     qcoll_len=DEFAULT_QCOLL_LEN,
     cycle_check=DEFAULT_CYCLE_CHECK,
     num_oocds=NUM_OOCDS,
+    mode="simple",
+    num_dedicated_oocds=0,
+    link_to_spheres=None,
+    sphere_to_link=None,
+    num_spheres_per_pose=None,
 ):
     """
-    模拟并行的碰撞检测过程，该过程结合了硬件检测器 (OOCD) 和基于历史的碰撞预测。
+    Unified simulation function for parallel collision detection.
+    Supports 'simple', 'batch', and 'hierarchical' modes.
     """
-    oocds = [OOCDState() for _ in range(num_oocds)]
-    pred = Prediction(qcoll_len, qnoncoll_len)
-    pred.linklist = linklist
-    pred.linklist_coll = linklist_coll
-    cycle = 0
-    coll_found = 0
-    links_remaining = len(linklist)
-    everything_free = 0
-    query_count = 0.0
-    total_idle_cycles = 0
 
-    while not coll_found and not everything_free:
-        query_count, coll_found, cdu_idle_this_cycle = process_oocds(
-            oocds,
-            pred.qcoll,
-            pred.qnoncoll,
-            pred.linklist,
-            cycle,
-            query_count,
-            coll_found,
-            cycle_check,
-            colldict,
-            sample_rate,
-            num_oocds,
-            qnoncoll_len,
-        )
-        total_idle_cycles += cdu_idle_this_cycle
-        # 执行预测
-        enqueue_predictions(
-            pred.linklist,
-            pred.linklist_coll,
-            pred.qcoll,
-            pred.qnoncoll,
-            colldict,
-            threshold,
-            bins,
-            qcoll_len,
-            qnoncoll_len,
-        )
-
-        links_remaining = len(pred.linklist)
-        if (
-            links_remaining == 0
-            and not any(oocd.free_cycle > cycle for oocd in oocds)
-            and not pred.qnoncoll
-            and not pred.qcoll
-        ):
-            everything_free = 1
-
-        cycle += 1
-
-    for oocd in oocds:
-        if oocd.free_cycle > cycle:
-            query_count += (cycle_check - oocd.free_cycle + cycle) / cycle_check
-    oocd_utilization = (
-        1.0 - (total_idle_cycles / (cycle * num_oocds)) if cycle > 0 else 0.0
-    )
-    return query_count, colldict, coll_found, cycle, oocd_utilization
-
-
-def simulate_parallel_collision_detection_sphere(
-    linklist,
-    linklist_coll,
-    colldict,
-    threshold,
-    sample_rate,
-    bins,
-    link_to_spheres,
-    sphere_to_link,
-    num_spheres_per_pose,
-    qnoncoll_len=DEFAULT_QNONCOLL_LEN,
-    qcoll_len=DEFAULT_QCOLL_LEN,
-    cycle_check=DEFAULT_CYCLE_CHECK,
-    num_oocds=NUM_OOCDS,
-):
-    """
-    模拟并行的碰撞检测过程，每次预测时对属于同一link的所有sphere都进行预测。
-
-    与simulate_parallel_collision_detection的区别：
-    - process_oocds保持不变
-    - enqueue阶段使用enqueue_predictions_by_link，对同一link的所有sphere一起预测
-    """
     oocds = [OOCDState() for _ in range(num_oocds)]
     pred = Prediction(qcoll_len, qnoncoll_len)
     pred.linklist = linklist
     pred.linklist_coll = linklist_coll
 
-    pose_cursor = [0]
+    # Initialize mode-specific structures
+    if mode in ["batch", "hierarchical"]:
+        pred.pose_cursor = [0]
+    if mode == "hierarchical":
+        pred.pending_spheres = deque()
+
     cycle = 0
     coll_found = 0
     everything_free = 0
@@ -135,46 +67,67 @@ def simulate_parallel_collision_detection_sphere(
     total_idle_cycles = 0
 
     while not coll_found and not everything_free:
-        query_count, coll_found, cdu_idle_this_cycle = process_oocds(
-            oocds,
-            pred.qcoll,
-            pred.qnoncoll,
-            pred.linklist,
-            cycle,
-            query_count,
-            coll_found,
-            cycle_check,
-            colldict,
-            sample_rate,
-            num_oocds,
-            qnoncoll_len,
+        result = process_oocds_with_mode(
+            mode=mode,
+            oocds=oocds,
+            qcoll=pred.qcoll,
+            qnoncoll=pred.qnoncoll,
+            linklist=pred.linklist,
+            cycle=cycle,
+            total_query_count=query_count,
+            coll_found=coll_found,
+            cycle_check=cycle_check,
+            colldict=colldict,
+            sample_rate=sample_rate,
+            num_oocds=num_oocds,
+            qnoncoll_len=qnoncoll_len,
+            num_dedicated_oocds=num_dedicated_oocds,
+            pending_spheres=getattr(pred, "pending_spheres", None),
         )
+
+        query_count = result["total_query_count"]
+        coll_found = result["coll_found"]
+        cdu_idle_this_cycle = result.get("cdu_idle_cycles", 0)
+        colldict = result["colldict"]
+
+        # If 'oocds' is returned (e.g. from dedicated processor), update local reference if needed
+        # (Though list is mutable, so in-place updates in sub-function work fine usually)
+
+        # For dedicated mode, idle cycles calculation might be different or implicit in process_oocds logic
+        # process_oocd_states_dedicated currently doesn't return idle cycles directly in dict
+        # We can calculate it here if missing
+        if "cdu_idle_cycles" not in result:
+            cdu_idle_this_cycle = sum(
+                1 for oocd in oocds if oocd.free_cycle <= cycle and not oocd.busy
+            )
+
         total_idle_cycles += cdu_idle_this_cycle
 
-        # 使用enqueue_predictions_by_link：对同一link的所有sphere一起预测
-        enqueue_predictions_by_link(
-            pred.linklist,
-            pred.linklist_coll,
-            pred.qcoll,
-            pred.qnoncoll,
-            colldict,
-            threshold,
-            bins,
-            qcoll_len,
-            qnoncoll_len,
-            link_to_spheres,
-            sphere_to_link,
-            num_spheres_per_pose,
-            pose_cursor,
+        enqueue_predictions_with_mode(
+            mode=mode,
+            linklist=pred.linklist,
+            linklist_coll=pred.linklist_coll,
+            qcoll=pred.qcoll,
+            qnoncoll=pred.qnoncoll,
+            colldict=colldict,
+            threshold=threshold,
+            bins=bins,
+            qcoll_len=qcoll_len,
+            qnoncoll_len=qnoncoll_len,
+            link_to_spheres=link_to_spheres,
+            sphere_to_link=sphere_to_link,
+            num_spheres_per_pose=num_spheres_per_pose,
+            pose_cursor=getattr(pred, "pose_cursor", None),
         )
 
         links_remaining = len(pred.linklist)
-        if (
-            links_remaining == 0
-            and not any(oocd.free_cycle > cycle for oocd in oocds)
-            and not pred.qnoncoll
-            and not pred.qcoll
-        ):
+
+        is_buffers_empty = links_remaining == 0 and not pred.qnoncoll and not pred.qcoll
+
+        if mode == "hierarchical":
+            is_buffers_empty = is_buffers_empty and not pred.pending_spheres
+
+        if is_buffers_empty and not any(oocd.free_cycle > cycle for oocd in oocds):
             everything_free = 1
 
         cycle += 1
@@ -186,93 +139,6 @@ def simulate_parallel_collision_detection_sphere(
     oocd_utilization = (
         1.0 - (total_idle_cycles / (cycle * num_oocds)) if cycle > 0 else 0.0
     )
-
-    return query_count, colldict, coll_found, cycle, oocd_utilization
-
-
-def simulate_parallel_collision_detection_link(
-    linklist,
-    linklist_coll,
-    colldict,
-    threshold,
-    sample_rate,
-    bins,
-    link_to_spheres,
-    sphere_to_link,
-    num_spheres_per_pose,
-    qnoncoll_len=DEFAULT_QNONCOLL_LEN,
-    qcoll_len=DEFAULT_QCOLL_LEN,
-    cycle_check=DEFAULT_CYCLE_CHECK,
-    num_oocds=NUM_OOCDS,
-):
-    """Parallel collision simulation with link-level prediction enqueue and per-sphere dispatch."""
-    oocds = [OOCDState() for _ in range(num_oocds)]
-    pred = Prediction(qcoll_len, qnoncoll_len)
-    pred.linklist = linklist
-    pred.linklist_coll = linklist_coll
-
-    pending_spheres = deque()
-    pose_cursor = [0]
-    cycle = 0
-    coll_found = 0
-    everything_free = 0
-    query_count = 0.0
-    total_idle_cycles = 0
-
-    while not coll_found and not everything_free:
-        query_count, coll_found, cdu_idle_this_cycle = process_oocds_link(
-            oocds,
-            pred.qcoll,
-            pred.qnoncoll,
-            pending_spheres,
-            pred.linklist,
-            cycle,
-            query_count,
-            coll_found,
-            cycle_check,
-            colldict,
-            sample_rate,
-            num_oocds,
-            qnoncoll_len,
-        )
-        total_idle_cycles += cdu_idle_this_cycle
-
-        enqueue_link_predictions(
-            pred.linklist,
-            pred.linklist_coll,
-            pred.qcoll,
-            pred.qnoncoll,
-            colldict,
-            threshold,
-            bins,
-            qcoll_len,
-            qnoncoll_len,
-            link_to_spheres,
-            sphere_to_link,
-            num_spheres_per_pose,
-            pose_cursor,
-        )
-
-        links_remaining = len(pred.linklist)
-        if (
-            links_remaining == 0
-            and not any(oocd.free_cycle > cycle for oocd in oocds)
-            and not pred.qnoncoll
-            and not pred.qcoll
-            and not pending_spheres
-        ):
-            everything_free = 1
-
-        cycle += 1
-
-    # for oocd in oocds:
-    #     if oocd.free_cycle > cycle:
-    #         query_count += (cycle_check - oocd.free_cycle + cycle) / cycle_check
-
-    oocd_utilization = (
-        1.0 - (total_idle_cycles / (cycle * num_oocds)) if cycle > 0 else 0.0
-    )
-
     return query_count, colldict, coll_found, cycle, oocd_utilization
 
 
@@ -304,7 +170,7 @@ def simulate_parallel_collision_detection_real_cycles(
     total_idle_cycles = 0
 
     while not coll_found and not everything_free:
-        query_count, coll_found, cdu_idle_this_cycle = process_oocds(
+        result = process_oocds(
             oocds,
             pred.qcoll,
             pred.qnoncoll,
@@ -318,6 +184,11 @@ def simulate_parallel_collision_detection_real_cycles(
             num_oocds,
             qnoncoll_len,
         )
+        query_count = result["total_query_count"]
+        coll_found = result["coll_found"]
+        cdu_idle_this_cycle = result["cdu_idle_cycles"]
+        colldict = result["colldict"]
+
         total_idle_cycles += cdu_idle_this_cycle
         # 执行预测
         enqueue_predictions(
@@ -384,7 +255,7 @@ def simulate_parallel_collision_detection_with_tracking(
     actuals = []
 
     while not coll_found and not everything_free:
-        query_count, coll_found, _ = process_oocds(
+        result = process_oocds(
             oocds,
             pred.qcoll,
             pred.qnoncoll,
@@ -398,6 +269,9 @@ def simulate_parallel_collision_detection_with_tracking(
             num_oocds,
             qnoncoll_len,
         )
+        query_count = result["total_query_count"]
+        coll_found = result["coll_found"]
+        colldict = result["colldict"]
 
         enqueue_predictions(
             pred.linklist,
@@ -459,7 +333,7 @@ def simulate_parallel_collision_detection_preemptive(
     preemption_count = 0
 
     while not coll_found and not everything_free:
-        oocds, query_count, coll_found, colldict = process_oocd_states_preemptive(
+        result = process_oocd_states_preemptive(
             oocds,
             qcoll,
             qnoncoll,
@@ -470,6 +344,10 @@ def simulate_parallel_collision_detection_preemptive(
             colldict,
             sample_rate,
         )
+        oocds = result["oocds"]
+        query_count = result["total_query_count"]
+        coll_found = result["coll_found"]
+        colldict = result["colldict"]
 
         enqueue_predictions(
             linklist,
@@ -506,80 +384,6 @@ def simulate_parallel_collision_detection_preemptive(
     return query_count, colldict, coll_found, current_time, preemption_count
 
 
-def simulate_parallel_collision_detection_dedicated(
-    linklist,
-    linklist_coll,
-    colldict,
-    threshold,
-    sample_rate,
-    bins,
-    qnoncoll_len=DEFAULT_QNONCOLL_LEN,
-    qcoll_len=DEFAULT_QCOLL_LEN,
-    cycle_check=DEFAULT_CYCLE_CHECK,
-    num_oocds=NUM_OOCDS,
-    num_dedicated_oocds=1,
-):
-    """
-    模拟并行的碰撞检测过程，支持专用CDU策略。
-    """
-    oocds = [OOCDState() for _ in range(num_oocds)]
-    qcoll = deque(maxlen=qcoll_len)
-    qnoncoll = deque(maxlen=qnoncoll_len)
-    cycle = 0
-    coll_found = 0
-    links_remaining = len(linklist)
-    everything_free = 0
-    query_count = 0.0
-
-    while not coll_found and not everything_free:
-        (
-            oocds,
-            query_count,
-            coll_found,
-            colldict,
-        ) = process_oocd_states_dedicated(
-            oocds,
-            qcoll,
-            qnoncoll,
-            cycle,
-            cycle_check,
-            query_count,
-            coll_found,
-            colldict,
-            sample_rate,
-            num_dedicated_oocds,
-            qnoncoll_len,
-            linklist,
-        )
-
-        enqueue_predictions(
-            linklist,
-            linklist_coll,
-            qcoll,
-            qnoncoll,
-            colldict,
-            threshold,
-            bins,
-            qcoll_len,
-            qnoncoll_len,
-        )
-
-        links_remaining = len(linklist)
-        if (
-            links_remaining == 0
-            and not any(oocd.free_cycle > cycle for oocd in oocds)
-            and not qnoncoll
-            and not qcoll
-        ):
-            everything_free = 1
-
-        cycle += 1
-
-    for oocd in oocds:
-        if oocd.free_cycle > cycle:
-            query_count += (cycle_check - oocd.free_cycle + cycle) / cycle_check
-
-    return query_count, colldict, coll_found, cycle
 
 
 def simulate_edge_double_buffer(
@@ -600,10 +404,16 @@ def simulate_edge_double_buffer(
     link_to_spheres,
     sphere_to_link,
     num_spheres_per_pose,
+    mode="batch",
 ):
     """
     Simulate collision detection for a single edge in double buffer architecture.
+    Supported modes:
+        - 'simple': One-to-one prediction (1 prediction -> 1 detection task).
+        - 'batch': Batch expansion (1 prediction (Link) -> N detection tasks (Spheres), all enqueued immediately).
+        - 'hierarchical': Hierarchical dispatch (1 prediction (Link) -> N pending tasks (Spheres), dispatched over time).
     """
+
     active_index = edge_idx % num_predictions
     active_pred = predictions[active_index]
 
@@ -615,50 +425,65 @@ def simulate_edge_double_buffer(
     coll_found = 0
 
     while not edge_completed:
-        (
-            oocds,
-            total_query_count,
-            coll_found,
-            colldict,
-        ) = process_oocd_states_dedicated(
-            oocds,
-            active_pred.qcoll,
-            active_pred.qnoncoll,
-            cycle,
-            cycle_check,
-            total_query_count,
-            coll_found,
-            colldict,
-            sample_rate,
-            num_dedicated_oocds,
-            qnoncoll_len,
-            active_pred.linklist,
+        # 1. OOCD Processing
+        result = process_oocds_with_mode(
+            mode=mode,
+            oocds=oocds,
+            qcoll=active_pred.qcoll,
+            qnoncoll=active_pred.qnoncoll,
+            linklist=active_pred.linklist,
+            cycle=cycle,
+            total_query_count=total_query_count,
+            coll_found=coll_found,
+            cycle_check=cycle_check,
+            colldict=colldict,
+            sample_rate=sample_rate,
+            num_oocds=len(oocds),
+            qnoncoll_len=qnoncoll_len,
+            num_dedicated_oocds=num_dedicated_oocds,
+            pending_spheres=getattr(active_pred, "pending_spheres", None),
         )
 
+        # Unpack results based on mode (adapter logic)
+        total_query_count = result["total_query_count"]
+        coll_found = result["coll_found"]
+        colldict = result["colldict"]
+        if "oocds" in result:
+            oocds = result["oocds"]
+
+        # 2. Prediction Enqueuing (Parallel for all buffers)
         for pred in predictions:
-            # 使用 enqueue_predictions_by_link
-            enqueue_predictions_by_link(
-                pred.linklist,
-                pred.linklist_coll,
-                pred.qcoll,
-                pred.qnoncoll,
-                colldict,
-                threshold,
-                bins,
-                qcoll_len,
-                qnoncoll_len,
-                link_to_spheres,
-                sphere_to_link,
-                num_spheres_per_pose,
-                pred.pose_cursor,
+            enqueue_predictions_with_mode(
+                mode=mode,
+                linklist=pred.linklist,
+                linklist_coll=pred.linklist_coll,
+                qcoll=pred.qcoll,
+                qnoncoll=pred.qnoncoll,
+                colldict=colldict,
+                threshold=threshold,
+                bins=bins,
+                qcoll_len=qcoll_len,
+                qnoncoll_len=qnoncoll_len,
+                link_to_spheres=link_to_spheres,
+                sphere_to_link=sphere_to_link,
+                num_spheres_per_pose=num_spheres_per_pose,
+                pose_cursor=pred.pose_cursor,
             )
 
-        everything_free = (
+        # 3. Check Completion
+        is_buffers_empty = (
             len(active_pred.linklist) == 0
-            and not any(oocd.free_cycle > cycle for oocd in oocds)
             and len(active_pred.qnoncoll) == 0
             and len(active_pred.qcoll) == 0
         )
+
+        if mode == "hierarchical":
+            is_buffers_empty = is_buffers_empty and not active_pred.pending_spheres
+
+        everything_free = is_buffers_empty and not any(
+            oocd.free_cycle > cycle for oocd in oocds
+        )
+
         if coll_found or everything_free:
             edge_completed = True
         cycle += 1
@@ -673,6 +498,104 @@ def simulate_edge_double_buffer(
         qcoll_len_start,
         qnoncoll_len_start,
     )
+
+
+def init_double_buffer_resources(
+    num_oocds,
+    num_predictions,
+    qcoll_len,
+    qnoncoll_len,
+    edges_data,
+    edges_coll,
+):
+    """
+    Initialize resources for double buffer simulation: OOCDs, Predictions, and pre-load data.
+    """
+    oocds = [OOCDState() for _ in range(num_oocds)]
+    predictions = [Prediction(qcoll_len, qnoncoll_len) for _ in range(num_predictions)]
+
+    # Initialize pose_cursor and pending_spheres for each prediction object
+    for pred in predictions:
+        pred.pose_cursor = [0]
+        pred.pending_spheres = deque()
+
+    next_load_edge_idx = 0
+    # Pre-load initial edges into buffers
+    for i in range(min(num_predictions, len(edges_data))):
+        edge_flat, edge_coll_flat = csp_rearrange(
+            edges_data[i], edges_coll[i], groupsize=8
+        )
+        predictions[i].linklist = edge_flat
+        predictions[i].linklist_coll = edge_coll_flat
+        next_load_edge_idx += 1
+
+    return oocds, predictions, next_load_edge_idx
+
+
+def reload_prediction_buffer(
+    active_pred, oocds, edges_data, edges_coll, next_load_edge_idx
+):
+    """
+    Reset the active prediction buffer and hardware states, then load the next edge if available.
+    """
+    # Reset OOCD states for the next run
+    for oocd in oocds:
+        oocd.reset()
+
+    # Clear the active prediction buffer
+    active_pred.qcoll.clear()
+    active_pred.qnoncoll.clear()
+    active_pred.pose_cursor[0] = 0
+    if hasattr(active_pred, "pending_spheres"):
+        active_pred.pending_spheres.clear()
+
+    # Load next edge if available
+    if next_load_edge_idx < len(edges_data):
+        edge_flat, edge_coll_flat = csp_rearrange(
+            edges_data[next_load_edge_idx],
+            edges_coll[next_load_edge_idx],
+            groupsize=8,
+        )
+        active_pred.linklist = edge_flat
+        active_pred.linklist_coll = edge_coll_flat
+        return next_load_edge_idx + 1
+
+    return next_load_edge_idx
+
+
+def compile_simulation_stats(
+    cycle,
+    num_oocds,
+    total_query_count,
+    cdu_idle_cycles,
+    cycle_check,
+    oocds,
+    total_coll_edge_cycles,
+    total_noncoll_edge_cycles,
+    qcoll_lengths_at_start,
+    qnoncoll_lengths_at_start,
+    colldict,
+):
+    """
+    Calculate and compile final simulation statistics.
+    """
+    # Add remaining fractional queries for OOCDs that are still busy or finished late
+    for oocd in oocds:
+        if oocd.free_cycle > cycle:
+            total_query_count += (cycle_check - oocd.free_cycle + cycle) / cycle_check
+
+    stats = {
+        "cdu_idle_cycles": cdu_idle_cycles,
+        "cdu_utilization": (
+            1.0 - (cdu_idle_cycles / (cycle * num_oocds)) if cycle > 0 else 0.0
+        ),
+        "total_coll_edge_cycles": total_coll_edge_cycles,
+        "total_noncoll_edge_cycles": total_noncoll_edge_cycles,
+        "qcoll_lengths_at_start": qcoll_lengths_at_start,
+        "qnoncoll_lengths_at_start": qnoncoll_lengths_at_start,
+    }
+
+    return total_query_count, colldict, cycle, stats
 
 
 def simulate_parallel_collision_detection_double_buffer(
@@ -691,36 +614,33 @@ def simulate_parallel_collision_detection_double_buffer(
     num_oocds=NUM_OOCDS,
     num_predictions=2,
     num_dedicated_oocds=1,
+    mode="sphere",
 ):
     """
     双缓冲架构的并行碰撞检测仿真。
+
+    Parameters:
+    - mode: 'standard', 'sphere', or 'link'
     """
-    oocds = [OOCDState() for _ in range(num_oocds)]
+    # 1. Initialization and Pre-loading
+    oocds, predictions, next_load_edge_idx = init_double_buffer_resources(
+        num_oocds,
+        num_predictions,
+        qcoll_len,
+        qnoncoll_len,
+        edges_data,
+        edges_coll,
+    )
 
-    predictions = [Prediction(qcoll_len, qnoncoll_len) for _ in range(num_predictions)]
-    # 为每个Prediction对象初始化pose_cursor
-    for pred in predictions:
-        pred.pose_cursor = [0]
-
-    active_index = 0
-    next_load_edge_idx = 0
     cycle = 0
     total_query_count = 0.0
     cdu_idle_cycles = 0
     total_coll_edge_cycles = 0
     total_noncoll_edge_cycles = 0
-
     qcoll_lengths_at_start = []
     qnoncoll_lengths_at_start = []
 
-    for i in range(min(num_predictions, len(edges_data))):
-        edge_flat, edge_coll_flat = csp_rearrange(
-            edges_data[i], edges_coll[i], groupsize=8
-        )
-        predictions[i].linklist = edge_flat
-        predictions[i].linklist_coll = edge_coll_flat
-        next_load_edge_idx += 1
-
+    # 2. Main Edge Loop
     for edge_idx in range(len(edges_data)):
         (
             cycle,
@@ -747,27 +667,8 @@ def simulate_parallel_collision_detection_double_buffer(
             link_to_spheres,
             sphere_to_link,
             num_spheres_per_pose,
+            mode=mode,
         )
-
-        active_index = edge_idx % num_predictions
-        active_pred = predictions[active_index]
-
-        for oocd in oocds:
-            oocd.reset()
-        active_pred.qcoll.clear()
-        active_pred.qnoncoll.clear()
-        # 重置pose_cursor
-        active_pred.pose_cursor[0] = 0
-
-        if next_load_edge_idx < len(edges_data):
-            edge_flat, edge_coll_flat = csp_rearrange(
-                edges_data[next_load_edge_idx],
-                edges_coll[next_load_edge_idx],
-                groupsize=8,
-            )
-            active_pred.linklist = edge_flat
-            active_pred.linklist_coll = edge_coll_flat
-            next_load_edge_idx += 1
 
         qcoll_lengths_at_start.append(qcoll_len_start)
         qnoncoll_lengths_at_start.append(qnoncoll_len_start)
@@ -777,19 +678,25 @@ def simulate_parallel_collision_detection_double_buffer(
         else:
             total_noncoll_edge_cycles += edge_cycles
 
-    for oocd in oocds:
-        if oocd.free_cycle > cycle:
-            total_query_count += (cycle_check - oocd.free_cycle + cycle) / cycle_check
+        # 3. Buffer Swapping and Reloading
+        active_index = edge_idx % num_predictions
+        active_pred = predictions[active_index]
 
-    stats = {
-        "cdu_idle_cycles": cdu_idle_cycles,
-        "cdu_utilization": 1.0 - (cdu_idle_cycles / (cycle * num_oocds))
-        if cycle > 0
-        else 0.0,
-        "total_coll_edge_cycles": total_coll_edge_cycles,
-        "total_noncoll_edge_cycles": total_noncoll_edge_cycles,
-        "qcoll_lengths_at_start": qcoll_lengths_at_start,
-        "qnoncoll_lengths_at_start": qnoncoll_lengths_at_start,
-    }
+        next_load_edge_idx = reload_prediction_buffer(
+            active_pred, oocds, edges_data, edges_coll, next_load_edge_idx
+        )
 
-    return total_query_count, colldict, cycle, stats
+    # 4. Final Statistics
+    return compile_simulation_stats(
+        cycle,
+        num_oocds,
+        total_query_count,
+        cdu_idle_cycles,
+        cycle_check,
+        oocds,
+        total_coll_edge_cycles,
+        total_noncoll_edge_cycles,
+        qcoll_lengths_at_start,
+        qnoncoll_lengths_at_start,
+        colldict,
+    )

@@ -6,12 +6,13 @@
 # 参数设置
 THRESHOLD=1
 SAMPLE_RATE=0.125
-MULTIPLIERS="8"
+MULTIPLIERS="2 4 8 16 32 64"
 BASENAME="iiwa_7"
 ROBOT_NAME="iiwa"
-NUM_OOCDS=7
+NUM_OOCDS=8
 START_BENCH=1
 END_BENCH=10
+DEDICATED_OOCDS=2
 # 算法类型（可通过第一个参数覆盖）
 ALGORITHM="${1:-bit_star}"
 
@@ -51,18 +52,19 @@ for STRATEGY in sphere_coord link_coord; do
             echo "正在处理: 策略=$STRATEGY, 难度=$DIFFICULTY, 算法=$ALGORITHM, QNON_MUL=$QNONCOLL_MULTIPLIER"
             
             # 输出即将执行的 Python 命令
-            echo "python prediction_simulation_sphere_link.py $THRESHOLD $SAMPLE_RATE $QNONCOLL_MULTIPLIER \"$DATA_FOLDER\" \"$BASENAME\" $START_BENCH $END_BENCH \"$ROBOT_NAME\" \"$STRATEGY\" $NUM_OOCDS"
+            echo "python prediction_simulation_sphere_link.py $THRESHOLD $SAMPLE_RATE $QNONCOLL_MULTIPLIER \"$DATA_FOLDER\" \"$BASENAME\" \"${START_BENCH}-${END_BENCH}\" \"$ROBOT_NAME\" sphere $NUM_OOCDS \"$STRATEGY\" \"$DEDICATED_OOCDS\""
             OUTPUT=$(python prediction_simulation_sphere_link.py \
                 $THRESHOLD \
                 $SAMPLE_RATE \
                 $QNONCOLL_MULTIPLIER \
                 "$DATA_FOLDER" \
                 "$BASENAME" \
-                $START_BENCH \
-                $END_BENCH \
+                "${START_BENCH}-${END_BENCH}" \
                 "$ROBOT_NAME" \
+                "sphere" \
+                $NUM_OOCDS \
                 "$STRATEGY" \
-                $NUM_OOCDS)
+                "$DEDICATED_OOCDS")
                 
             # 解析结果
             TOTAL_CHECKS=$(echo "$OUTPUT" | grep "Total Actual Checks:" | awk -F': ' '{print $2}')
