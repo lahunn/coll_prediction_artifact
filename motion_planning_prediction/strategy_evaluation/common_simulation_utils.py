@@ -215,6 +215,7 @@ def print_final_statistics(
     total_pred_noncoll_cycles=None,
     total_oracle_coll_cycles=None,
     total_oracle_noncoll_cycles=None,
+    oocd_utilization=None,
     extra_stats=None,
     title=None
 ):
@@ -240,6 +241,8 @@ def print_final_statistics(
         print(f"  Total Cycles (Oracle): {theoretical_min_cycles}")
         if fall_cycle:
             print(f"  Cycle Efficiency: {(theoretical_min_cycles / fall_cycle) * 100:.2f}%")
+    if oocd_utilization is not None:
+        print(f"  Average OOCD Utilization: {oocd_utilization * 100:.2f}%")
     if total_pred_coll_cycles is not None:
         print(f"\n  Prediction Coll Edge Cycles: {total_pred_coll_cycles}")
     if total_pred_noncoll_cycles is not None:

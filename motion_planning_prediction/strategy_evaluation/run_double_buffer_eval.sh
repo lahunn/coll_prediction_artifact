@@ -27,8 +27,8 @@ for COLLISION_MODEL in sphere link; do
     # 结果文件路径
     RESULT_CSV="../result_files/double_buffer_${COLLISION_MODEL}_results.csv"
 
-    # 初始化CSV文件头部
-    echo "Scene,Threshold,Sample_Rate,QNonColl_Mult,Total_Checks,Total_Pred_Queries,Total_Oracle_Queries,Total_Cycles,Total_Oracle_Cycles,Reduction_Rate,Cycle_Efficiency,CDU_Utilization" > "$RESULT_CSV"
+    # 初始化CSV文件头部 (统一格式)
+    echo "Scene,Collision_Model,QNonColl_Mult,Threshold,Sample_Rate,Total_Checks,Total_Pred_Queries,Total_Oracle_Queries,Reduction_Rate,Query_Diff,Total_Pred_Cycles,Total_Oracle_Cycles,Cycle_Efficiency,OOCD_Utilization" > "$RESULT_CSV"
 
     echo "=========================================="
     echo "开始执行Double Buffer策略评估遍历..."
@@ -68,18 +68,19 @@ for COLLISION_MODEL in sphere link; do
                   exit 1
               fi
 
-              # 解析输出
+              # 解析输出 (基于 print_final_statistics 的标准输出)
               TOTAL_CHECKS=$(echo "$OUTPUT" | grep "Total Actual Checks:" | tail -n 1 | awk -F': ' '{print $2}')
               TOTAL_PRED_QUERIES=$(echo "$OUTPUT" | grep "Total Prediction Queries:" | tail -n 1 | awk -F': ' '{print $2}')
               TOTAL_ORACLE_QUERIES=$(echo "$OUTPUT" | grep "Total Oracle Queries:" | tail -n 1 | awk -F': ' '{print $2}')
               TOTAL_CYCLES=$(echo "$OUTPUT" | grep "Total Cycles (Prediction):" | tail -n 1 | awk -F': ' '{print $2}')
               TOTAL_ORACLE_CYCLES=$(echo "$OUTPUT" | grep "Total Cycles (Oracle):" | tail -n 1 | awk -F': ' '{print $2}')
               REDUCTION_RATE=$(echo "$OUTPUT" | grep "Query Reduction Rate:" | tail -n 1 | awk -F': ' '{print $2}' | sed 's/%//')
+              QUERY_DIFF=$(echo "$OUTPUT" | grep "Query Difference (Prediction - Oracle):" | tail -n 1 | awk -F': ' '{print $2}' | sed 's/%//')
               CYCLE_EFFICIENCY=$(echo "$OUTPUT" | grep "Cycle Efficiency:" | tail -n 1 | awk -F': ' '{print $2}' | sed 's/%//')
-              CDU_UTILIZATION=$(echo "$OUTPUT" | grep "Average CDU Utilization:" | tail -n 1 | awk -F': ' '{print $2}' | sed 's/%//')
+              CDU_UTILIZATION=$(echo "$OUTPUT" | grep "Average OOCD Utilization:" | tail -n 1 | awk -F': ' '{print $2}' | sed 's/%//')
 
-              # 写入CSV
-              echo "$SCENE,$THRESHOLD,$SAMPLE_RATE,$QNONCOLL_MULTIPLIER,$TOTAL_CHECKS,$TOTAL_PRED_QUERIES,$TOTAL_ORACLE_QUERIES,$TOTAL_CYCLES,$TOTAL_ORACLE_CYCLES,$REDUCTION_RATE,$CYCLE_EFFICIENCY,$CDU_UTILIZATION" >> "$RESULT_CSV"
+              # 写入CSV (统一顺序)
+              echo "$SCENE,$COLLISION_MODEL,$QNONCOLL_MULTIPLIER,$THRESHOLD,$SAMPLE_RATE,$TOTAL_CHECKS,$TOTAL_PRED_QUERIES,$TOTAL_ORACLE_QUERIES,$REDUCTION_RATE,$QUERY_DIFF,$TOTAL_CYCLES,$TOTAL_ORACLE_CYCLES,$CYCLE_EFFICIENCY,$CDU_UTILIZATION" >> "$RESULT_CSV"
             done
     done
 

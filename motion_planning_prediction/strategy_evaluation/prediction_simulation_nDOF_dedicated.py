@@ -90,7 +90,7 @@ print(f"Shared CDUs: {num_oocds - num_dedicated_oocds}")
 print("=" * 50)
 
 # --- Global Statistics ---
-stats = initialize_statistics()
+# (Already initialized above)
 
 # --- Benchmark Range ---
 benchrange = parse_benchrange(benchmarks_arg)
@@ -118,6 +118,9 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
 
     stats["total_checks"] += oracle_stats["total_checks"]
     all_oracle = oracle_stats["total_oracle_queries"]
+    stats["theoretical_min_cycles"] += oracle_stats["total_oracle_cycles"]
+    stats["total_oracle_coll_cycles"] += oracle_stats["total_oracle_coll_cycles"]
+    stats["total_oracle_noncoll_cycles"] += oracle_stats["total_oracle_noncoll_cycles"]
 
     # 处理每条边
     for edge, edge_coll in zip(edge_link_data, edge_link_coll_data):
@@ -129,7 +132,7 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
         linklist, linklist_coll = su.csp_rearrange(edge, edge_coll, groupsize=4)
 
         # --- Run Dedicated CDU Simulation ---
-        edge_query_count, colldict, _, cycle, _ = (
+        edge_query_count, colldict, coll_found, cycle, oocd_utilization = (
             su.simulate_parallel_collision_detection(
                 linklist,
                 linklist_coll,
@@ -145,6 +148,18 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
             )
         )
 
+        stats["total_oocd_utilization"] += oocd_utilization * cycle
+        stats["total_edges"] += 1
+
+        if cycle > 0:
+             # Just a placeholder update, actual weighted calc is at end
+             pass
+
+        if coll_found:
+            stats["total_pred_coll_cycles"] += cycle
+        else:
+            stats["total_pred_noncoll_cycles"] += cycle
+
         all_prediction += edge_query_count
         all_cycle += cycle
 
@@ -158,12 +173,23 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
             f"[{benchid}/{num_benchmarks}] 预测查询: {all_prediction:.2f}, Oracle查询: {all_oracle}"
         )
 
+avg_oocd_utilization = (
+    stats["total_oocd_utilization"] / stats["fall_cycle"]
+    if stats["fall_cycle"] > 0
+    else 0.0
+)
 
 print_final_statistics(
     total_checks=stats["total_checks"],
     fall_prediction=stats["fall_prediction"],
     fall_oracle=stats["fall_oracle"],
     fall_cycle=stats["fall_cycle"],
+    theoretical_min_cycles=stats["theoretical_min_cycles"],
+    total_pred_coll_cycles=stats["total_pred_coll_cycles"],
+    total_pred_noncoll_cycles=stats["total_pred_noncoll_cycles"],
+    total_oracle_coll_cycles=stats["total_oracle_coll_cycles"],
+    total_oracle_noncoll_cycles=stats["total_oracle_noncoll_cycles"],
+    oocd_utilization=avg_oocd_utilization,
 )
 
 # 输出到CSV

@@ -4,9 +4,9 @@
 # 并将结果保存到 CSV 文件中
 
 # 参数设置
-THRESHOLD=1
-SAMPLE_RATE=0.125
-MULTIPLIERS="2 4 8 16 32 64"
+THRESHOLD=0.5
+SAMPLE_RATE=0.1
+MULTIPLIERS="4 8 16"
 BASENAME="iiwa_7"
 ROBOT_NAME="iiwa"
 NUM_OOCDS=8
@@ -31,8 +31,8 @@ else
     BASE_DATA_DIR="../../trace_files/scene_benchmarks/bit_collision_data"
 fi
 
-# 初始化 CSV 文件 (新增 QNON_MUL 列)
-echo "Difficulty,Strategy,QNON_MUL,Threshold,Sample_Rate,Total_Checks,Total_Pred_Queries,Total_Oracle_Queries,Query_Reduction_Rate,Query_Difference,Total_Pred_Cycles,Total_Oracle_Cycles,Cycle_Efficiency,OOCD_Utilization" > "$RESULT_FILE"
+# 初始化 CSV 文件 (统一格式)
+echo "Difficulty,Strategy,QNonColl_Mult,Threshold,Sample_Rate,Total_Checks,Total_Pred_Queries,Total_Oracle_Queries,Reduction_Rate,Query_Diff,Total_Pred_Cycles,Total_Oracle_Cycles,Cycle_Efficiency,OOCD_Utilization" > "$RESULT_FILE"
 
 echo "=== 开始运行对比仿真 ==="
 
@@ -66,7 +66,7 @@ for STRATEGY in sphere_coord link_coord; do
                 "$STRATEGY" \
                 "$DEDICATED_OOCDS")
                 
-            # 解析结果
+            # 解析结果 (基于 print_final_statistics 的标准输出)
             TOTAL_CHECKS=$(echo "$OUTPUT" | grep "Total Actual Checks:" | awk -F': ' '{print $2}')
             PRED_QUERIES=$(echo "$OUTPUT" | grep "Total Prediction Queries:" | awk -F': ' '{print $2}')
             ORACLE_QUERIES=$(echo "$OUTPUT" | grep "Total Oracle Queries:" | awk -F': ' '{print $2}')
@@ -83,7 +83,7 @@ for STRATEGY in sphere_coord link_coord; do
                 echo "Python 脚本输出片段:"
                 echo "$OUTPUT" | tail -n 10
             else
-                # 写入 CSV (新增 $QNONCOLL_MULTIPLIER 到数据行)
+                # 写入 CSV (统一顺序)
                 echo "$DIFFICULTY,$STRATEGY,$QNONCOLL_MULTIPLIER,$THRESHOLD,$SAMPLE_RATE,$TOTAL_CHECKS,$PRED_QUERIES,$ORACLE_QUERIES,$REDUCTION_RATE,$QUERY_DIFF,$PRED_CYCLES,$ORACLE_CYCLES,$CYCLE_EFFICIENCY,$OOCD_UTILIZATION" >> "$RESULT_FILE"
                 echo "结果已写入 CSV: PRED_QUERIES=$PRED_QUERIES, Efficiency=$CYCLE_EFFICIENCY%, Utilization=$OOCD_UTILIZATION%"
             fi

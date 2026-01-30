@@ -217,6 +217,12 @@ for benchid in tqdm(benchrange, desc="Processing benchmarks"):
             f"Cycles: {bench_cycles}"
         )
 
+avg_cdu_utilization = (
+    (1.0 - stats["total_cdu_idle_cycles"] / (stats["fall_cycle"] * num_oocds))
+    if stats["fall_cycle"] > 0
+    else 0.0
+)
+
 # 统计打印
 print_final_statistics(
     total_checks=stats["total_checks"],
@@ -228,28 +234,11 @@ print_final_statistics(
     total_pred_noncoll_cycles=stats["total_pred_noncoll_cycles"],
     total_oracle_coll_cycles=stats["total_oracle_coll_cycles"],
     total_oracle_noncoll_cycles=stats["total_oracle_noncoll_cycles"],
+    oocd_utilization=avg_cdu_utilization,
     extra_stats={
         "Total Collision Edges": stats["total_coll_edges"],
         "Total Non-Collision Edges": stats["total_noncoll_edges"],
     },
-)
-
-# Calculate average checks for collision edges
-total_coll_edge_queries = (
-    stats["total_prediction_queries"] - stats["total_noncoll_edge_queries"]
-)
-avg_coll_edge_checks = (
-    total_coll_edge_queries / stats["total_coll_edges"]
-    if stats["total_coll_edges"] > 0
-    else 0
-)
-print(f"\n  Total Collision Edge Queries: {total_coll_edge_queries:.2f}")
-print(f"  Total Non-Collision Edge Queries: {stats['total_noncoll_edge_queries']:.2f}")
-print(f"  Average Checks per Collision Edge: {avg_coll_edge_checks:.2f}")
-
-print(f"\n  Total CDU Idle Cycles: {stats['total_cdu_idle_cycles']}")
-print(
-    f"  Average CDU Utilization: {(1.0 - stats['total_cdu_idle_cycles'] / (stats['fall_cycle'] * num_oocds)) * 100:.2f}%"
 )
 
 # Calculate statistics for qcoll lengths

@@ -162,7 +162,7 @@ for benchid in tqdm(benchrange, desc="Processing Benchmarks"):
         # edge_coords is either sphere coords or link coords depending on strategy
         linklist, linklist_coll = su.csp_rearrange(edge_coords, edge_coll, groupsize=4)
 
-        # Determine simulation mode: link_coord strategy uses hierarchical dispatch, 
+        # Determine simulation mode: link_coord strategy uses hierarchical dispatch,
         # while sphere_coord uses batch expansion.
         sim_mode = "hierarchical" if prediction_strategy == "link_coord" else "batch"
 
@@ -210,27 +210,13 @@ print_final_statistics(
     total_checks=stats["total_checks"],
     fall_prediction=stats["fall_prediction"],
     fall_oracle=stats["fall_oracle"],
+    fall_cycle=stats["fall_cycle"],
+    theoretical_min_cycles=stats["theoretical_min_cycles"],
     total_pred_coll_cycles=stats["total_pred_coll_cycles"],
     total_pred_noncoll_cycles=stats["total_pred_noncoll_cycles"],
     total_oracle_coll_cycles=stats["total_oracle_coll_cycles"],
     total_oracle_noncoll_cycles=stats["total_oracle_noncoll_cycles"],
-    extra_stats={"Avg OOCD Utilization": f"{avg_oocd_utilization:.4f}"},
+    oocd_utilization=avg_oocd_utilization,
 )
-
-print(f"\n  Total Cycles (Prediction): {stats['fall_cycle']}")
-print(f"  Total Cycles (Oracle): {stats['theoretical_min_cycles']}")
-if stats["fall_cycle"] > 0:
-    print(
-        f"  Cycle Efficiency: {(stats['theoretical_min_cycles'] / stats['fall_cycle']) * 100:.2f}%"
-    )
-else:
-    print("  Cycle Efficiency: N/A")
-
-print(f"\n  Prediction Coll Edge Cycles: {stats['total_pred_coll_cycles']}")
-print(f"  Prediction Non-Coll Edge Cycles: {stats['total_pred_noncoll_cycles']}")
-print(f"  Oracle Coll Edge Cycles: {stats['total_oracle_coll_cycles']}")
-print(f"  Oracle Non-Coll Edge Cycles: {stats['total_oracle_noncoll_cycles']}")
-print(f"\n  Average OOCD Utilization: {avg_oocd_utilization * 100:.2f}%")
-
 
 print("=" * 50)

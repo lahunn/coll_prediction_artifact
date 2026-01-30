@@ -47,7 +47,7 @@ from common_simulation_utils import (
 
 # --- Simulation Settings & Global Statistics ---
 quant_bits = DEFAULT_QUANT_BITS
-stats = initialize_statistics()
+stats = initialize_statistics(extra_keys=["total_oocd_utilization"])
 
 # --- Simulation Parameters from Command Line ---
 parser = create_common_parser("Link级碰撞检测预测仿真程序（nDOF机器人）")
@@ -122,7 +122,7 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
         linklist, linklist_coll = su.csp_rearrange(edge, edge_coll, groupsize=4)
 
         # --- Run Centralized Simulation ---
-        edge_query_count, colldict, coll_found, cycle, _ = (
+        edge_query_count, colldict, coll_found, cycle, oocd_utilization = (
             su.simulate_parallel_collision_detection(
                 linklist,
                 linklist_coll,
@@ -135,6 +135,8 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
                 num_oocds=num_oocds,
             )
         )
+
+        stats["total_oocd_utilization"] += oocd_utilization * cycle
 
         if coll_found:
             stats["total_pred_coll_cycles"] += cycle
@@ -154,6 +156,11 @@ for benchid in tqdm(benchrange, desc="处理基准测试"):
             f"[{benchid}/{num_benchmarks}] 预测查询: {all_prediction:.2f}, Oracle查询: {all_oracle}"
         )
 
+avg_oocd_utilization = (
+    stats["total_oocd_utilization"] / stats["fall_cycle"]
+    if stats["fall_cycle"] > 0
+    else 0.0
+)
 
 print_final_statistics(
     total_checks=stats["total_checks"],
@@ -165,6 +172,7 @@ print_final_statistics(
     total_pred_noncoll_cycles=stats["total_pred_noncoll_cycles"],
     total_oracle_coll_cycles=stats["total_oracle_coll_cycles"],
     total_oracle_noncoll_cycles=stats["total_oracle_noncoll_cycles"],
+    oocd_utilization=avg_oocd_utilization,
 )
 
 # 输出到CSV (保留原有注释代码)
