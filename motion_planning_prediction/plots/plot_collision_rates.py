@@ -15,6 +15,8 @@ import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+import seaborn as sns
+import matplotlib
 from tqdm import tqdm
 
 # Add parent directory to path to import simulation_utils
@@ -22,22 +24,17 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
 import simulation_utils as su
 
 # --- Plotting Style ---
-import matplotlib
+# 1. 设置绘图风格（白底、带刻度）
+sns.set_style("ticks") 
+
+# 2. 设置调色板（推荐色盲友好型）
+sns.set_palette("colorblind")
+
+# 3. 设置上下文（自动调整线条粗细和字体大小，'paper' 适合论文）
+sns.set_context("paper", font_scale=1.5)
 
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
-plt.style.use("seaborn-v0_8-whitegrid")
-font = {
-    "family": "serif",
-    "weight": "normal",
-    "size": 14,
-}
-plt.rc("font", **font)
-
-# Colors
-EDGE_COLOR = "#D55E00"   # Vermilion
-POSE_COLOR = "#0072B2"   # Blue
-SPHERE_COLOR = "#009E73" # Bluish Green
 
 
 def analyze_difficulty(data_folder, difficulty, basename, num_benchmarks):
@@ -140,11 +137,17 @@ def plot_rates(results, output_dir="figs"):
     x = np.arange(len(difficulties))
     width = 0.25
 
+    # 获取 Seaborn 颜色
+    colors = sns.color_palette()
+    edge_color = colors[0]
+    pose_color = colors[1]
+    sphere_color = colors[2]
+
     fig, ax = plt.subplots(figsize=(10, 6))
     
-    rects1 = ax.bar(x - width, edge_rates, width, label='Edge Level', color=EDGE_COLOR)
-    rects2 = ax.bar(x, pose_rates, width, label='Pose Level', color=POSE_COLOR)
-    rects3 = ax.bar(x + width, sphere_rates, width, label='Sphere Level', color=SPHERE_COLOR)
+    rects1 = ax.bar(x - width, edge_rates, width, label='Edge Level', color=edge_color)
+    rects2 = ax.bar(x, pose_rates, width, label='Pose Level', color=pose_color)
+    rects3 = ax.bar(x + width, sphere_rates, width, label='Sphere Level', color=sphere_color)
 
     ax.set_xlabel('Difficulty Level')
     ax.set_ylabel('Collision Rate (%)')
@@ -153,7 +156,8 @@ def plot_rates(results, output_dir="figs"):
     ax.set_xticklabels(difficulties)
     ax.legend()
     
-    ax.grid(axis='y', linestyle='--', alpha=0.7)
+    ax.yaxis.grid(True, linestyle='--', alpha=0.7)
+    sns.despine(ax=ax)
 
     def autolabel(rects):
         """Attach a text label above each bar in *rects*, displaying its height."""
@@ -176,9 +180,9 @@ def plot_rates(results, output_dir="figs"):
     
     # Also plot a Log scale version for better visibility of Sphere rates
     fig_log, ax_log = plt.subplots(figsize=(10, 6))
-    rects1_log = ax_log.bar(x - width, edge_rates, width, label='Edge Level', color=EDGE_COLOR)
-    rects2_log = ax_log.bar(x, pose_rates, width, label='Pose Level', color=POSE_COLOR)
-    rects3_log = ax_log.bar(x + width, sphere_rates, width, label='Sphere Level', color=SPHERE_COLOR)
+    rects1_log = ax_log.bar(x - width, edge_rates, width, label='Edge Level', color=edge_color)
+    rects2_log = ax_log.bar(x, pose_rates, width, label='Pose Level', color=pose_color)
+    rects3_log = ax_log.bar(x + width, sphere_rates, width, label='Sphere Level', color=sphere_color)
     
     ax_log.set_xlabel('Difficulty Level')
     ax_log.set_ylabel('Collision Rate (%) - Log Scale')
@@ -187,7 +191,8 @@ def plot_rates(results, output_dir="figs"):
     ax_log.set_xticklabels(difficulties)
     ax_log.legend()
     ax_log.set_yscale('log')
-    ax_log.grid(axis='y', linestyle='--', alpha=0.7, which='both')
+    ax_log.yaxis.grid(True, linestyle='--', alpha=0.7, which='both')
+    sns.despine(ax=ax_log)
     
     plt.tight_layout()
     output_path_log = os.path.join(output_dir, "collision_rates_comparison_log.png")

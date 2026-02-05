@@ -13,6 +13,7 @@ import sys
 import os
 import argparse
 import numpy as np
+import csv
 # import itertools
 # from collections import Counter
 # import matplotlib.pyplot as plt
@@ -25,11 +26,15 @@ import simulation_utils as su
 from simulation_core import hash_utils
 
 
-def load_all_hash_keys(basename, benchid_range, data_folder, quant_bits):
+def load_all_hash_keys(
+    basename, benchid_range, data_folder, quant_bits, collision_model_type="link"
+):
     """
     加载数据并计算所有Hash Keys
     """
-    print(f"正在加载数据 {basename} (Benchmarks: {benchid_range})...")
+    print(
+        f"正在加载数据 {basename} (模型: {collision_model_type}, Benchmarks: {benchid_range})..."
+    )
 
     # 获取Workspace Bins
     robot_name = basename.split("_")[0]  # 假设命名规则为 name_dof
@@ -53,14 +58,17 @@ def load_all_hash_keys(basename, benchid_range, data_folder, quant_bits):
     for bid in bench_ids:
         # 加载单个Benchmark数据
         # 注意：这里只加载数据，不需要碰撞检测结果
-        data, _ = su.load_data(basename, bid, data_folder, collision_model_type="link")
+        data, _ = su.load_data(
+            basename, bid, data_folder, collision_model_type=collision_model_type
+        )
 
         if data is None:
             continue
 
         # data结构: [edge1, edge2, ...]
         # edge结构: [pose1, pose2, ...]
-        # pose结构: [link1_coords, link2_coords, ...]
+        # 对于 link 模型，element 结构为 [x, y, z, qx, qy, qz, qw]
+        # 对于 sphere 模型，element 结构为 [x, y, z, radius]
 
         for edge in data:
             total_edges += 1
@@ -78,90 +86,129 @@ def load_all_hash_keys(basename, benchid_range, data_folder, quant_bits):
 
 def evaluate_bank_schemes(all_hash_keys, num_banks, quant_bits):
     """
-    评估特定的Bank Bit选择方案 (0, 1, 2)
+    评估多种Bank Bit选择方案
     """
     if not all_hash_keys:
-        return
+        return []
 
     key_len = len(all_hash_keys[0])
+    num_select_bits = int(np.log2(num_banks))
 
-    print("\n=== Bank方案评估 ===")
-    print(f"Hash Key长度: {key_len} bits")
+    print(f"\n=== Bank方案评估 (KeyLen={key_len}, SelectBits={num_select_bits}) ===")
 
-    # 仅评估 0, 1, 2 方案
-    combo = (0, 1, 2)
-    print(f"评估方案: Bits {combo}")
+    # 定义10种评估方案 (假设 num_select_bits=3, 对应 num_banks=8)
+    # 如果 num_banks != 8, 这些硬编码方案可能需要调整，这里做个简单适配
 
-    # 计算每个key对应的bank id
-    bank_counts = np.zeros(num_banks, dtype=int)
+    # 基础方案 (Low Bits)
+    schemes = [
+        tuple(range(num_select_bits)),  # (0, 1, 2)
+    ]
 
-    for key_str in all_hash_keys:
-        bank_id = 0
-        for i, bit_idx in enumerate(combo):
-            # bit_idx 是字符串中的索引
-            if key_str[bit_idx] == "1":
-                bank_id |= 1 << i
-        bank_counts[bank_id] += 1
+    # 生成其他9种方案
+    if num_select_bits == 3:
+        schemes.extend(
+            [
+                (3, 4, 5),  # Level 1
+                (6, 7, 8),  # Level 2
+                (9, 10, 11),  # Level 3 (High)
+                (0, 3, 6),  # Strided X
+                (1, 4, 7),  # Strided Y
+                (2, 5, 8),  # Strided Z
+                (0, 6, 11),  # Mixed
+                (0, 4, 8),  # Spread
+                (1, 5, 9),  # Sparse
+            ]
+        )
+    else:
+        # 对于非8 Bank的情况，简单生成一些跨步方案
+        import random
 
-    # 计算统计指标
-    std_dev = np.std(bank_counts)
-    max_load = np.max(bank_counts)
-    min_load = np.min(bank_counts)
-    range_ratio = max_load / min_load if min_load > 0 else float("inf")
+        np.random.seed(42)  # 固定随机数以保持一致性
+        for _ in range(9):
+            # 随机选择不重复的位
+            scheme = tuple(
+                sorted(np.random.choice(key_len, num_select_bits, replace=False))
+            )
+            if scheme not in schemes:
+                schemes.append(scheme)
 
-    print("结果:")
-    print(f"  Std Dev: {std_dev:.2f}")
-    print(f"  Max/Min Ratio: {range_ratio:.2f}")
-    print(f"  Counts: {bank_counts}")
-    print_bit_meaning(combo, quant_bits)
-    print("-" * 40)
+    # 评估所有方案
+    results = []
+
+    collected_metrics = []
+
+    for idx, combo in enumerate(schemes):
+        # 检查 combo 中的索引是否超出 key_len
+        if any(c >= key_len for c in combo):
+            continue
+
+        bank_counts = np.zeros(num_banks, dtype=int)
+
+        for key_str in all_hash_keys:
+            bank_id = 0
+            for i, bit_idx in enumerate(combo):
+                # bit_idx 是字符串中的索引
+                if key_str[bit_idx] == "1":
+                    bank_id |= 1 << i
+            bank_counts[bank_id] += 1
+
+        # 计算统计指标
+        std_dev = np.std(bank_counts)
+        max_load = np.max(bank_counts)
+        min_load = np.min(bank_counts)
+        range_ratio = max_load / min_load if min_load > 0 else float("inf")
+
+        desc = get_bit_meaning_short(combo, quant_bits)
+
+        results.append(
+            {
+                "id": idx,
+                "combo": combo,
+                "std": std_dev,
+                "ratio": range_ratio,
+                "counts": bank_counts,
+                "desc": desc,
+            }
+        )
+
+        collected_metrics.append(
+            {
+                "Strategy": "Bit Selection",
+                "Configuration": str(combo),
+                "StdDev": std_dev,
+                "MaxMinRatio": range_ratio,
+                "Counts": str(bank_counts.tolist()),
+            }
+        )
+
+    # 按标准差排序输出
+    results.sort(key=lambda x: x["std"])
+
+    print(f"{'ID':<4} | {'Bits':<15} | {'StdDev':<8} | {'Ratio':<6} | {'Description'}")
+    print("-" * 60)
+
+    for res in results:
+        print(
+            f"{res['id']:<4} | {str(res['combo']):<15} | {res['std']:<8.2f} | {res['ratio']:<6.2f} | {res['desc']}"
+        )
+
+    print("-" * 60)
+    print(f"推荐最佳方案: Bits {results[0]['combo']} (Std={results[0]['std']:.2f})")
+    print("-" * 60)
+
+    return collected_metrics
 
 
-def print_bit_meaning(combo, quant_bits):
-    """解释位的含义"""
-    # 假设3维
+def get_bit_meaning_short(combo, quant_bits):
+    """简短解释位的含义"""
     dims = ["X", "Y", "Z"]
     num_dims = 3
-
     desc = []
     for bit_idx in combo:
-        # bit_idx = bit_level * num_dims + dim_index
         bit_level = bit_idx // num_dims
         dim_index = bit_idx % num_dims
-        desc.append(f"{dims[dim_index]}_bit{bit_level}")
-
-    print(f"  含义: {', '.join(desc)}")
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Hash Pattern Analysis")
-    parser.add_argument("basename", help="Dataset basename (e.g., iiwa_7)")
-    parser.add_argument("benchid", help="Benchmark ID range (e.g., 1-10)")
-    parser.add_argument("data_folder", help="Path to data folder")
-    parser.add_argument("--quant-bits", type=int, default=4, help="Quantization bits")
-    parser.add_argument("--num-banks", type=int, default=8, help="Number of banks")
-
-    args = parser.parse_args()
-
-    # 1. 加载并生成Hash
-    keys = load_all_hash_keys(
-        args.basename, args.benchid, args.data_folder, args.quant_bits
-    )
-
-    # 2. 评估方案
-    evaluate_bank_schemes(keys, args.num_banks, args.quant_bits)
-
-    # 3. 评估XOR方案
-    # evaluate_xor_schemes(keys, args.num_banks)
-
-    # 4. 评估乘法Hash方案
-    evaluate_prime_hash_schemes(keys, args.num_banks)
-
-    # 5. 评估H3 Hash方案 (Universal Hashing)
-    evaluate_h3_hash_schemes(keys, args.num_banks)
-
-    # 6. 评估强混淆Hash方案 (Murmur3/Wang)
-    evaluate_strong_mix_schemes(keys, args.num_banks)
+        desc.append(f"{dims[dim_index]}{bit_level}")
+    return ",".join(desc)
 
 
 def evaluate_strong_mix_schemes(all_hash_keys, num_banks):
@@ -170,7 +217,7 @@ def evaluate_strong_mix_schemes(all_hash_keys, num_banks):
     原理: 使用一系列位运算(XOR, Shift, Mult)彻底打散输入位的相关性。
     """
     if not all_hash_keys:
-        return
+        return []
 
     print("\n=== 强混淆Hash方案评估 (Strong Mixing) ===")
 
@@ -203,6 +250,8 @@ def evaluate_strong_mix_schemes(all_hash_keys, num_banks):
 
     schemes = [("Murmur3 Mixer", murmur3_mix), ("Wang Hash", wang_hash)]
 
+    collected_metrics = []
+
     for name, func in schemes:
         bank_counts = np.zeros(num_banks, dtype=int)
 
@@ -232,6 +281,18 @@ def evaluate_strong_mix_schemes(all_hash_keys, num_banks):
         print(f"  Counts: {bank_counts}")
         print("-" * 20)
 
+        collected_metrics.append(
+            {
+                "Strategy": "Strong Mixing",
+                "Configuration": name,
+                "StdDev": std_dev,
+                "MaxMinRatio": range_ratio,
+                "Counts": str(bank_counts.tolist()),
+            }
+        )
+
+    return collected_metrics
+
 
 def evaluate_h3_hash_schemes(all_hash_keys, num_banks):
     """
@@ -240,7 +301,7 @@ def evaluate_h3_hash_schemes(all_hash_keys, num_banks):
     这是硬件CHT/Cache中常用的消除冲突的方法。
     """
     if not all_hash_keys:
-        return
+        return []
 
     print("\n=== H3 Hash方案评估 (Universal Hashing) ===")
 
@@ -255,6 +316,8 @@ def evaluate_h3_hash_schemes(all_hash_keys, num_banks):
 
     best_ratio = float("inf")
     best_seed = -1
+
+    collected_metrics = []
 
     for seed in seeds:
         np.random.seed(seed)
@@ -297,8 +360,20 @@ def evaluate_h3_hash_schemes(all_hash_keys, num_banks):
             best_ratio = range_ratio
             best_seed = seed
 
+        collected_metrics.append(
+            {
+                "Strategy": "H3 Hash",
+                "Configuration": f"Seed {seed}",
+                "StdDev": std_dev,
+                "MaxMinRatio": range_ratio,
+                "Counts": str(bank_counts.tolist()),
+            }
+        )
+
     print("-" * 20)
     print(f"H3 最佳 Seed: {best_seed}, Ratio: {best_ratio:.2f}")
+
+    return collected_metrics
 
 
 def evaluate_xor_schemes(all_hash_keys, num_banks):
@@ -306,7 +381,7 @@ def evaluate_xor_schemes(all_hash_keys, num_banks):
     评估XOR Hash方案 (Folding)
     """
     if not all_hash_keys:
-        return
+        return []
 
     key_len = len(all_hash_keys[0])
     num_select_bits = int(np.log2(num_banks))
@@ -345,6 +420,16 @@ def evaluate_xor_schemes(all_hash_keys, num_banks):
     print(f"  Counts: {bank_counts}")
     print("-" * 40)
 
+    return [
+        {
+            "Strategy": "XOR Folding",
+            "Configuration": f"Fold {key_len}->{num_select_bits}",
+            "StdDev": std_dev,
+            "MaxMinRatio": range_ratio,
+            "Counts": str(bank_counts.tolist()),
+        }
+    ]
+
 
 def evaluate_prime_hash_schemes(all_hash_keys, num_banks):
     """
@@ -353,7 +438,7 @@ def evaluate_prime_hash_schemes(all_hash_keys, num_banks):
     这是最常用的打散规律性数据的低成本Hash方法
     """
     if not all_hash_keys:
-        return
+        return []
 
     print("\n=== 乘法Hash方案评估 (Multiplicative) ===")
 
@@ -371,6 +456,8 @@ def evaluate_prime_hash_schemes(all_hash_keys, num_banks):
     # 我们在一个32位的空间内做乘法，然后取高位
     # Shift amount to get the top N bits from a 32-bit result
     shift_amount = 32 - num_select_bits
+
+    collected_metrics = []
 
     for prime in primes:
         bank_counts = np.zeros(num_banks, dtype=int)
@@ -393,6 +480,93 @@ def evaluate_prime_hash_schemes(all_hash_keys, num_banks):
         print(f"  Max/Min Ratio: {range_ratio:.2f}")
         print(f"  Counts: {bank_counts}")
         print("-" * 20)
+
+        collected_metrics.append(
+            {
+                "Strategy": "Multiplicative Hash",
+                "Configuration": f"Prime {prime}",
+                "StdDev": std_dev,
+                "MaxMinRatio": range_ratio,
+                "Counts": str(bank_counts.tolist()),
+            }
+        )
+
+    return collected_metrics
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Hash Pattern Analysis")
+    parser.add_argument("basename", help="Dataset basename (e.g., iiwa_7)")
+    parser.add_argument("benchid", help="Benchmark ID range (e.g., 1-10)")
+    parser.add_argument("data_folder", help="Path to data folder")
+    parser.add_argument("--quant-bits", type=int, default=4, help="Quantization bits")
+    parser.add_argument("--num-banks", type=int, default=8, help="Number of banks")
+    parser.add_argument(
+        "--collision-model-type",
+        type=str,
+        default="sphere",
+        choices=["link", "sphere"],
+        help="Collision model type (link or sphere)",
+    )
+    parser.add_argument(
+        "--output",
+        type=str,
+        default="result_files/hash_analysis_results.csv",
+        help="Output CSV file path",
+    )
+
+    args = parser.parse_args()
+
+    # 1. 加载并生成Hash
+    keys = load_all_hash_keys(
+        args.basename,
+        args.benchid,
+        args.data_folder,
+        args.quant_bits,
+        collision_model_type=args.collision_model_type,
+    )
+
+    all_results = []
+
+    # 2. 评估普通方案
+    all_results.extend(evaluate_bank_schemes(keys, args.num_banks, args.quant_bits))
+
+    # 3. 评估XOR方案
+    all_results.extend(evaluate_xor_schemes(keys, args.num_banks))
+
+    # 4. 评估乘法Hash方案
+    all_results.extend(evaluate_prime_hash_schemes(keys, args.num_banks))
+
+    # 5. 评估H3 Hash方案 (Universal Hashing)
+    all_results.extend(evaluate_h3_hash_schemes(keys, args.num_banks))
+
+    # 6. 评估强混淆Hash方案 (Murmur3/Wang)
+    all_results.extend(evaluate_strong_mix_schemes(keys, args.num_banks))
+
+    # 7. 保存结果到 CSV
+    if all_results:
+        # 确保输出目录存在
+        output_dir = os.path.dirname(args.output)
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+
+        try:
+            with open(args.output, "w", newline="") as csvfile:
+                fieldnames = [
+                    "Strategy",
+                    "Configuration",
+                    "StdDev",
+                    "MaxMinRatio",
+                    "Counts",
+                ]
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+                writer.writeheader()
+                for row in all_results:
+                    writer.writerow(row)
+            print(f"\nAnalysis results saved to: {args.output}")
+        except Exception as e:
+            print(f"Error saving results: {e}")
 
 
 if __name__ == "__main__":

@@ -10,18 +10,22 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib
-# Unified plotting style
-matplotlib.rcParams["pdf.fonttype"] = 42
-matplotlib.rcParams["ps.fonttype"] = 42
-plt.style.use("seaborn-v0_8-whitegrid")
-font = {
-    "family": "serif",
-    "weight": "normal",
-    "size": 28,
-}
-plt.rc("font", **font)
+import seaborn as sns
 from pathlib import Path
 import argparse
+
+# 1. 设置绘图风格（白底、带刻度）
+sns.set_style("ticks") 
+
+# 2. 设置调色板（推荐色盲友好型）
+sns.set_palette("colorblind")
+
+# 3. 设置上下文（自动调整线条粗细和字体大小，'paper' 适合论文）
+sns.set_context("paper", font_scale=1.5)
+
+# 确保在PDF和PS文件中正确嵌入字体
+matplotlib.rcParams["pdf.fonttype"] = 42
+matplotlib.rcParams["ps.fonttype"] = 42
 
 def load_data(csv_file):
     """加载准确率数据"""
@@ -55,6 +59,11 @@ def plot_single_config(ax, df, config, title_suffix=""):
         means.append(group.mean())
         stds.append(group.std())
     
+    # 获取 Seaborn 颜色
+    colors = sns.color_palette()
+    line_color = colors[0]
+    fill_color = colors[2]
+
     # 绘制曲线
     ax.plot(
         sizes,
@@ -62,7 +71,7 @@ def plot_single_config(ax, df, config, title_suffix=""):
         'o-',
         linewidth=2,
         markersize=4,
-        color='navy',
+        color=line_color,
         label=f'Threshold={threshold}, Sample Rate={sample_rate}, Queue Multiplier={qnoncoll_multiplier}'
     )
     
@@ -73,7 +82,7 @@ def plot_single_config(ax, df, config, title_suffix=""):
             np.array(means) - np.array(stds),
             np.array(means) + np.array(stds),
             alpha=0.3,
-            color='darkgreen'
+            color=fill_color
         )
     
     ax.set_xlabel('Training Data Size (History Dictionary Size)')
@@ -107,6 +116,7 @@ def plot_comparison(df, configs, save_path=None):
     for i in range(plotted_count, len(axes)):
         axes[i].set_visible(False)
     
+    sns.despine()
     plt.tight_layout()
     
     if save_path:
@@ -133,6 +143,11 @@ def plot_aggregated_curve(df, save_path=None):
         stds.append(group.std())
         counts.append(len(group))
     
+    # 获取 Seaborn 颜色
+    colors = sns.color_palette()
+    line_color = colors[0]
+    fill_color = colors[2]
+
     # 绘制主曲线
     plt.plot(
         sizes,
@@ -141,7 +156,7 @@ def plot_aggregated_curve(df, save_path=None):
         linewidth=3,
         marker='o',
         markersize=6,
-        color='navy',
+        color=line_color,
         label='Mean Accuracy'
     )
     
@@ -151,7 +166,7 @@ def plot_aggregated_curve(df, save_path=None):
         np.array(means) - np.array(stds),
         np.array(means) + np.array(stds),
         alpha=0.3,
-        color='darkgreen',
+        color=fill_color,
         label='Standard Deviation Range'
     )
     
@@ -162,11 +177,11 @@ def plot_aggregated_curve(df, save_path=None):
                         xytext=(5, 5), textcoords='offset points', 
                         fontsize=8, alpha=0.7)
     
-    plt.xlabel('Training Data Size (History Dictionary Size)', fontsize=12)
-    plt.ylabel('Prediction Accuracy', fontsize=12)
-    plt.title('Aggregated Learning Curve of Collision Prediction Accuracy vs Training Data Size', fontsize=14, pad=20)
+    plt.xlabel('Training Data Size (History Dictionary Size)')
+    plt.ylabel('Prediction Accuracy')
+    plt.title('Aggregated Learning Curve of Collision Prediction Accuracy vs Training Data Size', pad=20)
     plt.grid(True, alpha=0.3)
-    plt.legend(fontsize=10)
+    plt.legend()
     
     # 添加统计信息文本框
     final_accuracy = means[-1] if means else 0
@@ -176,8 +191,9 @@ def plot_aggregated_curve(df, save_path=None):
     stats_text = f'Final Accuracy: {final_accuracy:.4f}\nMax Accuracy: {max_accuracy:.4f}\nTotal Samples: {total_samples}'
     plt.text(0.02, 0.98, stats_text, transform=plt.gca().transAxes, 
              verticalalignment='top', fontsize=10, 
-             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+             bbox=dict(boxstyle='round', facecolor='white', alpha=0.8, edgecolor='#cccccc'))
     
+    sns.despine()
     plt.tight_layout()
     
     if save_path:

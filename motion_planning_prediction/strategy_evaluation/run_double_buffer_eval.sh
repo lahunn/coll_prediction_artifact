@@ -13,12 +13,11 @@ BENCHID="1-10"
 BASE_DATA_FOLDER="../../trace_files/scene_benchmarks/bit_collision_data"
 THRESHOLD=0.5
 SAMPLE_RATE=0.1
-MULTIPLIERS="4 8 16 32 64"
+MULTIPLIERS="4 8 16 32"
 ROBOT_NAME="iiwa"
 NUM_OOCDS=8
 NUM_PREDICTIONS=2
-# 专用CDU数量（传递给仿真脚本的 num_dedicated_oocds）
-DEDICATED_OOCDS=8
+DEDICATED_OOCDS=2
 # 创建结果目录（如果不存在）
 mkdir -p "../result_files"
 

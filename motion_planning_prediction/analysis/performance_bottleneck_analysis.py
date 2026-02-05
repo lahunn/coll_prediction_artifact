@@ -50,10 +50,10 @@ load_with_cycles = "--with-cycles" in sys.argv
 # 获取机器人参数
 robot_params = get_robot_params(robot_name)
 sphere_num = robot_params["sphere_num"]
-sphere_cost = 45  # 假设每个球体的碰撞检测消耗的周期数为30
+sphere_cost = robot_params["sphere_cost"]  # 假设每个球体的碰撞检测消耗的周期数为30
 
 num_spheres = 8
-qnoncoll_len = 56
+qnoncoll_len = num_oocds * qnoncoll_multiplier
 
 print("=== Cycle数与OOCD数量关系分析 ===")
 print(f"阈值: {threshold}")
@@ -81,8 +81,8 @@ performance_stats = {
     "simulation_iterations": 0,  # 仿真迭代次数
     # 空闲原因细分统计
     "oocd_idle_no_tasks": 0,  # 因队列为空而空闲的周期数
-    "oocd_idle_waiting_first_two": 0,  # 因等待前两个任务而空闲的周期数
     "oocd_idle_qnoncoll_not_full": 0,  # 因qnoncoll未满而空闲的周期数
+    "oocd_idle_startup": 0,  # 因启动延迟而空闲的周期数
     # 队列统计
     "qcoll_lengths_sum": 0,  # qcoll队列长度总和
     "qnoncoll_lengths_sum": 0,  # qnoncoll队列长度总和
@@ -106,6 +106,7 @@ def analyze_simulation_bottlenecks(
     cycle_check,
     num_oocds,
     linklist_cycles=None,
+    startup_latency=16,
 ):
     """
     分析仿真中cycle数与OOCD数量关系的限制因素
@@ -118,8 +119,8 @@ def analyze_simulation_bottlenecks(
         "simulation_iterations": 0,  # 仿真迭代次数
         # 空闲原因细分统计
         "oocd_idle_no_tasks": 0,  # 因队列为空而空闲的周期数
-        "oocd_idle_waiting_first_two": 0,  # 因等待前两个任务而空闲的周期数
         "oocd_idle_qnoncoll_not_full": 0,  # 因qnoncoll未满而空闲的周期数
+        "oocd_idle_startup": 0,  # 因启动延迟而空闲的周期数
         # 队列统计
         "qcoll_lengths_sum": 0,  # qcoll队列长度总和
         "qnoncoll_lengths_sum": 0,  # qnoncoll队列长度总和
@@ -141,8 +142,6 @@ def analyze_simulation_bottlenecks(
     qnoncoll = deque(maxlen=qnoncoll_len)  # 预测无碰撞任务队列 [keyy, linkcoll, cycle]
 
     cycle = 0  # 仿真周期计数器
-    first_two_running = 0  # 当前正在运行的前两个任务计数
-    first_two_checked = 0  # 前两个任务开始处理的周期标记
     coll_found = 0  # 是否发现真实碰撞的标志
     links_remaining = len(linklist)  # 剩余待处理的配置数量
     everything_free = 0  # 所有任务是否完成的标志
@@ -189,10 +188,7 @@ def analyze_simulation_bottlenecks(
             # 如果一个检测器现在空闲 (到达完成周期) 并且本周期还未分配过任务
             if oocd.free_cycle <= cycle and not dequeued_this_cycle:
                 # 优先从"预测碰撞"队列 (qcoll) 中取任务
-                if len(qcoll) > 0 and first_two_checked < cycle:
-                    first_two_running += 1
-                    if first_two_running == 1:
-                        first_two_checked = cycle + qcoll[0][2]  # 使用真实周期数
+                if len(qcoll) > 0:
                     # 分配新任务给这个OOCD，使用真实周期数
                     oocds[oocd_id] = su.OOCDState(
                         hash_key=qcoll[0][0],
@@ -203,10 +199,8 @@ def analyze_simulation_bottlenecks(
                     qcoll.popleft()
                     dequeued_this_cycle = True  # 标记本周期已出队
                 # 如果qcoll为空，则从"预测不碰撞"队列 (qnoncoll) 中取任务
-                elif (
-                    len(qnoncoll) == qnoncoll_len
-                    or (links_remaining == 0 and len(qnoncoll) > 0)
-                    and first_two_checked < cycle
+                elif len(qnoncoll) == qnoncoll_len or (
+                    links_remaining == 0 and len(qnoncoll) > 0
                 ):
                     oocds[oocd_id] = su.OOCDState(
                         hash_key=qnoncoll[0][0],
@@ -225,10 +219,7 @@ def analyze_simulation_bottlenecks(
                     idle_oocds += 1
 
                     # 记录空闲原因
-                    if first_two_checked >= cycle:
-                        # 因为等待前两个任务完成而空闲
-                        local_stats["oocd_idle_waiting_first_two"] += 1
-                    elif (
+                    if (
                         len(qcoll) == 0
                         and len(qnoncoll) < qnoncoll_len
                         and len(qnoncoll) > 0
@@ -254,9 +245,7 @@ def analyze_simulation_bottlenecks(
             else:
                 link_cycle = cycle_check
 
-            # 将配置数据"量化"以生成用于查询历史表的键 (key)
-            code_quant = np.digitize(link, bins, right=True)
-            keyy = su.return_keyy(code_quant, quant_bits=quant_bits)
+            keyy = su.compute_hash_keyy(link, bins)
 
             # 使用历史表进行碰撞预测
             is_collision_predicted = su.predict_collision(colldict, keyy, threshold)
@@ -297,6 +286,11 @@ def analyze_simulation_bottlenecks(
     for oocd in oocds:
         if oocd.free_cycle > cycle:
             query_count += (cycle_check - oocd.free_cycle + cycle) / cycle_check
+
+    # 添加启动延时
+    cycle += startup_latency
+    local_stats["oocd_idle_cycles"] += startup_latency * num_oocds
+    local_stats["oocd_idle_startup"] += startup_latency * num_oocds
 
     return query_count, colldict, coll_found, cycle, local_stats
 
@@ -375,12 +369,10 @@ for benchid in tqdm(benchrange, desc="性能分析"):
             ]
             # 累积空闲原因统计
             performance_stats["oocd_idle_no_tasks"] += local_stats["oocd_idle_no_tasks"]
-            performance_stats["oocd_idle_waiting_first_two"] += local_stats[
-                "oocd_idle_waiting_first_two"
-            ]
             performance_stats["oocd_idle_qnoncoll_not_full"] += local_stats[
                 "oocd_idle_qnoncoll_not_full"
             ]
+            performance_stats["oocd_idle_startup"] += local_stats["oocd_idle_startup"]
             # 累积队列统计
             performance_stats["qcoll_lengths_sum"] += local_stats["qcoll_lengths_sum"]
             performance_stats["qnoncoll_lengths_sum"] += local_stats[
@@ -454,12 +446,10 @@ for benchid in tqdm(benchrange, desc="性能分析"):
             ]
             # 累积空闲原因统计
             performance_stats["oocd_idle_no_tasks"] += local_stats["oocd_idle_no_tasks"]
-            performance_stats["oocd_idle_waiting_first_two"] += local_stats[
-                "oocd_idle_waiting_first_two"
-            ]
             performance_stats["oocd_idle_qnoncoll_not_full"] += local_stats[
                 "oocd_idle_qnoncoll_not_full"
             ]
+            performance_stats["oocd_idle_startup"] += local_stats["oocd_idle_startup"]
             # 累积队列统计
             performance_stats["qcoll_lengths_sum"] += local_stats["qcoll_lengths_sum"]
             performance_stats["qnoncoll_lengths_sum"] += local_stats[
@@ -518,13 +508,13 @@ if performance_stats["oocd_idle_cycles"] > 0:
         / performance_stats["oocd_idle_cycles"]
         * 100
     )
-    idle_waiting_pct = (
-        performance_stats["oocd_idle_waiting_first_two"]
+    idle_qnoncoll_pct = (
+        performance_stats["oocd_idle_qnoncoll_not_full"]
         / performance_stats["oocd_idle_cycles"]
         * 100
     )
-    idle_qnoncoll_pct = (
-        performance_stats["oocd_idle_qnoncoll_not_full"]
+    idle_startup_pct = (
+        performance_stats["oocd_idle_startup"]
         / performance_stats["oocd_idle_cycles"]
         * 100
     )
@@ -532,10 +522,10 @@ if performance_stats["oocd_idle_cycles"] > 0:
         f"  因队列为空: {idle_no_tasks_pct:.1f}% ({performance_stats['oocd_idle_no_tasks']} 周期)"
     )
     print(
-        f"  因等待前两个任务: {idle_waiting_pct:.1f}% ({performance_stats['oocd_idle_waiting_first_two']} 周期)"
+        f"  因qnoncoll未满: {idle_qnoncoll_pct:.1f}% ({performance_stats['oocd_idle_qnoncoll_not_full']} 周期)"
     )
     print(
-        f"  因qnoncoll未满: {idle_qnoncoll_pct:.1f}% ({performance_stats['oocd_idle_qnoncoll_not_full']} 周期)"
+        f"  因启动延迟: {idle_startup_pct:.1f}% ({performance_stats['oocd_idle_startup']} 周期)"
     )
 
     # 计算因qnoncoll未满导致的周期浪费比例
@@ -589,11 +579,6 @@ if oocd_utilization < 0.8:
 
     # 根据空闲原因给出针对性建议
     if performance_stats["oocd_idle_cycles"] > 0:
-        idle_waiting_pct_check = (
-            performance_stats["oocd_idle_waiting_first_two"]
-            / performance_stats["oocd_idle_cycles"]
-            * 100
-        )
         idle_qnoncoll_pct_check = (
             performance_stats["oocd_idle_qnoncoll_not_full"]
             / performance_stats["oocd_idle_cycles"]
@@ -604,8 +589,6 @@ if oocd_utilization < 0.8:
             / performance_stats["oocd_idle_cycles"]
             * 100
         )
-        if idle_waiting_pct_check > 30:
-            print("     主要瓶颈: 等待前两个任务完成 - 考虑优化first_two_checked逻辑")
         if idle_qnoncoll_pct_check > 30:
             print("     主要瓶颈: qnoncoll未满条件限制 - 考虑放宽qnoncoll调度条件")
         if idle_no_tasks_pct_check > 30:
@@ -628,7 +611,10 @@ print("  2. 优化内存访问模式")
 print("  3. 并行化预测计算")
 
 # 输出到CSV
-csv_file = "result_files/performance_bottleneck_analysis.csv"
+output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "result_files")
+os.makedirs(output_dir, exist_ok=True)
+csv_file = os.path.join(output_dir, "performance_bottleneck_analysis.csv")
+
 with open(csv_file, "a", newline="") as csvfile:
     writer = csv.writer(csvfile)
     # 写入表头（如果文件为空）
@@ -651,8 +637,8 @@ with open(csv_file, "a", newline="") as csvfile:
                 "total_tasks_processed",
                 "simulation_iterations",
                 "oocd_idle_no_tasks",
-                "oocd_idle_waiting_first_two",
                 "oocd_idle_qnoncoll_not_full",
+                "oocd_idle_startup",
                 "avg_qcoll_length",
                 "avg_qnoncoll_length",
                 "qcoll_max_length",
@@ -698,8 +684,8 @@ with open(csv_file, "a", newline="") as csvfile:
             performance_stats["total_tasks_processed"],
             performance_stats["simulation_iterations"],
             performance_stats["oocd_idle_no_tasks"],
-            performance_stats["oocd_idle_waiting_first_two"],
             performance_stats["oocd_idle_qnoncoll_not_full"],
+            performance_stats["oocd_idle_startup"],
             avg_qcoll_len,
             avg_qnoncoll_len,
             performance_stats["qcoll_max_length"],

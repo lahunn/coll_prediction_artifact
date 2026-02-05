@@ -2,18 +2,21 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 import os
-
-# Unified plotting style
+import seaborn as sns
 import matplotlib
+
+# 1. 设置绘图风格（白底、带刻度）
+sns.set_style("ticks") 
+
+# 2. 设置调色板（推荐色盲友好型）
+sns.set_palette("colorblind")
+
+# 3. 设置上下文（自动调整线条粗细和字体大小，'paper' 适合论文）
+sns.set_context("paper", font_scale=1.5)
+
+# 确保在PDF和PS文件中正确嵌入字体
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
-plt.style.use("seaborn-v0_8-whitegrid")
-font = {
-    "family": "serif",
-    "weight": "normal",
-    "size": 28,
-}
-plt.rc("font", **font)
 
 
 def plot_comparison(model_type):
@@ -86,6 +89,11 @@ def plot_comparison(model_type):
     x = np.arange(len(scenes))
     width = 0.35
 
+    # 获取 Seaborn 颜色
+    colors = sns.color_palette()
+    sb_color = colors[0]
+    db_color = colors[2]
+
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
 
     model_label = "OBB" if model_type == "link" else "Sphere"
@@ -100,10 +108,12 @@ def plot_comparison(model_type):
         vals_sb_queries,
         width,
         label=f"Single Buffer",
-        color="navy",
+        color=sb_color,
+        edgecolor='white'
     )
     rects2 = ax1.bar(
-        x + width / 2, vals_db_queries, width, label="Double Buffer", color="darkgreen"
+        x + width / 2, vals_db_queries, width, label="Double Buffer", color=db_color,
+        edgecolor='white'
     )
 
     ax1.set_ylabel("Total Prediction Queries")
@@ -111,6 +121,7 @@ def plot_comparison(model_type):
     ax1.set_xticks(x)
     ax1.set_xticklabels(scenes)
     ax1.legend()
+    ax1.grid(True, axis='y', linestyle='--', alpha=0.3) # 保留水平网格线
 
     # 添加数值标签
     ax1.bar_label(rects1, padding=3, fmt="%.0f", fontsize=8)
@@ -125,10 +136,12 @@ def plot_comparison(model_type):
         vals_sb_cycles,
         width,
         label=f"Single Buffer",
-        color="navy",
+        color=sb_color,
+        edgecolor='white'
     )
     rects4 = ax2.bar(
-        x + width / 2, vals_db_cycles, width, label="Double Buffer", color="darkgreen"
+        x + width / 2, vals_db_cycles, width, label="Double Buffer", color=db_color,
+        edgecolor='white'
     )
 
     ax2.set_ylabel("Total Cycles")
@@ -136,6 +149,7 @@ def plot_comparison(model_type):
     ax2.set_xticks(x)
     ax2.set_xticklabels(scenes)
     ax2.legend()
+    ax2.grid(True, axis='y', linestyle='--', alpha=0.3)
 
     # 添加数值标签
     ax2.bar_label(rects3, padding=3, fmt="%.0f", fontsize=8)
@@ -151,13 +165,16 @@ def plot_comparison(model_type):
 
     ax2.bar_label(rects4, labels=labels, padding=3, fontsize=8)
 
+    # 移除顶部和右侧边框
+    sns.despine()
+
     plt.tight_layout()
 
     output_path = os.path.join(base_dir, f"figs/buffer_comparison_{model_type}.png")
     # 确保figs目录存在
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-    plt.savefig(output_path)
+    plt.savefig(output_path, dpi=300)
     print(f"Plot saved to {output_path}")
     plt.close()
 

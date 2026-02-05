@@ -10,7 +10,7 @@ BASENAME="iiwa_7"
 BENCHID="1-10"
 # 基础数据路径
 BASE_DATA_FOLDER="../../trace_files/scene_benchmarks/bit_collision_data"
-NUM_COPUS=8
+NUM_COPUS=16
 THRESHOLD=0.5
 COPUS_PER_EDGE=1  # 每个Edge分配的COPU数量
 NUM_OOCDS=7

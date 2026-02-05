@@ -14,14 +14,17 @@
                                    [--real-cycles]
 
 示例:
-  python analyze_multi_bank_cht.py iiwa_7 1-10 ../trace_files/scene_benchmarks/bit_collision_data 8 1.0 7 1.0 100000 --num-banks 8
+  python analyze_multi_bank_cht.py iiwa_7 1-10 ../../trace_files/scene_benchmarks/bit_collision_data 16 1.0 8 1.0 100000 --num-banks 8
 """
 
 import sys
 import os
 import argparse
+import csv
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.insert(0, parent_dir)
 from simulation_core.multi_copu_scheduler import MultiCOPU_Scheduler
 import simulation_utils as su
 
@@ -65,6 +68,7 @@ def run_simulation(
     num_banks=8,
     quant_bits=3,
     use_real_cycles=False,
+    collision_model_type="link",
 ):
     is_range_mode = "-" in benchid_arg
     cht_type = "multi_bank"
@@ -77,11 +81,11 @@ def run_simulation(
         all_cycles = None
         if use_real_cycles:
             all_data, all_coll, all_cycles = su.load_data_with_cycles(
-                basename, benchid, data_folder, collision_model_type="link"
+                basename, benchid, data_folder, collision_model_type=collision_model_type
             )
         else:
             all_data, all_coll = su.load_data(
-                basename, benchid, data_folder, collision_model_type="link"
+                basename, benchid, data_folder, collision_model_type=collision_model_type
             )
         if all_data is None or all_coll is None:
             return None
@@ -150,64 +154,112 @@ def run_simulation(
 
     if is_range_mode:
         benchid_start, benchid_end = map(int, benchid_arg.split("-"))
-        print(f"\n分析范围: {benchid_start}-{benchid_end}")
-        all_bank_stats = []
+    else:
+        benchid_start = benchid_end = int(benchid_arg)
+
+    # 定义要评估的Bank Configurations
+    # 假设quant_bits=3 (key_len约21), num_banks=8 (select_bits=3)
+    # 这些配置对应不同的Bit Selection策略
+    bank_configs = [
+        (0, 1, 2),  # Low Bits
+        (3, 4, 5),  # Level 1
+        (6, 7, 8),  # Level 2
+        (9, 10, 11),  # Level 3
+        (0, 3, 6),  # Strided X
+        (1, 4, 7),  # Strided Y
+        (2, 5, 8),  # Strided Z
+        (0, 6, 11),  # Mixed
+        (0, 4, 8),  # Spread
+        (1, 5, 9),  # Sparse
+    ]
+
+    print(f"\n分析范围: {benchid_start}-{benchid_end}")
+    print(f"将评估 {len(bank_configs)} 种 Bank 配置...")
+
+    all_config_results = []
+
+    for config in bank_configs:
+        print(f"\n>>> 评估配置: {config}")
+
+        # 更新 CHT 参数
+        cht_kwargs["bank_config"] = config
+
         total_benchmarks = 0
+        all_bank_stats = []
+
         for benchid in range(benchid_start, benchid_end + 1):
-            print(f"  Benchmark {benchid} ...", end=" ")
+            # print(f"  Benchmark {benchid} ...", end=" ")
             result = simulate_one(benchid)
             if result is None:
-                print("✗ 加载失败")
+                # print("✗ 加载失败")
                 continue
-            print(f"✓ edges={result['num_edges']}")
+            # print(f"✓ edges={result['num_edges']}")
             all_bank_stats.append(result["cht_stats"])
             total_benchmarks += 1
 
-        # 汇总所有benchmark的统计信息
         if all_bank_stats:
-            print(f"\n【汇总统计】({total_benchmarks}个benchmark)")
-            # 合并所有bank访问数
+            # 汇总当前配置的所有benchmark统计
             num_banks = len(all_bank_stats[0]["bank_access_counts"])
-            total_bank_access = [0] * num_banks
-            total_conflicts = 0
-            total_entries = 0
-            total_edges = 0
-
-            for stats in all_bank_stats:
-                for i in range(num_banks):
-                    total_bank_access[i] += stats["bank_access_counts"][i]
-                total_conflicts += stats["total_conflicts"]
-                total_entries += stats["entries_used"]
-                total_edges += stats["num_edges"]
-
-            # 计算平均冲突率和负载均衡标准差
-            avg_conflict = sum(s["conflict_rate"] for s in all_bank_stats) / len(
+            total_conflicts = sum(s["total_conflicts"] for s in all_bank_stats)
+            avg_conflict_rate = sum(s["conflict_rate"] for s in all_bank_stats) / len(
                 all_bank_stats
             )
             avg_std = sum(s["load_balance_std"] for s in all_bank_stats) / len(
                 all_bank_stats
             )
 
-            # 构造汇总统计字典
-            summary_stats = {
-                "bank_access_counts": total_bank_access,
-                "load_balance_std": avg_std,
-                "total_conflicts": total_conflicts,
-                "conflict_rate": avg_conflict,
-                "entries_used": total_entries,
-                "num_edges": total_edges,
-                "bank_config": all_bank_stats[-1]["bank_config"],
-            }
+            print(
+                f"   [结果] 总冲突数: {total_conflicts}, 平均冲突率: {avg_conflict_rate:.4f}, 负载均衡Std: {avg_std:.2f}"
+            )
 
-            print_bank_stats(summary_stats)
-    else:
-        benchid = int(benchid_arg)
-        print(f"\n分析Benchmark: {benchid}")
-        result = simulate_one(benchid)
-        if result is None:
-            print("✗ 加载失败")
-            sys.exit(1)
-        print_bank_stats(result["cht_stats"])
+            all_config_results.append(
+                {
+                    "config": config,
+                    "total_conflicts": total_conflicts,
+                    "conflict_rate": avg_conflict_rate,
+                    "std": avg_std,
+                }
+            )
+
+    # 输出最终对比表
+    print("\n" + "=" * 60)
+    print(
+        f"{'Configuration':<20} | {'Total Conflicts':<15} | {'Conflict Rate':<15} | {'Std Dev':<10}"
+    )
+    print("-" * 60)
+    # 按总冲突数排序
+    all_config_results.sort(key=lambda x: x["total_conflicts"])
+
+    for res in all_config_results:
+        print(
+            f"{str(res['config']):<20} | {res['total_conflicts']:<15} | {res['conflict_rate']:<15.4f} | {res['std']:<10.2f}"
+        )
+    print("=" * 60)
+
+    # 保存结果到 CSV
+    if all_config_results:
+        output_dir = os.path.join(current_dir, "result_files")
+        os.makedirs(output_dir, exist_ok=True)
+        csv_path = os.path.join(output_dir, "multi_bank_bit_selection_results.csv")
+
+        try:
+            with open(csv_path, "w", newline="") as f:
+                writer = csv.DictWriter(
+                    f, fieldnames=["config", "total_conflicts", "conflict_rate", "std"]
+                )
+                writer.writeheader()
+                for res in all_config_results:
+                    writer.writerow(
+                        {
+                            "config": str(res["config"]),
+                            "total_conflicts": res["total_conflicts"],
+                            "conflict_rate": round(res["conflict_rate"], 6),
+                            "std": round(res["std"], 2),
+                        }
+                    )
+            print(f"\n[结果保存] 已保存到: {csv_path}")
+        except Exception as e:
+            print(f"\n[错误] 无法保存 CSV 文件: {e}")
 
 
 def main():
@@ -221,7 +273,7 @@ def main():
     parser.add_argument("num_copus", type=int, help="number of COPUs")
     parser.add_argument("threshold", type=float, help="collision threshold")
     parser.add_argument(
-        "num_oocds", type=int, nargs="?", default=7, help="number of OOCDs per COPU"
+        "num_oocds", type=int, nargs="?", default=6, help="number of OOCDs per COPU"
     )
     parser.add_argument(
         "sample_rate",
@@ -240,6 +292,13 @@ def main():
     parser.add_argument(
         "--real-cycles", action="store_true", help="use real cycles from dataset"
     )
+    parser.add_argument(
+        "--collision-model-type",
+        type=str,
+        default="link",
+        choices=["link", "sphere"],
+        help="collision model type: link or sphere",
+    )
     args = parser.parse_args()
     run_simulation(
         args.basename,
@@ -253,6 +312,7 @@ def main():
         num_banks=args.num_banks,
         quant_bits=args.quant_bits,
         use_real_cycles=args.real_cycles,
+        collision_model_type=args.collision_model_type,
     )
 
 
