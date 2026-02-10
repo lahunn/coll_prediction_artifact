@@ -17,6 +17,7 @@ import numpy as np
 import pickle
 import matplotlib.pyplot as plt
 import matplotlib
+import csv
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
 
@@ -352,7 +353,7 @@ for interval_idx in range(num_intervals):
         R=true_collision_rate,
         C=recall / 100.0,  # 转换为小数
         A=precision / 100.0,  # 转换为小数
-        N=end_idx,
+        N=20,
     )
     # 将期望检测次数转换为评分（越小越好，所以取负值使其越大越好）
     f1 = -expected_checks
@@ -454,6 +455,17 @@ plt.tight_layout()
 output_filename = f"training_progression_{data_type}_{density_level}_{quantize_param.replace(',', '_')}_t{collision_threshold}_r{free_sample_rate}_step{step_size}.png"
 plt.savefig(output_filename, dpi=150, bbox_inches="tight")
 print(f"\n趋势图已保存到: {output_filename}")
+
+# 保存CSV数据
+csv_filename = output_filename.replace(".png", ".csv")
+print(f"正在保存数据到: {csv_filename}")
+with open(csv_filename, "w", newline="", encoding="utf-8") as f:
+    if results:
+        writer = csv.DictWriter(f, fieldnames=results[0].keys())
+        writer.writeheader()
+        writer.writerows(results)
+    else:
+        print("警告: 没有测试结果可以保存。")
 
 # ========== 统计摘要 ==========
 print("\n" + "=" * 80)

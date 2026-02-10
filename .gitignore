@@ -48,3 +48,6 @@ trace_files/gnn_kuka7_difficulty/metadata.csv
 trace_files/gnn_traces/*/*.pkl
 motion_planning_prediction/strategy_evaluation/*.csv
 GEMINI.md
+trace_generation/trace_files/scene_benchmarks/dens9_rs/*.pkl
+prediction_approaches/tests/*.csv
+prediction_approaches/tests/*.png

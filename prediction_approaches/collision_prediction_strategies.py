@@ -9,8 +9,8 @@ import random
 import math
 import numpy as np
 
-num_obbs = 11
-num_spheres = 61
+num_obbs = 8
+num_spheres = 22
 
 
 class CollisionPredictionStrategy:

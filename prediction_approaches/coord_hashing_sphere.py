@@ -153,6 +153,7 @@ def main():
             radius_pred_quant,
             label_pred,
             consider_radius=consider_radius,
+            group_size=sphere_num,
         )
 
     # 合并所有标签
