@@ -59,6 +59,7 @@ from .simulators import (
     simulate_parallel_collision_detection_real_cycles,
     simulate_parallel_collision_detection_with_tracking,
     simulate_parallel_collision_detection_preemptive,
+    simulate_parallel_collision_detection_dedicated,
     simulate_parallel_collision_detection_double_buffer,
 )
 from .oracle_utils import (
@@ -133,6 +134,7 @@ __all__ = [
     "simulate_parallel_collision_detection_real_cycles",
     "simulate_parallel_collision_detection_with_tracking",
     "simulate_parallel_collision_detection_preemptive",
+    "simulate_parallel_collision_detection_dedicated",
     "simulate_parallel_collision_detection_double_buffer",
     "COPUModule",
     "CHT_AccessScheduler",

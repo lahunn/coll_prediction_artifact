@@ -177,13 +177,11 @@ def process_oocds(
     cdu_idle_this_cycle = sum(
         1 for oocd in oocds if oocd.free_cycle <= cycle and not oocd.busy
     )
-    return {
-        "total_query_count": total_query_count,
-        "coll_found": coll_found,
-        "cdu_idle_cycles": cdu_idle_this_cycle,
-        "colldict": colldict,
-        "oocds": oocds,
-    }
+    return (
+        total_query_count,
+        coll_found,
+        cdu_idle_this_cycle,
+    )
 
 
 def process_oocd_states_preemptive(
@@ -231,12 +229,7 @@ def process_oocd_states_preemptive(
                 oocds[oocd_id] = OOCDStatePreemptive(
                     hash_key=0, result=0, busy=0, free_cycle=0, task_type=None
                 )
-    return {
-        "oocds": oocds,
-        "total_query_count": query_count,
-        "coll_found": coll_found,
-        "colldict": colldict,
-    }
+    return oocds, query_count, coll_found, colldict
 
 
 def handle_preemption(
@@ -310,12 +303,7 @@ def process_oocd_states_dedicated(
             if not allocated:
                 oocds[oocd_id] = OOCDState()
 
-    return {
-        "oocds": oocds,
-        "total_query_count": query_count,
-        "coll_found": coll_found,
-        "colldict": colldict,
-    }
+    return (oocds, query_count, coll_found, colldict)
 
 
 def process_oocds_link(
@@ -392,13 +380,7 @@ def process_oocds_link(
         1 for oocd in oocds if oocd.free_cycle <= cycle and not oocd.busy
     )
 
-    return {
-        "total_query_count": total_query_count,
-        "coll_found": coll_found,
-        "cdu_idle_cycles": cdu_idle_this_cycle,
-        "colldict": colldict,
-        "oocds": oocds,
-    }
+    return total_query_count, coll_found, cdu_idle_this_cycle
 
 
 def dispatch_new_tasks(
@@ -438,67 +420,3 @@ def dispatch_new_tasks(
                 # 简化空闲状态管理：只在busy==1时重置为0
                 if oocd.busy == 1:
                     oocds[oocd_id] = OOCDState()
-
-
-def process_oocds_with_mode(
-    mode,
-    oocds,
-    qcoll,
-    qnoncoll,
-    linklist,
-    cycle,
-    total_query_count,
-    coll_found,
-    cycle_check,
-    colldict,
-    sample_rate,
-    num_oocds,
-    qnoncoll_len,
-    num_dedicated_oocds=1,
-    pending_spheres=None,
-):
-    """
-    Unified OOCD processing function supporting different modes.
-
-    Args:
-        mode (str): 'simple', 'batch', or 'hierarchical'.
-    """
-    if mode == "hierarchical":
-        if pending_spheres is None:
-            raise ValueError("pending_spheres required for 'hierarchical' mode")
-        
-        # Link mode typically does not use dedicated OOCDs logic in same way, 
-        # or it is handled internally if needed. Here we map to process_oocds_link.
-        return process_oocds_link(
-            oocds,
-            qcoll,
-            qnoncoll,
-            pending_spheres,
-            linklist,
-            cycle,
-            total_query_count,
-            coll_found,
-            cycle_check,
-            colldict,
-            sample_rate,
-            num_oocds,
-            qnoncoll_len,
-        )
-    elif mode in ["simple", "batch"]:
-        # Standard dedicated processing
-        return process_oocd_states_dedicated(
-            oocds,
-            qcoll,
-            qnoncoll,
-            cycle,
-            cycle_check,
-            total_query_count,
-            coll_found,
-            colldict,
-            sample_rate,
-            num_dedicated_oocds,
-            qnoncoll_len,
-            linklist,
-        )
-    else:
-        raise ValueError(f"Unknown mode: {mode}")

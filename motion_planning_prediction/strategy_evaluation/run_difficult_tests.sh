@@ -40,38 +40,31 @@ for COLLISION_MODEL in link sphere; do
         # 设置当前难度等级的数据文件夹
         DATA_FOLDER="$BASE_DATA_FOLDER/$difficulty_level"
 
-        # 初始化CSV文件头 (如果文件不存在) - 统一格式
+        # 初始化CSV文件头 (如果文件不存在)
         if [ ! -f "$RESULT_FILE" ]; then
-            echo "Scene,Collision_Model,QNonColl_Mult,Threshold,Sample_Rate,Total_Checks,Total_Pred_Queries,Total_Oracle_Queries,Reduction_Rate,Query_Diff,Total_Pred_Cycles,Total_Oracle_Cycles,Cycle_Efficiency,OOCD_Utilization" > "$RESULT_FILE"
+            echo "Scene,Threshold,Sample_Rate,QNonColl_Mult,Total_Checks,Total_Pred_Queries,Total_Oracle_Queries,Total_Cycles,Total_Oracle_Cycles,Reduction_Rate,Cycle_Efficiency,CDU_Utilization" > "$RESULT_FILE"
         fi
 
         # 运行仿真并捕获输出
-        # 注意: prediction_simulation_nDOF.py 参数顺序: threshold, sample_rate, qnoncoll_multiplier, data_folder, basename, benchmarks, robot_name, collision_model_type, num_oocds
-        # 原脚本调用似乎缺少 num_oocds，依赖默认值? 或者参数解析器处理了? 
-        # 最好显式传递以防万一，但为了保持兼容性，我们先按原样传递，如果报错再修。
-        # 修正：原脚本参数传递方式是位置参数。prediction_simulation_nDOF.py 使用 create_common_parser，它接受可选参数。
-        # 我们按照标准位置传递参数。
         OUTPUT=$(python prediction_simulation_nDOF.py \
-            "$THRESHOLD" "$SAMPLE_RATE" "$QNONCOLL_MULTIPLIER" \
-            "$DATA_FOLDER" "$BASENAME" "$NUM_BENCHMARKS" \
-            "$ROBOT_NAME" "$COLLISION_MODEL")
+            $THRESHOLD $SAMPLE_RATE $QNONCOLL_MULTIPLIER \
+            $DATA_FOLDER $BASENAME $NUM_BENCHMARKS \
+            $ROBOT_NAME $COLLISION_MODEL)
         
         # 显示输出
         echo "$OUTPUT"
 
-        # 提取数据 (基于 print_final_statistics 的标准输出)
+        # 提取数据
         TOTAL_CHECKS=$(echo "$OUTPUT" | grep "Total Actual Checks:" | awk -F': ' '{print $2}')
-        TOTAL_PRED_QUERIES=$(echo "$OUTPUT" | grep "Total Prediction Queries:" | awk -F': ' '{print $2}')
-        TOTAL_ORACLE_QUERIES=$(echo "$OUTPUT" | grep "Total Oracle Queries:" | awk -F': ' '{print $2}')
+        FALL_PREDICTION=$(echo "$OUTPUT" | grep "Total Prediction Queries:" | awk -F': ' '{print $2}')
+        FALL_ORACLE=$(echo "$OUTPUT" | grep "Total Oracle Queries:" | awk -F': ' '{print $2}')
         REDUCTION_RATE=$(echo "$OUTPUT" | grep "Query Reduction Rate:" | awk -F': ' '{print $2}' | sed 's/%//')
-        QUERY_DIFF=$(echo "$OUTPUT" | grep "Query Difference (Prediction - Oracle):" | awk -F': ' '{print $2}' | sed 's/%//')
-        TOTAL_PRED_CYCLES=$(echo "$OUTPUT" | grep "Total Cycles (Prediction):" | awk -F': ' '{print $2}')
-        TOTAL_ORACLE_CYCLES=$(echo "$OUTPUT" | grep "Total Cycles (Oracle):" | awk -F': ' '{print $2}')
+        FALL_CYCLE=$(echo "$OUTPUT" | grep "Total Cycles (Prediction):" | awk -F': ' '{print $2}')
+        THEORETICAL_MIN_CYCLES=$(echo "$OUTPUT" | grep "Total Cycles (Oracle):" | awk -F': ' '{print $2}')
         CYCLE_EFFICIENCY=$(echo "$OUTPUT" | grep "Cycle Efficiency:" | awk -F': ' '{print $2}' | sed 's/%//')
-        OOCD_UTILIZATION=$(echo "$OUTPUT" | grep "Average OOCD Utilization:" | awk -F': ' '{print $2}' | sed 's/%//')
 
-        # 写入CSV (统一顺序)
-        echo "$difficulty_level,$COLLISION_MODEL,$QNONCOLL_MULTIPLIER,$THRESHOLD,$SAMPLE_RATE,$TOTAL_CHECKS,$TOTAL_PRED_QUERIES,$TOTAL_ORACLE_QUERIES,$REDUCTION_RATE,$QUERY_DIFF,$TOTAL_PRED_CYCLES,$TOTAL_ORACLE_CYCLES,$CYCLE_EFFICIENCY,$OOCD_UTILIZATION" >> "$RESULT_FILE"
+        # 写入CSV (CDU_Utilization 设为 0)
+        echo "$difficulty_level,$THRESHOLD,$SAMPLE_RATE,$QNONCOLL_MULTIPLIER,$TOTAL_CHECKS,$FALL_PREDICTION,$FALL_ORACLE,$FALL_CYCLE,$THEORETICAL_MIN_CYCLES,$REDUCTION_RATE,$CYCLE_EFFICIENCY,0" >> "$RESULT_FILE"
 
         echo "  >>> 难度等级 $difficulty_level 运行完成 <<<"
     done
