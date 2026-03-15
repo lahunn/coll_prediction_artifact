@@ -17,6 +17,7 @@ import pickle
 import numpy as np
 import argparse
 import shutil
+import gc
 
 # 添加项目路径
 
@@ -110,8 +111,12 @@ def generate_single_problem(
         planner = BITStar(modular_env)
 
         result = planner.plan(
-            pathLengthLimit=float("inf"), time_budget=max_planning_time
+            pathLengthLimit=float("inf"),
+            time_budget=max_planning_time,
+            dump_log=False,
         )
+        del planner
+        gc.collect()
         samples = result.get("samples", [])
         edges = result.get("edges", {})
         collision_check_count = result.get("collision_checks", 0)
@@ -327,13 +332,7 @@ def generate_problem_dataset(
         collision_model_type="link",
         enable_self_collision=enable_self_collision,
     )
-    modular_env_sphere = ModularEnv(
-        robot_name,
-        map_file=None,
-        GUI=False,  # 第二个环境不需要GUI
-        collision_model_type="sphere",
-        enable_self_collision=enable_self_collision,
-    )
+    modular_env_sphere = None  # 延迟初始化，首次需要时创建以降低初始内存峰值
     config_dim = modular_env_link.config_dim
 
     if output_file is None:
@@ -384,6 +383,14 @@ def generate_problem_dataset(
             continue
         # 使用sphere环境对同一问题重新规划
         print("  使用sphere模型重新规划...")
+        if modular_env_sphere is None:
+            modular_env_sphere = ModularEnv(
+                robot_name,
+                map_file=None,
+                GUI=False,
+                collision_model_type="sphere",
+                enable_self_collision=enable_self_collision,
+            )
         modular_env_sphere.collision_env.config_list = []
         modular_env_sphere.collision_env.data_manager.reset()
 
@@ -395,8 +402,12 @@ def generate_problem_dataset(
         modular_env_sphere.goal_state = goal
         planner_sphere = BITStar(modular_env_sphere)
         result_sphere = planner_sphere.plan(
-            pathLengthLimit=float("inf"), time_budget=max_planning_time
+            pathLengthLimit=float("inf"),
+            time_budget=max_planning_time,
+            dump_log=False,
         )
+        del planner_sphere
+        gc.collect()
         edges_sphere = result_sphere.get("edges", {})
         cost_sphere = result_sphere.get("cost", float("inf"))
 
@@ -454,7 +465,8 @@ def generate_problem_dataset(
         print(f"  ✓ Link edges: {link_edge_count}, Sphere edges: {sphere_edge_count}")
 
     modular_env_link.close()
-    modular_env_sphere.close()
+    if modular_env_sphere is not None:
+        modular_env_sphere.close()
 
     with open(output_file, "wb") as f:
         pickle.dump(problems, f)

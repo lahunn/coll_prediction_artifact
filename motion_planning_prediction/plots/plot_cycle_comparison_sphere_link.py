@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import LogLocator, ScalarFormatter
 import numpy as np
 import os
-
+import sys
 # 统一绘图样式
 import matplotlib
 
@@ -23,9 +23,6 @@ BASELINE_COLOR = "#BBBBBB"
 LINK_COLOR = "#0072B2"
 SPHERE_COLOR = "#D55E00"
 ORACLE_COLOR = "#009E73"
-
-
-import sys
 
 # 允许通过命令行参数指定算法
 

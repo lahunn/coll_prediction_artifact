@@ -4,7 +4,7 @@ echo "Starting data generation pipeline..."
 
 # 生成场景文件
 echo "Step 1: Generating scene files..."
-ROBOT_NAME="iiwa"
+ROBOT_NAME="iiwa" # 可替换为 "iiwa" 或 "franka"
 NUM_PROBLEMS=100
 NUM_SAMPLES=1000
 BASE_SEED=0
@@ -31,7 +31,7 @@ do
         python pred_trace_generation.py \
             "$ROBOT_NAME" \
             "$NUM_SAMPLES" \
-            "../trace_files/scene_benchmarks/${density}" \
+            "../../trace_files/scene_benchmarks/${density}" \
             "${i}" \
             --seed "$((BASE_SEED + i))" \
             --obstacle-file "${obstacle_file}"

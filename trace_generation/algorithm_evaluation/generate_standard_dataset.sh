@@ -52,17 +52,17 @@ echo "生成 $ROBOT_NAME 数据集 (双模型: Link + Sphere)"
 echo "========================================================================"
 
 # 遍历不同的障碍物数量
-for NUM_OBSTACLES in 10; do
-    echo ""
-    echo "----------------------------------------------------------------"
-    echo "生成障碍物数量: $NUM_OBSTACLES"
-    echo "----------------------------------------------------------------"
+# for NUM_OBSTACLES in 10; do
+#     echo ""
+#     echo "----------------------------------------------------------------"
+#     echo "生成障碍物数量: $NUM_OBSTACLES"
+#     echo "----------------------------------------------------------------"
 
     python generate_problem_dataset.py \
         --robot-name "$ROBOT_NAME" \
-        --num-problems 500 \
-        --num-obstacles "$NUM_OBSTACLES" \
-        --max-time 10.0 \
+        --num-problems 200 \
+        --num-obstacles 8 \
+        --max-time 100.0 \
         --workspace-min "$X_START" \
         --workspace-max "$X_END" \
         --safe-zone-radius 0.15 \
@@ -74,7 +74,7 @@ for NUM_OBSTACLES in 10; do
     else
         echo "✗ $ROBOT_NAME 数据集 (障碍物: $NUM_OBSTACLES) 生成失败"
     fi
-done
+# done
 
 echo ""
 echo "========================================================================"

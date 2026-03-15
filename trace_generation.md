@@ -30,15 +30,17 @@ bash launch_pred.sh
 #### 步骤2: 分析预测策略效果
 ```bash
 # 运行球体代价分析
-bash prediction_approaches/bash_script/run_sphere_cost_analysis.sh
+cd prediction_approaches/bash_script/
+bash run_sphere_cost_analysis.sh
 
 # 运行坐标代价分析  
-bash prediction_approaches/bash_script/run_coord_cost_analysis.sh
+bash run_coord_cost_analysis.sh
 ```
 分析不同密度条件下碰撞预测策略的效果
 
 #### 步骤3: 数据分析和可视化
 ```bash
+cd prediction_approaches/plot/
 python plot_comparison_results.py
 ```
 进行数据分析，绘制各类图表
@@ -47,7 +49,7 @@ python plot_comparison_results.py
 
 #### 步骤1: 生成标准数据集
 ```bash
-cd trace_generation/bit_planning
+cd trace_generation/algorithm_evaluation/
 bash generate_standard_dataset.sh
 ```
 
@@ -59,9 +61,15 @@ bash generate_sphere_data.sh
 
 #### 步骤3: 硬件结构仿真测试
 ```bash
-bash motion_planning_prediction/test_sphere_obb_simulation.sh
+cd motion_planning_prediction/strategy_evaluation
+./run_sphere_link_comparison.sh 
 ```
 
+#### 步骤4: 数据分析和可视化
+```bash
+cd motion_planning_prediction/plots/
+python plot_cycle_comparison_sphere_link.py
+```
 ## 📖 使用示例
 
 ### 直接运行脚本

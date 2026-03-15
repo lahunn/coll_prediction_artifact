@@ -51,3 +51,7 @@ GEMINI.md
 trace_generation/trace_files/scene_benchmarks/dens9_rs/*.pkl
 prediction_approaches/tests/*.csv
 prediction_approaches/tests/*.png
+trace_files/bit_kuka7_difficulty/*/problems.pkl
+
+trace_files/bit_kuka7_difficulty/metadata.csv
+trace_generation/workspace_bound/franka_panda_workspace.json

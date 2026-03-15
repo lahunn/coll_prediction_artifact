@@ -22,7 +22,8 @@ font = {
     "weight": "normal",
     "size": 28,
 }
-
+Sphere_csv_path = "../result_files/sphere_hashing_cost_results.csv"
+Coord_csv_path = "../result_files/coord_hashing_cost_results.csv"
 # ===== 全局配色方案 =====
 LINK_COLOR = "#0072B2"  # Link-based 方法主色
 SPHERE_COLOR = "#D55E00"  # Sphere-based 方法主色
@@ -53,10 +54,10 @@ def plot_accuracy_recall_comparison():
     输出两张独立图: 精确率和召回率
     """
     # 读取OBB详细结果
-    obb_data = pd.read_csv("../result_files/coord_hashing_cost_results.csv", header=0)
+    obb_data = pd.read_csv(Coord_csv_path, header=0)
     # 读取Sphere详细结果
     sphere_data = pd.read_csv(
-        "../result_files/sphere_hashing_cost_results.csv",
+        Sphere_csv_path,
         header=0,
     )
 
@@ -202,9 +203,9 @@ def plot_cost_comparison():
     从对应CSV直接提取SpeedUp_Pct并进行比较（每个密度取最大值）
     """
     # 读取优化结果
-    obb_data = pd.read_csv("../result_files/coord_hashing_cost_results.csv", header=0)
+    obb_data = pd.read_csv(Coord_csv_path, header=0)
     sphere_data = pd.read_csv(
-        "../result_files/sphere_hashing_cost_results.csv",
+        Sphere_csv_path,
         header=0,
     )
 
@@ -265,7 +266,6 @@ def plot_cost_comparison():
         else 0
     )
     ax.set_ylim((0, max_val * 1.15 if max_val > 0 else 100))
-    ax.grid(axis="y", alpha=0.2, linestyle="--")
     ax.tick_params(axis="y", labelsize=FONT_SIZE_TICK)
 
     # 在柱状图上添加数值标签
@@ -310,9 +310,9 @@ def plot_threshold_comparison(density="dens6"):
         density: 密度级别 ('dens3', 'dens6', 'dens9', 'dens12')
     """
     # 读取详细结果
-    obb_data = pd.read_csv("../result_files/coord_hashing_cost_results.csv", header=0)
+    obb_data = pd.read_csv(Coord_csv_path, header=0)
     sphere_data = pd.read_csv(
-        "../result_files/sphere_hashing_cost_results.csv",
+        Sphere_csv_path,
         header=0,
     )
 
@@ -490,9 +490,9 @@ def plot_combined_threshold_comparison():
     为每个QuantBits/QuantBits绘制单独的曲线
     """
     # 读取详细结果
-    obb_data = pd.read_csv("../result_files/coord_hashing_cost_results.csv", header=0)
+    obb_data = pd.read_csv(Coord_csv_path, header=0)
     sphere_data = pd.read_csv(
-        "../result_files/sphere_hashing_cost_results.csv",
+        Sphere_csv_path,
         header=0,
     )
 
@@ -668,9 +668,9 @@ def plot_pr_curves():
     P-R曲线显示在不同阈值下,精确率(Precision)和召回率(Recall)之间的权衡关系
     """
     # 读取详细结果
-    obb_data = pd.read_csv("../result_files/coord_hashing_cost_results.csv", header=0)
+    obb_data = pd.read_csv(Coord_csv_path, header=0)
     sphere_data = pd.read_csv(
-        "../result_files/sphere_hashing_cost_results.csv",
+        Sphere_csv_path,
         header=0,
     )
 
@@ -770,7 +770,6 @@ def plot_pr_curves():
         ax.set_xlim([0, 105])
         ax.set_ylim([0, 105])
         ax.tick_params(axis="both", labelsize=FONT_SIZE_TICK)
-        ax.grid(alpha=0.2, linestyle="--")
 
         # 添加对角线参考线(表示Precision = Recall)
         ax.plot([0, 100], [0, 100], "k--", alpha=0.2, linewidth=1)
@@ -799,9 +798,9 @@ def plot_cost_vs_threshold():
     OBB和Sphere的成本曲线在同一张图上进行对比
     """
     # 读取详细结果
-    obb_data = pd.read_csv("../result_files/coord_hashing_cost_results.csv", header=0)
+    obb_data = pd.read_csv(Coord_csv_path, header=0)
     sphere_data = pd.read_csv(
-        "../result_files/sphere_hashing_cost_results.csv",
+        Sphere_csv_path,
         header=0,
     )
 
@@ -951,7 +950,6 @@ def plot_cost_vs_threshold():
             tick_labels, rotation=45, ha="right", fontsize=FONT_SIZE_TICK
         )
 
-        ax.grid(alpha=0.2, linestyle="--", which="both")
         ax.tick_params(axis="y", labelsize=FONT_SIZE_TICK)
 
     # 顶部共享图例（OBB/Sphere）
@@ -978,9 +976,9 @@ def plot_cost_vs_quantbits():
     OBB和Sphere分别生成独立的图表,展示不同密度下最小成本随量化位数的变化
     """
     # 读取详细结果
-    obb_data = pd.read_csv("../result_files/coord_hashing_cost_results.csv", header=0)
+    obb_data = pd.read_csv(Coord_csv_path, header=0)
     sphere_data = pd.read_csv(
-        "../result_files/sphere_hashing_cost_results.csv",
+        Sphere_csv_path,
         header=0,
     )
 
@@ -1042,12 +1040,11 @@ def plot_cost_vs_quantbits():
     ax.set_xticks(quant_bits)
     ax.set_xticklabels([str(qb) for qb in quant_bits], fontsize=FONT_SIZE_TICK)
     ax.tick_params(axis="y", labelsize=FONT_SIZE_TICK)
-    ax.grid(alpha=0.2, linestyle="--")
     ax.set_ylim(bottom=0)
 
     plt.tight_layout()
-    plt.savefig("figs/fig_cost_vs_quantbits_obb.eps", format="eps")
-    print("✅ 图6-OBB已保存: figs/fig_cost_vs_quantbits_obb.eps")
+    plt.savefig("figs/fig_cost_vs_quantbits_obb.pdf", format="pdf")
+    print("✅ 图6-OBB已保存: figs/fig_cost_vs_quantbits_obb.pdf")
     plt.close()
 
     # === Sphere图表 ===
@@ -1090,12 +1087,11 @@ def plot_cost_vs_quantbits():
     ax.set_xticks(coord_bits)
     ax.set_xticklabels([str(cb) for cb in coord_bits], fontsize=FONT_SIZE_TICK)
     ax.tick_params(axis="y", labelsize=FONT_SIZE_TICK)
-    ax.grid(alpha=0.2, linestyle="--")
     ax.set_ylim(bottom=0)
 
     plt.tight_layout()
-    plt.savefig("figs/fig_cost_vs_QuantBits_sphere.eps", format="eps")
-    print("✅ 图6-Sphere已保存: figs/fig_cost_vs_QuantBits_sphere.eps")
+    plt.savefig("figs/fig_cost_vs_QuantBits_sphere.pdf", format="pdf")
+    print("✅ 图6-Sphere已保存: figs/fig_cost_vs_QuantBits_sphere.pdf")
     plt.close()
 
 
@@ -1104,10 +1100,8 @@ def plot_threshold_metrics_by_density():
     绘制QuantBits=4和QuantBits=4情况下不同密度场景的性能指标
     每个密度场景生成一个图，对比OBB和Sphere在不同Threshold下的Precision、Recall和SpeedUp_Pct
     """
-    obb_data = pd.read_csv("../result_files/coord_hashing_cost_results.csv", header=0)
-    sphere_data = pd.read_csv(
-        "../result_files/sphere_hashing_cost_results.csv", header=0
-    )
+    obb_data = pd.read_csv(Coord_csv_path, header=0)
+    sphere_data = pd.read_csv(Sphere_csv_path, header=0)
 
     densities = ["dens3", "dens6", "dens9", "dens12"]
     density_labels = {
@@ -1189,7 +1183,6 @@ def plot_threshold_metrics_by_density():
                 fontsize=FONT_SIZE_TICK,
             )
             ax.set_xlabel("Threshold Value (S)", fontsize=FONT_SIZE_LABEL)
-            ax.grid(axis="y", alpha=0.2, linestyle="--")
             ax.tick_params(axis="y", labelsize=FONT_SIZE_TICK)
             ax.set_ylim(
                 [0, max(np.max(metrics_obb[i]), np.max(metrics_sphere[i])) * 1.15]  # type: ignore
@@ -1242,16 +1235,14 @@ def plot_precision_recall_by_density():
     """
     # 读取数据时增加错误处理，防止文件不存在导致崩溃
     try:
-        obb_data = pd.read_csv(
-            "../result_files/coord_hashing_cost_results.csv", header=0
-        )
+        obb_data = pd.read_csv(Coord_csv_path, header=0)
     except Exception as e:
         print(f"⚠️  无法读取 coord_hashing_cost_results.csv: {e}")
         return
 
     try:
         sphere_data = pd.read_csv(
-            "../result_files/sphere_hashing_cost_results.csv",
+            Sphere_csv_path,
             header=0,
         )
     except Exception as e:
@@ -1409,8 +1400,8 @@ def plot_precision_recall_by_density():
             )
 
         plt.tight_layout(rect=(0, 0.03, 1, 0.95))
-        plt.savefig(f"figs/fig_precision_recall_{density}_hist.eps", format="eps")
-        print(f"✅ 图已保存: figs/fig_precision_recall_{density}_hist.eps")
+        plt.savefig(f"figs/fig_precision_recall_{density}_hist.pdf", format="pdf")
+        print(f"✅ 图已保存: figs/fig_precision_recall_{density}_hist.pdf")
         plt.close()
 
 
@@ -1420,10 +1411,8 @@ def plot_link_sphere_comparison_by_density():
     使用分组直方图，横坐标为S(threshold)，每组依次为：link-准确率、link-召回率、link-Computation sphere-准确率、sphere-召回率、sphere-Computation
     """
 
-    obb_data = pd.read_csv("../result_files/coord_hashing_cost_results.csv", header=0)
-    sphere_data = pd.read_csv(
-        "../result_files/sphere_hashing_cost_results.csv", header=0
-    )
+    obb_data = pd.read_csv(Coord_csv_path, header=0)
+    sphere_data = pd.read_csv(Sphere_csv_path, header=0)
 
     densities = ["dens3", "dens6", "dens9", "dens12"]
     density_labels = {
@@ -1562,7 +1551,6 @@ def plot_link_sphere_comparison_by_density():
         )
         # 取消纵轴label
         # ax.set_ylabel("Metric Value (%)", fontsize=FONT_SIZE_LABEL)
-        ax.grid(axis="y", alpha=0.2, linestyle="--")
         ax.tick_params(axis="y", labelsize=FONT_SIZE_TICK)
         # 纵轴加%符号
         ax.yaxis.set_major_formatter(lambda x, pos: f"{x:.0f}%")
@@ -1595,9 +1583,9 @@ def plot_link_sphere_comparison_by_density():
         outdir = "figs"
         os.makedirs(outdir, exist_ok=True)
         outpath = os.path.join(outdir, f"fig_link_sphere_metrics_{density}.png")
-        outpath_eps = outpath.replace(".png", ".eps")
-        plt.savefig(outpath_eps, format="eps")
-        print(f"✅ 图已保存: {outpath_eps}")
+        outpath_pdf = outpath.replace(".png", ".pdf")
+        plt.savefig(outpath_pdf, format="pdf")
+        print(f"✅ 图已保存: {outpath_pdf}")
         plt.close()
 
 
@@ -1615,12 +1603,8 @@ def plot_metrics_at_fixed_S_U():
     结果以每个密度生成一张 1x3 子图（Precision / Recall / SpeedUp_Pct），每个阈值处展示 Link 与 Sphere 的并列柱状图。
     """
     try:
-        obb_data = pd.read_csv(
-            "../result_files/coord_hashing_cost_results.csv", header=0
-        )
-        sphere_data = pd.read_csv(
-            "../result_files/sphere_hashing_cost_results.csv", header=0
-        )
+        obb_data = pd.read_csv(Coord_csv_path, header=0)
+        sphere_data = pd.read_csv(Sphere_csv_path, header=0)
     except Exception as e:
         print(f"⚠️  无法读取数据文件: {e}")
         return
@@ -1726,12 +1710,11 @@ def plot_metrics_at_fixed_S_U():
             )
             ax.set_xticks(x)
             ax.set_xticklabels(
-                xu_labels, rotation=0, ha="center", fontsize=FONT_SIZE_TICK-2
+                xu_labels, rotation=0, ha="center", fontsize=FONT_SIZE_TICK - 2
             )
             if idx == 0:
                 ax.set_ylabel(ylabel, fontsize=FONT_SIZE_LABEL)
             ax.set_title(title, fontsize=FONT_SIZE_TITLE)
-            ax.grid(axis="y", alpha=0.2, linestyle="--")
             ax.tick_params(axis="y", labelsize=FONT_SIZE_TICK)
             # 纵轴加%符号
             ax.yaxis.set_major_formatter(lambda x, pos: f"{x:.0f}%")
@@ -1755,10 +1738,10 @@ def plot_metrics_at_fixed_S_U():
         outdir = "figs"
         os.makedirs(outdir, exist_ok=True)
         outpath = os.path.join(outdir, f"fig_fixed_S_U_{density}.png")
-        outpath_eps = outpath.replace(".png", ".eps")
-        plt.savefig(outpath_eps, format="eps")
+        outpath_pdf = outpath.replace(".png", ".pdf")
+        plt.savefig(outpath_pdf, format="pdf")
         plt.savefig(outpath, format="png")
-        print(f"✅ 图已保存: {outpath_eps}")
+        print(f"✅ 图已保存: {outpath_pdf}")
         plt.close()
 
 
@@ -1767,11 +1750,9 @@ def plot_update_frequency_impact():
     图7: 不同SampleRate下准确率、召回率和加速比的对比 (Density 6, QuantBits 4)
     """
     try:
-        obb_data = pd.read_csv(
-            "../result_files/coord_hashing_cost_results.csv", header=0
-        )
+        obb_data = pd.read_csv(Coord_csv_path, header=0)
         sphere_data = pd.read_csv(
-            "../result_files/sphere_hashing_cost_results.csv",
+            Sphere_csv_path,
             header=0,
         )
     except Exception as e:
@@ -1901,8 +1882,8 @@ def plot_update_frequency_impact():
     )
     plt.tight_layout(rect=(0, 0.03, 1, 0.92))
 
-    plt.savefig("figs/fig_sample_rate_impact.eps", format="eps")
-    print("✅ 图7 (SampleRate Impact) 已保存: figs/fig_sample_rate_impact.eps")
+    plt.savefig("figs/fig_sample_rate_impact.pdf", format="pdf")
+    print("✅ 图7 (SampleRate Impact) 已保存: figs/fig_sample_rate_impact.pdf")
     plt.close()
 
 
@@ -1924,10 +1905,8 @@ def plot_metric_vs_S_multi_density(
     import matplotlib.pyplot as plt
     import os
 
-    obb_data = pd.read_csv("../result_files/coord_hashing_cost_results.csv", header=0)
-    sphere_data = pd.read_csv(
-        "../result_files/sphere_hashing_cost_results.csv", header=0
-    )
+    obb_data = pd.read_csv(Coord_csv_path, header=0)
+    sphere_data = pd.read_csv(Sphere_csv_path, header=0)
 
     densities = ["dens3", "dens6", "dens9"]
     density_labels = {"dens3": "Density 3", "dens6": "Density 6", "dens9": "Density 9"}
@@ -1949,13 +1928,23 @@ def plot_metric_vs_S_multi_density(
     present_thresholds = set()
     for density in densities:
         present_thresholds.update(
-            obb_data[(obb_data["Density"] == density) & (obb_data["QuantBits"] == quant_bits)]["Threshold"].unique()
+            obb_data[
+                (obb_data["Density"] == density) & (obb_data["QuantBits"] == quant_bits)
+            ]["Threshold"].unique()
         )
         present_thresholds.update(
-            sphere_data[(sphere_data["Density"] == density) & (sphere_data["QuantBits"] == quant_bits) & (sphere_data["RadiusBits"] == radius_bits)]["Threshold"].unique()
+            sphere_data[
+                (sphere_data["Density"] == density)
+                & (sphere_data["QuantBits"] == quant_bits)
+                & (sphere_data["RadiusBits"] == radius_bits)
+            ]["Threshold"].unique()
         )
     # 只保留allowed且实际存在的S
-    thresholds = [s for s in allowed_thresholds if any(np.isclose(s, t) for t in present_thresholds)]
+    thresholds = [
+        s
+        for s in allowed_thresholds
+        if any(np.isclose(s, t) for t in present_thresholds)
+    ]
     threshold_labels = [frac_map.get(round(t, 5), f"S={t:.3f}") for t in thresholds]
 
     fig, axes = plt.subplots(1, 3, figsize=(18, 4), sharey=True)
@@ -1997,12 +1986,11 @@ def plot_metric_vs_S_multi_density(
 
         ax.set_xticks(x)
         ax.set_xticklabels(
-            threshold_labels, rotation=0, ha="center", fontsize=FONT_SIZE_TICK-2
+            threshold_labels, rotation=0, ha="center", fontsize=FONT_SIZE_TICK - 2
         )
         if idx == 0:
             ax.set_ylabel(ylabel, fontsize=FONT_SIZE_LABEL)
         ax.set_title(density_labels[density], fontsize=FONT_SIZE_TITLE)
-        ax.grid(axis="y", alpha=0.2, linestyle="--")
         ax.tick_params(axis="y", labelsize=FONT_SIZE_TICK + 2)
         ax.yaxis.set_major_formatter(lambda x, pos: f"{x:.0f}%")
         ax.set_ylim([0, 100])
@@ -2010,24 +1998,24 @@ def plot_metric_vs_S_multi_density(
         # add_bar_labels(ax, bars1, fontsize=FONT_SIZE_TEXT - 2)
         # add_bar_labels(ax, bars2, fontsize=FONT_SIZE_TEXT - 2)
     if add_legend:
-      handles, labels = axes[0].get_legend_handles_labels()
-      fig.legend(
-          handles,
-          labels,
-          loc="upper center",
-          bbox_to_anchor=(0.5, 1.04),
-          ncol=2,
-          frameon=False,
-          fontsize=FONT_SIZE_LEGEND,
-      )
+        handles, labels = axes[0].get_legend_handles_labels()
+        fig.legend(
+            handles,
+            labels,
+            loc="upper center",
+            bbox_to_anchor=(0.5, 1.04),
+            ncol=2,
+            frameon=False,
+            fontsize=FONT_SIZE_LEGEND,
+        )
     plt.tight_layout(rect=(0, 0.03, 1, 0.98))
     outdir = "figs"
     os.makedirs(outdir, exist_ok=True)
     outpath = os.path.join(outdir, filename)
-    outpath_eps = outpath.replace(".png", ".eps")
-    plt.savefig(outpath_eps, format="eps")
+    outpath_pdf = outpath.replace(".png", ".pdf")
+    plt.savefig(outpath_pdf, format="pdf")
     plt.savefig(outpath, format="png")
-    print(f"✅ {ylabel} 对比图已保存: {outpath_eps}")
+    print(f"✅ {ylabel} 对比图已保存: {outpath_pdf}")
 
 
 # 便捷函数

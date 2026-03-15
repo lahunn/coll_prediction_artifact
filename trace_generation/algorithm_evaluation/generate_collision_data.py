@@ -29,6 +29,7 @@ import re
 
 from str2name import str2name
 from algorithm.gnnmp import GNNMP, path_cost
+from algorithm.bit_star import BITStar
 from trace_generation.utils.config import set_random_seed
 
 
@@ -112,30 +113,27 @@ def setup_planner(
         return env, planner, device
 
     elif planner_choice == "bit_star":
-        # 使用 BITStar（基于树的采样式规划器），直接返回 BITStar 实例
-        from algorithm.bit_star import BITStar
-
         # BITStar 的构造参数：environment, maxIter=..., plot_flag=False, batch_size=..., T=...
-        bit = BITStar(environment=env, batch_size=batch, T=t_max, plot_flag=False)
+        planner = BITStar(environment=env, batch_size=batch, T=t_max, plot_flag=False)
 
         # NOTE: BITStar.plan 已被统一为返回 dict，包含字段：
         #       'success', 'path', 'edges', 'collision_checks', 'total_time', 'cost', 'n_samples'
-        return env, bit, device
+        return env, planner, device
 
     else:
         raise ValueError(f"Unknown planner_choice: {planner_choice}")
 
 
-def save_current_problem_data(env, idx, collision_model, dry_run=False):
-    """保存当前问题的障碍物-配置对和碰撞数据到 trace_files 中"""
-    obstacle_config_dir = os.path.abspath(
-        os.path.join("..", "..", "trace_files", "gnn_traces")
-    )
-    collision_data_dir = os.path.abspath(
-        os.path.join(
-            "..", "..", "trace_files", "scene_benchmarks", "gnn_collision_data"
-        )
-    )
+def save_current_problem_data(
+    env, idx, collision_model, dry_run=False, trace_dir=None, collision_dir=None
+):
+    """保存当前问题的障碍物-配置对和碰撞数据到 trace_files 中
+
+    This simplified version assumes `trace_dir` and `collision_dir` are provided
+    by the caller (computed in `main`). It does not attempt any fallback.
+    """
+    obstacle_config_dir = os.path.abspath(trace_dir)
+    collision_data_dir = os.path.abspath(collision_dir)
     os.makedirs(obstacle_config_dir, exist_ok=True)
     os.makedirs(collision_data_dir, exist_ok=True)
 
@@ -181,6 +179,9 @@ def evaluate_problems(
     save_on_success=True,
     dry_run=False,
     collision_model="link",
+    trace_dir=None,
+    collision_dir=None,
+    bit_time_budget=10.0,
 ):
     """在给定索引范围上运行 planner，返回 records 列表
 
@@ -188,6 +189,10 @@ def evaluate_problems(
     """
     it = tqdm(indexes) if use_tqdm else indexes
     records = []
+    is_bit_star = planner.__class__.__name__ == "BITStar"
+    # 提前保存构造参数，避免在循环内持有旧实例引用
+    bit_batch = planner.batch_size if is_bit_star else None
+    bit_t_max = planner.T_max if is_bit_star else None
     for idx in it:
         try:
             env.init_new_problem(idx)
@@ -203,12 +208,22 @@ def evaluate_problems(
         except Exception:
             print(f"Warning: failed to reset collision env for index {idx}")
             exit(1)
-        if planner.__class__.__name__ == "GNNMP":
+        if not is_bit_star:
             # GNNMP 调用 plan()
             res = planner.plan(smooth=smooth)
         else:
-            # BITStar 调用 plan()
-            res = planner.plan(float("INF"), time_budget=10, refine_time_budget=10)
+            # BITStar 在构造时会缓存 start/goal，
+            # 每个问题用局部变量新建实例，使旧实例在本轮结束后能被 GC 回收。
+            bit_planner = BITStar(
+                environment=env,
+                batch_size=bit_batch,
+                T=bit_t_max,
+                plot_flag=False,
+            )
+            res = bit_planner.plan(
+                float("INF"), time_budget=bit_time_budget, refine_time_budget=10
+            )
+            del bit_planner
 
         checks = int(res.get("collision_checks", 0))
         success = bool(res.get("success", False))
@@ -227,7 +242,14 @@ def evaluate_problems(
 
         # 如果成功并要求保存, 保存当前问题的数据
         if success and save_on_success:
-            save_current_problem_data(env, idx, collision_model, dry_run=dry_run)
+            save_current_problem_data(
+                env,
+                idx,
+                collision_model,
+                dry_run=dry_run,
+                trace_dir=trace_dir,
+                collision_dir=collision_dir,
+            )
 
         if use_tqdm:
             it.set_description(f"Idx {idx} checks={checks} success={success}")
@@ -236,21 +258,23 @@ def evaluate_problems(
 
 
 def move_files_for_levels(
-    records, index_to_level, env, levels, out_root, dry_run=False
+    records,
+    index_to_level,
+    env,
+    levels,
+    out_root,
+    dry_run=False,
+    trace_dir=None,
+    collision_dir=None,
 ):
     """将现存的 pair 文件和 collision 文件移动到对应难度目录并重命名。
 
     优化：先扫描 collision_dir 构建索引映射，避免为每个 record 重复遍历目录（从 O(n^2) 改为 O(n)).
     支持 dry_run（仅打印，不实际移动）。
     """
-    source_pair_dir = os.path.abspath(
-        os.path.join("..", "..", "trace_files", "gnn_traces")
-    )
-    collision_dir = os.path.abspath(
-        os.path.join(
-            "..", "..", "trace_files", "scene_benchmarks", "gnn_collision_data"
-        )
-    )
+    # Simplified: assume trace_dir and collision_dir are provided and valid
+    source_pair_dir = os.path.abspath(trace_dir)
+    collision_dir = os.path.abspath(collision_dir)
 
     # 创建每级目标目录
     for lvl in levels:
@@ -358,7 +382,9 @@ def save_metadata_csv(records, index_to_level, out_root):
             )
 
 
-def redistribute_problems_by_difficulty(env, records, out_root, dry_run=False):
+def redistribute_problems_by_difficulty(
+    env, records, out_root, dry_run=False, trace_dir=None, collision_dir=None
+):
     """根据记录 (records) 的碰撞检测次数分位数将问题划分为 G1..G5，
     并将相应的 pair 文件与 collision 数据移动到 out_root/{Gx}，同时保存 per-level problems.pkl 和 metadata.csv。
 
@@ -397,7 +423,14 @@ def redistribute_problems_by_difficulty(env, records, out_root, dry_run=False):
 
     # 移动与重命名 pair & collision 文件
     move_files_for_levels(
-        records, index_to_level, env, levels, out_root, dry_run=dry_run
+        records,
+        index_to_level,
+        env,
+        levels,
+        out_root,
+        dry_run=dry_run,
+        trace_dir=trace_dir,
+        collision_dir=collision_dir,
     )
 
     # 保存 metadata.csv
@@ -426,6 +459,12 @@ def parse_args():
     )
     parser.add_argument("--batch", type=int, default=50)
     parser.add_argument("--t_max", type=int, default=1000)
+    parser.add_argument(
+        "--time-budget",
+        type=float,
+        default=10.0,
+        help="Per-problem wall-clock time budget (seconds) for BITStar.plan",
+    )
     parser.add_argument(
         "--no-smooth", action="store_true", help="Disable path smoothing"
     )
@@ -461,6 +500,29 @@ def parse_args():
 def main():
     args = parse_args()
 
+    # Configure trace and collision directories based on CLI or planner choice
+    if args.planner == "bit_star":
+        trace_dir = os.path.abspath(
+            os.path.join("..", "..", "trace_files", "bit_traces")
+        )
+    else:
+        trace_dir = os.path.abspath(
+            os.path.join("..", "..", "trace_files", "gnn_traces")
+        )
+
+    if args.planner == "bit_star":
+        collision_dir = os.path.abspath(
+            os.path.join(
+                "..", "..", "trace_files", "scene_benchmarks", "bit_collision_data"
+            )
+        )
+    else:
+        collision_dir = os.path.abspath(
+            os.path.join(
+                "..", "..", "trace_files", "scene_benchmarks", "gnn_collision_data"
+            )
+        )
+
     env, planner, device = setup_planner(
         args.seed,
         args.batch,
@@ -488,6 +550,9 @@ def main():
         save_on_success=True,
         dry_run=args.dry_run,
         collision_model=args.collision_model,
+        trace_dir=trace_dir,
+        collision_dir=collision_dir,
+        bit_time_budget=args.time_budget,
     )
 
     if len(records) == 0:
@@ -498,7 +563,14 @@ def main():
     out_root = args.out
     os.makedirs(out_root, exist_ok=True)
 
-    redistribute_problems_by_difficulty(env, records, out_root, dry_run=args.dry_run)
+    redistribute_problems_by_difficulty(
+        env,
+        records,
+        out_root,
+        dry_run=args.dry_run,
+        trace_dir=trace_dir,
+        collision_dir=collision_dir,
+    )
 
     return 0
 

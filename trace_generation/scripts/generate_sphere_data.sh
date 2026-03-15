@@ -10,7 +10,7 @@ ROBOT_NAME="iiwa"
 
 # 默认范围
 START=1
-END=100
+END=40
 
 # 支持选择算法类型（bit_star 或 gnnmp）。当选择 gnnmp 时，会使用 gnn_traces / gnn_collision_data 目录
 ALGO="bit"
@@ -70,8 +70,8 @@ for DIFFICULTY in "${DIFFICULTY_LEVELS[@]}"; do
     fi
 
     if [ ! -d "$COLLISION_DIR" ]; then
-        echo "警告: 碰撞数据目录不存在，跳过 $DIFFICULTY: $COLLISION_DIR"
-        continue
+        echo "碰撞数据目录不存在，创建$COLLISION_DIR"
+        mkdir -p "$COLLISION_DIR"
     fi
 
     for obstacle_file in "$OBSTACLE_DIR"/${ROBOT_NAME}_7_*.pkl; do

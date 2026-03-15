@@ -144,7 +144,7 @@ class BITStar:
         x = r * u / norm
         return x
 
-    def informed_sample(self, c_best, sample_num, vertices):
+    def informed_sample(self, c_best, sample_num, vertices, deadline=None):
         edge_info = []
         edge_info_coll = []
         if c_best < float("inf"):
@@ -154,6 +154,8 @@ class BITStar:
         sample_array = []
         cur_num = 0
         while cur_num < sample_num:
+            if deadline is not None and time() >= deadline:
+                break
             if c_best < float("inf"):
                 x_ball = self.sample_unit_ball()
                 random_point = tuple(
@@ -341,6 +343,7 @@ class BITStar:
         problemindex=2000,
         refine_time_budget=None,
         time_budget=None,
+        dump_log=True,
     ):
         if time_budget is None:
             time_budget = INF
@@ -349,15 +352,25 @@ class BITStar:
         print("Before planning setup")
         self.setup_planning()
         init_time = time()
+        deadline = None if time_budget == INF else init_time + time_budget
+        timed_out = False
+        edge_info_full = []
+        edge_infocoll_full = []
 
-        while self.T < self.T_max and (time() - init_time < time_budget):
+        while self.T < self.T_max and (
+            deadline is None or time() < deadline
+        ):
             if not self.vertex_queue and not self.edge_queue:
                 c_best = self.g_scores[self.goal]
                 self.prune(c_best)
-                sample_temp, edge_info_full, edge_infocoll_full = self.sampling(
-                    c_best, self.batch_size, self.vertices
+                sample_temp, edge_info, edge_info_coll = self.sampling(
+                    c_best, self.batch_size, self.vertices, deadline=deadline
                 )
-                # print(edge_info_full)
+                edge_info_full.extend(edge_info)
+                edge_infocoll_full.extend(edge_info_coll)
+                if deadline is not None and time() >= deadline:
+                    timed_out = True
+                    break
                 self.samples.extend(sample_temp)
                 self.T += self.batch_size
 
@@ -375,16 +388,26 @@ class BITStar:
 
             try:
                 while self.bestVertexQueueValue() <= self.bestEdgeQueueValue():
+                    if deadline is not None and time() >= deadline:
+                        timed_out = True
+                        break
                     self.timer.start()
                     _, point = heapq.heappop(self.vertex_queue)
                     self.timer.finish(Timer.HEAP)
                     self.expand_vertex(point)
+                if timed_out:
+                    break
             except Exception as e:
                 if (not self.edge_queue) and (not self.vertex_queue):
                     continue
                 else:
                     raise e
 
+            if deadline is not None and time() >= deadline:
+                timed_out = True
+                break
+            if not self.edge_queue:
+                continue
             best_edge_value, bestEdge = heapq.heappop(self.edge_queue)
 
             # Check if this can improve the current solution
@@ -438,11 +461,14 @@ class BITStar:
                 time() - init_time > refine_time_budget
             ):
                 break
-        os.makedirs("logfiles_BIT_link", exist_ok=True)
-        f = open("logfiles_BIT_link/link_info_" + str(problemindex) + ".pkl", "wb")
-        # print(edge_infocoll_full)
-        pickle.dump((edge_info_full, edge_infocoll_full), f)
-        f.close()
+        if dump_log and not timed_out:
+            os.makedirs("logfiles_BIT_link", exist_ok=True)
+            f = open("logfiles_BIT_link/link_info_" + str(problemindex) + ".pkl", "wb")
+            # print(edge_infocoll_full)
+            pickle.dump((edge_info_full, edge_infocoll_full), f)
+            f.close()
+        elif dump_log:
+            print("BITStar timed out; skip dumping edge info log.")
         print(f"Total edge free checks: {self.edge_free_checks}")  # 新增：输出总次数
         collision_checks = self.env.collision_check_count()
         print(f"Total collision checks: {collision_checks}")  # 新增：输出总次数
@@ -459,6 +485,7 @@ class BITStar:
             "cost": float(self.g_scores[self.goal]),
             "n_samples": int(self.T),
             "total_time": float(total_time),
+            "timed_out": bool(timed_out),
         }
 
 

@@ -14,10 +14,11 @@
 OUTPUT_FILE="../result_files/sphere_hashing_cost_results.csv"
 
 # 定义要测试的参数范围
+ROBOT_NAME="iiwa"                             # 机器人名称 (例如: iiwa, franka)
 DENSITY_LEVELS=("dens3" "dens6" "dens9" "dens12")  # 目标场景密度
 COORD_BITS_LIST=(4)                      # 坐标量化位数
 RADIUS_BITS_LIST=(0)                    # 半径量化位数
-THRESHOLDS=(0.0 0.03125 0.125 0.5 1.0 2.0)  # 碰撞阈值
+THRESHOLDS=(0.0 0.03125 0.125 0.5 1.0 2.0 4.0)  # 碰撞阈值
 # THRESHOLDS=(0.25 0.5 1.0 2.0)  # 碰撞阈值
 SAMPLE_RATES=(0 0.125 0.25 0.5 1)           # 自由样本采样率
 NUM_PROBLEMS=100                              # 评估的问题数量
@@ -61,7 +62,8 @@ for density in "${DENSITY_LEVELS[@]}"; do
           fi
 
           # 执行Python脚本并捕获输出（需要在上级目录执行）
-          result=$(cd .. && python coord_hashing_sphere.py "$density" "$coord_bits" "$radius_bits" "$threshold" "$sample_rate" "$NUM_PROBLEMS" 2>&1)
+          echo "  执行命令: python coord_hashing_sphere.py \"$density\" \"$coord_bits\" \"$radius_bits\" \"$threshold\" \"$sample_rate\" \"$NUM_PROBLEMS\" \"$ROBOT_NAME\""
+          result=$(cd .. && python coord_hashing_sphere.py "$density" "$coord_bits" "$radius_bits" "$threshold" "$sample_rate" "$NUM_PROBLEMS" "$ROBOT_NAME" 2>&1)
 
           # 检查是否执行成功
           if [ $? -eq 0 ]; then
