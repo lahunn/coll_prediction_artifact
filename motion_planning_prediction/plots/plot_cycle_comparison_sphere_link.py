@@ -5,12 +5,15 @@ from matplotlib.ticker import LogLocator, ScalarFormatter
 import numpy as np
 import os
 import sys
+import seaborn as sns
 # 统一绘图样式
 import matplotlib
 
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
 plt.style.use("seaborn-v0_8-white")
+sns.set_style("white")
+sns.set_palette("colorblind")
 font = {
     "family": "serif",
     "weight": "normal",
@@ -18,11 +21,12 @@ font = {
 }
 plt.rc("font", **font)
 
-# 统一配色方案（便于黑白打印的区分）
-BASELINE_COLOR = "#BBBBBB"
-LINK_COLOR = "#0072B2"
-SPHERE_COLOR = "#D55E00"
-ORACLE_COLOR = "#009E73"
+# 统一配色方案（使用 seaborn colorblind 调色板）
+palette = sns.color_palette("colorblind")
+BASELINE_COLOR = palette[7]
+LINK_COLOR = palette[0]
+SPHERE_COLOR = palette[1]
+ORACLE_COLOR = palette[2]
 
 # 允许通过命令行参数指定算法
 
