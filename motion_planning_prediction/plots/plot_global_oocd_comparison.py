@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 import matplotlib
 import matplotlib.pyplot as plt
+import seaborn as sns
 import numpy as np
 import os
 import pandas as pd
@@ -12,7 +13,9 @@ import pandas as pd
 # Unified plotting style
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
-plt.style.use("seaborn-v0_8-whitegrid")
+sns.set_style("white")
+# use colorblind-friendly palette
+sns.set_palette("colorblind")
 font = {
     "family": "serif",
     "weight": "normal",
@@ -23,10 +26,9 @@ plt.rc("font", **font)
 
 def plot_global_oocd_cycle_comparison():
     """Compare Total Cycles across four Global OOCD configurations"""
-    try:
-        plt.style.use("seaborn-v0_8-whitegrid")
-    except OSError:
-        plt.style.use("seaborn-whitegrid")
+    # use seaborn white style and colorblind palette
+    sns.set_style("white")
+    sns.set_palette("colorblind")
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
     result_dir = os.path.join(current_dir, "../result_files")
@@ -153,7 +155,7 @@ def plot_global_oocd_cycle_comparison():
     ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{int(y):,}"))
     ax.tick_params(axis="y", labelsize=11)
 
-    ax.grid(True, axis="y", linestyle="--", alpha=0.4, zorder=0)
+    # grid removed per project style
     ax.set_axisbelow(True)
 
     ax.legend(
@@ -179,10 +181,9 @@ def plot_global_oocd_cycle_comparison():
 
 def plot_global_oocd_utilization_comparison():
     """Compare OOCD Utilization across four configurations"""
-    try:
-        plt.style.use("seaborn-v0_8-whitegrid")
-    except OSError:
-        plt.style.use("seaborn-whitegrid")
+    # use seaborn white style and colorblind palette
+    sns.set_style("white")
+    sns.set_palette("colorblind")
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
     result_dir = os.path.join(current_dir, "../result_files")
@@ -260,7 +261,7 @@ def plot_global_oocd_utilization_comparison():
     ax.set_xticklabels(scenes, fontsize=12)
     ax.tick_params(axis="y", labelsize=11)
 
-    ax.grid(True, axis="y", linestyle="--", alpha=0.4, zorder=0)
+    # grid removed per project style
     ax.set_axisbelow(True)
 
     ax.legend(
@@ -285,10 +286,9 @@ def plot_global_oocd_utilization_comparison():
 
 def plot_global_oocd_throughput_comparison():
     """Compare Throughput across four configurations"""
-    try:
-        plt.style.use("seaborn-v0_8-whitegrid")
-    except OSError:
-        plt.style.use("seaborn-whitegrid")
+    # use seaborn white style and colorblind palette
+    sns.set_style("white")
+    sns.set_palette("colorblind")
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
     result_dir = os.path.join(current_dir, "../result_files")
@@ -367,7 +367,7 @@ def plot_global_oocd_throughput_comparison():
     ax.set_xticklabels(scenes, fontsize=12)
     ax.tick_params(axis="y", labelsize=11)
 
-    ax.grid(True, axis="y", linestyle="--", alpha=0.4, zorder=0)
+    # grid removed per project style
     ax.set_axisbelow(True)
 
     ax.legend(
@@ -392,10 +392,9 @@ def plot_global_oocd_throughput_comparison():
 
 def plot_global_oocd_pred_impact():
     """Compare impact of prediction buffer size (8 vs 16) for both CHT types"""
-    try:
-        plt.style.use("seaborn-v0_8-whitegrid")
-    except OSError:
-        plt.style.use("seaborn-whitegrid")
+    # use seaborn white style and colorblind palette
+    sns.set_style("white")
+    sns.set_palette("colorblind")
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
     result_dir = os.path.join(current_dir, "../result_files")
@@ -465,7 +464,7 @@ def plot_global_oocd_pred_impact():
         ax1.set_xticks(x)
         ax1.set_xticklabels(scenes, fontsize=11)
         ax1.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{int(y):,}"))
-        ax1.grid(True, axis="y", linestyle="--", alpha=0.4)
+        # grid removed per project style
         ax1.legend()
 
     # Dual Port Queries
@@ -493,7 +492,7 @@ def plot_global_oocd_pred_impact():
         ax2.set_xticks(x)
         ax2.set_xticklabels(scenes, fontsize=11)
         ax2.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{int(y):,}"))
-        ax2.grid(True, axis="y", linestyle="--", alpha=0.4)
+        # grid removed per project style
         ax2.legend()
 
     # Multi-Bank Cycles
@@ -522,7 +521,7 @@ def plot_global_oocd_pred_impact():
         ax3.set_xticks(x)
         ax3.set_xticklabels(scenes, fontsize=11)
         ax3.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{int(y):,}"))
-        ax3.grid(True, axis="y", linestyle="--", alpha=0.4)
+        # grid removed per project style
         ax3.legend()
 
     # Multi-Bank Queries
@@ -551,7 +550,7 @@ def plot_global_oocd_pred_impact():
         ax4.set_xticks(x)
         ax4.set_xticklabels(scenes, fontsize=11)
         ax4.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{int(y):,}"))
-        ax4.grid(True, axis="y", linestyle="--", alpha=0.4)
+        # grid removed per project style
         ax4.legend()
 
     fig.suptitle(

@@ -77,8 +77,7 @@ def plot_conflict_rate_comparison():
     # X轴格式化为百分比
     ax.xaxis.set_major_formatter(PercentFormatter(1.0))
     
-    # 添加垂直网格线
-    ax.xaxis.grid(True, linestyle='--', alpha=0.4)
+    # grid removed per project style
     
     # 调整X轴范围，留出空间给标签
     plt.xlim(0, df["conflict_rate"].max() * 1.15)

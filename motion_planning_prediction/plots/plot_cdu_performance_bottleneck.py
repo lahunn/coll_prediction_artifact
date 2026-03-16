@@ -80,8 +80,7 @@ def plot_cdu_performance_bottleneck():
     # Legend
     ax.legend(title='CDU State', loc='center left', bbox_to_anchor=(1, 0.5), frameon=True)
     
-    # Grid and spine
-    ax.yaxis.grid(True, linestyle='--', alpha=0.6)
+    # grid removed per project style
     sns.despine()
     
     plt.tight_layout()

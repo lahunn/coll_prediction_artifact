@@ -88,7 +88,7 @@ def plot_single_config(ax, df, config, title_suffix=""):
     ax.set_xlabel('Training Data Size (History Dictionary Size)')
     ax.set_ylabel('Prediction Accuracy')
     ax.set_title(f'Collision Prediction Accuracy Learning Curve {title_suffix}')
-    ax.grid(True, alpha=0.3)
+    # grid removed per project style
     ax.legend()
     
     return True
@@ -180,7 +180,7 @@ def plot_aggregated_curve(df, save_path=None):
     plt.xlabel('Training Data Size (History Dictionary Size)')
     plt.ylabel('Prediction Accuracy')
     plt.title('Aggregated Learning Curve of Collision Prediction Accuracy vs Training Data Size', pad=20)
-    plt.grid(True, alpha=0.3)
+    # grid removed per project style
     plt.legend()
     
     # 添加统计信息文本框

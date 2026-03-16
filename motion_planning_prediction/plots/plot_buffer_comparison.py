@@ -121,7 +121,7 @@ def plot_comparison(model_type):
     ax1.set_xticks(x)
     ax1.set_xticklabels(scenes)
     ax1.legend()
-    ax1.grid(True, axis='y', linestyle='--', alpha=0.3) # 保留水平网格线
+    # grid removed per project style
 
     # 添加数值标签
     ax1.bar_label(rects1, padding=3, fmt="%.0f", fontsize=8)
@@ -149,7 +149,7 @@ def plot_comparison(model_type):
     ax2.set_xticks(x)
     ax2.set_xticklabels(scenes)
     ax2.legend()
-    ax2.grid(True, axis='y', linestyle='--', alpha=0.3)
+    # grid removed per project style
 
     # 添加数值标签
     ax2.bar_label(rects3, padding=3, fmt="%.0f", fontsize=8)

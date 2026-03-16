@@ -14,7 +14,9 @@ import os
 import matplotlib
 
 # 1. 统一绘图风格
-sns.set_style("whitegrid")
+sns.set_style("white")
+# set colorblind-friendly palette
+sns.set_palette("colorblind")
 sns.set_context("paper", font_scale=1.5)
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42

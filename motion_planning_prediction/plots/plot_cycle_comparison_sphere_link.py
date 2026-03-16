@@ -10,7 +10,7 @@ import matplotlib
 
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
-plt.style.use("seaborn-v0_8-whitegrid")
+plt.style.use("seaborn-v0_8-white")
 font = {
     "family": "serif",
     "weight": "normal",
@@ -183,7 +183,6 @@ def plot_total_prediction_cycles(difficulties, link_cycles, sphere_cycles, oracl
     plt.ylabel("Total Prediction Cycles")
     plt.xticks(x, difficulties)
     plt.legend()
-    plt.grid(axis="y", linestyle="--", alpha=0.7)
 
     for i in range(len(difficulties)):
         l_val = link_cycles[i]
@@ -260,7 +259,7 @@ def plot_total_prediction_queries(
     ax.tick_params(axis="y", which="major", length=6)
     ax.tick_params(axis="y", which="minor", length=3)
     ax.legend()
-    ax.grid(axis="y", linestyle="--", alpha=0.7)
+    # grid removed per project style
 
     # 移除相对 Baseline 的百分比标注，保持图面简洁
 
@@ -290,7 +289,6 @@ def plot_oocd_utilization(difficulties, link_utilization, sphere_utilization):
     plt.ylabel("OOCD Utilization (%)")
     plt.xticks(x, difficulties)
     plt.legend()
-    plt.grid(axis="y", linestyle="--", alpha=0.7)
 
     for rect in rects5:
         height = rect.get_height()

@@ -6,6 +6,7 @@ Based on data from result_files/obb_vs_sphere.csv
 
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 import numpy as np
 import os
 
@@ -13,7 +14,8 @@ import os
 import matplotlib
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
-plt.style.use("seaborn-v0_8-whitegrid")
+sns.set_style("white")
+sns.set_palette("colorblind")
 font = {
     "family": "serif",
     "weight": "normal",
@@ -63,8 +65,7 @@ def plot_obb_comparison():
             transform=ax.transAxes, fontsize=12, verticalalignment='top',
             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
 
-    # 设置网格
-    ax.grid(True, alpha=0.3, axis='y')
+    # grid removed per project style
 
     # 调整布局
     plt.tight_layout()
@@ -116,8 +117,7 @@ def plot_sphere_comparison():
             transform=ax.transAxes, fontsize=12, verticalalignment='top',
             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
 
-    # 设置网格
-    ax.grid(True, alpha=0.3, axis='y')
+    # grid removed per project style
 
     # 调整布局
     plt.tight_layout()
@@ -181,8 +181,7 @@ def plot_methods_comparison():
     # 添加图例
     ax.legend()
 
-    # 设置网格
-    ax.grid(True, alpha=0.3, axis='y')
+    # grid removed per project style
 
     # 调整布局
     plt.tight_layout()

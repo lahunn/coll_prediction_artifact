@@ -1,12 +1,14 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib
+import seaborn as sns
 import os
 
 # Unified plotting style (serif font, seaborn whitegrid, colors: navy/darkgreen)
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
-plt.style.use("seaborn-v0_8-whitegrid")
+sns.set_style("white")
+sns.set_palette("colorblind")
 font = {
     "family": "serif",
     "weight": "normal",
@@ -44,7 +46,7 @@ for i, metric in enumerate(metrics):
     )
     ax.set_title(metric)
     ax.set_ylabel('Value' if metric != 'Utilization' else 'Percentage (%)')
-    ax.grid(axis='y', linestyle='--', alpha=0.7)
+    # grid removed per project style
 
     # 在 Total_Cycles 图中标注差距百分比
     if metric == 'Total_Cycles':

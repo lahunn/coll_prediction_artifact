@@ -6,6 +6,7 @@ across all difficulty levels (G1, G2, G3, G4, G5)
 
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 import matplotlib
 import numpy as np
 import os
@@ -16,7 +17,8 @@ os.makedirs("figs", exist_ok=True)
 # Unified plotting style (serif font, seaborn whitegrid, colors: navy/darkgreen)
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
-plt.style.use("seaborn-v0_8-whitegrid")
+sns.set_style("white")
+sns.set_palette("colorblind")
 font = {
     "family": "serif",
     "weight": "normal",
@@ -99,7 +101,7 @@ plt.title(
 plt.ylabel("Total Cycles", fontsize=12)
 plt.xlabel("Difficulty Level", fontsize=12)
 plt.xticks(x, difficulty_levels)
-plt.grid(axis="y", alpha=0.3)
+# grid removed per project style
 plt.legend()
 
 plt.tight_layout()

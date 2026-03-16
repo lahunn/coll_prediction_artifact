@@ -107,7 +107,7 @@ def plot_cycle_comparison():
     ax.set_xticklabels(scenes)
     ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{int(y):,}"))
     
-    ax.yaxis.grid(True, linestyle="--", alpha=0.4)
+    # grid removed per project style
     sns.despine()
 
     # 图例

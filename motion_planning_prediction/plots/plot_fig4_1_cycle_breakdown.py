@@ -85,8 +85,7 @@ def plot_cht_conflicts():
     # 格式化 Y 轴
     ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{int(y):,}"))
     
-    # 添加水平网格线
-    ax.yaxis.grid(True, linestyle='--', alpha=0.7)
+    # grid removed per project style
     
     # 移除顶部和右侧边框
     sns.despine()

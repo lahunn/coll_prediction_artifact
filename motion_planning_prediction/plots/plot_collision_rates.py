@@ -156,7 +156,7 @@ def plot_rates(results, output_dir="figs"):
     ax.set_xticklabels(difficulties)
     ax.legend()
     
-    ax.yaxis.grid(True, linestyle='--', alpha=0.7)
+    # grid removed per project style
     sns.despine(ax=ax)
 
     def autolabel(rects):
@@ -191,7 +191,7 @@ def plot_rates(results, output_dir="figs"):
     ax_log.set_xticklabels(difficulties)
     ax_log.legend()
     ax_log.set_yscale('log')
-    ax_log.yaxis.grid(True, linestyle='--', alpha=0.7, which='both')
+    # grid removed per project style
     sns.despine(ax=ax_log)
     
     plt.tight_layout()
