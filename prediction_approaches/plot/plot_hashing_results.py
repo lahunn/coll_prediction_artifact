@@ -2,13 +2,15 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib
 import os
+import seaborn as sns
 
 # Unified plotting style
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
-plt.style.use("seaborn-v0_8-whitegrid")
+sns.set_style("white")
+sns.set_palette("colorblind")
 font = {
-    "family": "serif",
+    "family": "Times New Roman",
     "weight": "normal",
     "size": 28,
 }
@@ -43,28 +45,29 @@ def plot_aggregated_metrics(df, parameter_name, density, output_dir="plots"):
     )
 
     # --- 绘制Precision柱状图 ---
+    palette = sns.color_palette("colorblind")
     ax1.bar(
         aggregated_data[parameter_name].astype(str),
         aggregated_data["Precision"],
-        color="navy",
+        color=palette[0],
     )
     ax1.set_title("Average Precision")
     ax1.set_xlabel(parameter_name)
     ax1.set_ylabel("Precision (%)")
     ax1.tick_params(axis="x", rotation=45)
-    ax1.grid(axis="y", linestyle="--", alpha=0.7)
+    # grid removed per style requirement
 
     # --- 绘制Recall柱状图 ---
     ax2.bar(
         aggregated_data[parameter_name].astype(str),
         aggregated_data["Recall"],
-        color="darkgreen",
+        color=palette[2],
     )
     ax2.set_title("Average Recall")
     ax2.set_xlabel(parameter_name)
     ax2.set_ylabel("Recall (%)")
     ax2.tick_params(axis="x", rotation=45)
-    ax2.grid(axis="y", linestyle="--", alpha=0.7)
+    # grid removed per style requirement
 
     # 调整布局并保存图表
     plt.tight_layout(rect=(0, 0.03, 1, 0.95))

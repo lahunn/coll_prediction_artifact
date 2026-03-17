@@ -16,6 +16,7 @@ sns.set_style("ticks")
 sns.set_context("paper", font_scale=1.5)
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
+matplotlib.rcParams["font.family"] = "Times New Roman"
 
 def plot_cdu_performance_bottleneck():
     # 2. Paths

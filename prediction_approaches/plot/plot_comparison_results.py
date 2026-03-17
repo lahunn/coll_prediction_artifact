@@ -9,33 +9,37 @@ import pandas as pd
 import matplotlib
 import os
 import sys
+import seaborn as sns
 
 # Ensure local package modules are importable when running this script directly
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from utils.utils import add_bar_labels
 
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
+sns.set_style("white")
+sns.set_palette("colorblind")
+
+palette = sns.color_palette("colorblind")
 
 font = {
-    "family": "serif",
+    "family": "Times New Roman",
     "weight": "normal",
     "size": 28,
 }
 Sphere_csv_path = "../result_files/sphere_hashing_cost_results.csv"
 Coord_csv_path = "../result_files/coord_hashing_cost_results.csv"
 # ===== 全局配色方案 =====
-LINK_COLOR = "#0072B2"  # Link-based 方法主色
-SPHERE_COLOR = "#D55E00"  # Sphere-based 方法主色
+LINK_COLOR = palette[0]  # Link-based 方法主色
+SPHERE_COLOR = palette[1]  # Sphere-based 方法主色
 # 供多曲线使用的渐变色（由深到浅）
-LINK_COLOR_SET = ["#003366", "#0072B2", "#88CCEE"]  # Dark Blue, Base Blue, Light Cyan
+LINK_COLOR_SET = [palette[0], palette[4], palette[9]]
 SPHERE_COLOR_SET = [
-    "#663300",
-    "#D55E00",
-    "#FFCC99",
-]  # Dark Brown, Base Orange, Light Peach
+    palette[1],
+    palette[3],
+    palette[8],
+]
 # Precision: Blue, Recall: Vermilion (Orange-Red), SpeedUp: Bluish Green
-METRIC_COLORS = ["#0072B2", "#D55E00", "#009E73"]
+METRIC_COLORS = [palette[0], palette[1], palette[2]]
 # ======================
 
 # ===== 全局字号配置参数 =====
@@ -45,6 +49,13 @@ FONT_SIZE_TICK = 18  # 坐标轴刻度字号
 FONT_SIZE_LEGEND = 24  # 图例字号
 FONT_SIZE_TEXT = 18  # 数值标签、注释等字号5
 # =========================
+
+density_labels = {
+    "dens3": "Density 3",
+    "dens6": "Density 6",
+    "dens9": "Density 9",
+    "dens12": "Density 12",
+}
 
 
 def plot_accuracy_recall_comparison():
@@ -63,8 +74,6 @@ def plot_accuracy_recall_comparison():
 
     # 提取每个密度级别的结果
     densities = ["dens3", "dens6", "dens9", "dens12"]
-    density_labels = ["Density 3", "Density 6", "Density 9", "Density 12"]
-
     obb_precision = []
     obb_recall = []
     sphere_precision = []
@@ -113,7 +122,7 @@ def plot_accuracy_recall_comparison():
     ax_prec.set_xticks(x)
     ax_prec.set_xticklabels(["3", "6", "9", "12"], fontsize=FONT_SIZE_TICK)
     ax_prec.set_ylim((0, 115))
-    ax_prec.grid(axis="y", alpha=0.2, linestyle="--")
+    # grid removed per style requirement
     ax_prec.tick_params(axis="y", labelsize=FONT_SIZE_TICK)
     ax_prec.set_xlabel("Obstacle Density", fontsize=FONT_SIZE_LABEL)
 
@@ -167,7 +176,7 @@ def plot_accuracy_recall_comparison():
     ax_rec.set_xticks(x)
     ax_rec.set_xticklabels(["3", "6", "9", "12"], fontsize=FONT_SIZE_TICK)
     ax_rec.set_ylim((0, 115))
-    ax_rec.grid(axis="y", alpha=0.2, linestyle="--")
+    # grid removed per style requirement
     ax_rec.tick_params(axis="y", labelsize=FONT_SIZE_TICK)
     ax_rec.set_xlabel("Obstacle Density", fontsize=FONT_SIZE_LABEL)
 
@@ -210,8 +219,6 @@ def plot_cost_comparison():
     )
 
     densities = ["dens3", "dens6", "dens9", "dens12"]
-    density_labels = ["Density 3", "Density 6", "Density 9", "Density 12"]
-
     obb_speedups = []
     sphere_speedups = []
 
@@ -356,7 +363,7 @@ def plot_threshold_comparison(density="dens6"):
         axes[0].set_xticklabels(
             threshold_labels, rotation=45, ha="right", fontsize=FONT_SIZE_TICK
         )
-        axes[0].grid(alpha=0.2, linestyle="--")
+        # grid removed per style requirement
         axes[0].set_ylim([0, 100])
         axes[0].tick_params(axis="y", labelsize=FONT_SIZE_TICK)
 
@@ -378,7 +385,7 @@ def plot_threshold_comparison(density="dens6"):
         axes[1].set_xticklabels(
             threshold_labels, rotation=45, ha="right", fontsize=FONT_SIZE_TICK
         )
-        axes[1].grid(alpha=0.2, linestyle="--")
+        # grid removed per style requirement
         axes[1].set_ylim([0, 100])
         axes[1].tick_params(axis="y", labelsize=FONT_SIZE_TICK)
 
@@ -438,7 +445,7 @@ def plot_threshold_comparison(density="dens6"):
         axes[0].set_xticklabels(
             threshold_labels, rotation=45, ha="right", fontsize=FONT_SIZE_TICK
         )
-        axes[0].grid(alpha=0.2, linestyle="--")
+        # grid removed per style requirement
         axes[0].set_ylim([0, 100])
         axes[0].tick_params(axis="y", labelsize=FONT_SIZE_TICK)
 
@@ -460,7 +467,7 @@ def plot_threshold_comparison(density="dens6"):
         axes[1].set_xticklabels(
             threshold_labels, rotation=45, ha="right", fontsize=FONT_SIZE_TICK
         )
-        axes[1].grid(alpha=0.2, linestyle="--")
+        # grid removed per style requirement
         axes[1].set_ylim([0, 100])
         axes[1].tick_params(axis="y", labelsize=FONT_SIZE_TICK)
 
@@ -497,12 +504,6 @@ def plot_combined_threshold_comparison():
     )
 
     densities = ["dens3", "dens6", "dens9", "dens12"]
-    density_labels = {
-        "dens3": "Density 3",
-        "dens6": "Density 6",
-        "dens9": "Density 9",
-        "dens12": "Density 12",
-    }
 
     quant_bits = [3, 4, 5]
     coord_bits = [3, 4, 5]
@@ -576,7 +577,7 @@ def plot_combined_threshold_comparison():
         ax_prec.set_xticklabels(
             threshold_labels, rotation=45, ha="right", fontsize=FONT_SIZE_TICK
         )
-        ax_prec.grid(alpha=0.2, linestyle="--")
+        # grid removed per style requirement
         ax_prec.set_ylim([0, 100])
         ax_prec.tick_params(axis="y", labelsize=FONT_SIZE_TICK)
 
@@ -627,7 +628,7 @@ def plot_combined_threshold_comparison():
         ax_rec.set_xticklabels(
             threshold_labels, rotation=45, ha="right", fontsize=FONT_SIZE_TICK
         )
-        ax_rec.grid(alpha=0.2, linestyle="--")
+        # grid removed per style requirement
         ax_rec.set_ylim([0, 100])
         ax_rec.tick_params(axis="y", labelsize=FONT_SIZE_TICK)
 
@@ -636,14 +637,14 @@ def plot_combined_threshold_comparison():
     handles, labels = [], []
     for axrow in axes:
         for ax in axrow:
-            h, l = ax.get_legend_handles_labels()
-            handles.extend(h)
-            labels.extend(l)
+            plot_handles, plot_labels = ax.get_legend_handles_labels()
+            handles.extend(plot_handles)
+            labels.extend(plot_labels)
     # 去重
     uniq = {}
-    for h, l in zip(handles, labels):
-        if l not in uniq:
-            uniq[l] = h
+    for handle, label in zip(handles, labels):
+        if label not in uniq:
+            uniq[label] = handle
     fig.legend(
         list(uniq.values()),
         list(uniq.keys()),
@@ -675,12 +676,6 @@ def plot_pr_curves():
     )
 
     densities = ["dens3", "dens6", "dens9", "dens12"]
-    density_labels = {
-        "dens3": "Density 3",
-        "dens6": "Density 6",
-        "dens9": "Density 9",
-        "dens12": "Density 12",
-    }
 
     # 创建图表 - 4个子图分别对应4种密度
     fig, axes = plt.subplots(2, 2, figsize=(18, 14))
@@ -805,12 +800,6 @@ def plot_cost_vs_threshold():
     )
 
     densities = ["dens3", "dens6", "dens9", "dens12"]
-    density_labels = {
-        "dens3": "Density 3",
-        "dens6": "Density 6",
-        "dens9": "Density 9",
-        "dens12": "Density 12",
-    }
 
     # 创建图表 - 4个子图分别对应4种密度
     fig, axes = plt.subplots(2, 2, figsize=(18, 14))
@@ -983,12 +972,6 @@ def plot_cost_vs_quantbits():
     )
 
     densities = ["dens3", "dens6", "dens9", "dens12"]
-    density_labels = {
-        "dens3": "Density 3",
-        "dens6": "Density 6",
-        "dens9": "Density 9",
-        "dens12": "Density 12",
-    }
 
     quant_bits = [3, 4, 5]
     coord_bits = [3, 4, 5]
@@ -1104,12 +1087,6 @@ def plot_threshold_metrics_by_density():
     sphere_data = pd.read_csv(Sphere_csv_path, header=0)
 
     densities = ["dens3", "dens6", "dens9", "dens12"]
-    density_labels = {
-        "dens3": "Density 3",
-        "dens6": "Density 6",
-        "dens9": "Density 9",
-        "dens12": "Density 12",
-    }
 
     for density in densities:
         obb_density = obb_data[
@@ -1141,7 +1118,6 @@ def plot_threshold_metrics_by_density():
             obb_density["SpeedUp_Pct"].values,
         ]
 
-        thresholds_sphere = sphere_density["Threshold"].values
         metrics_sphere = [
             sphere_density["PosePrecision"].values,
             sphere_density["PoseRecall"].values,
@@ -1251,12 +1227,6 @@ def plot_precision_recall_by_density():
         sphere_data = pd.DataFrame()
 
     densities = ["dens3", "dens6", "dens9", "dens12"]
-    density_labels = {
-        "dens3": "Density 3",
-        "dens6": "Density 6",
-        "dens9": "Density 9",
-        "dens12": "Density 12",
-    }
 
     for density in densities:
         obb_density = obb_data[obb_data["Density"] == density]
@@ -1336,10 +1306,10 @@ def plot_precision_recall_by_density():
 
         # 子图1: Precision（grouped bar）
         ax0 = axes[0]
-        bars_link = ax0.bar(
+        ax0.bar(
             x - width / 2, obb_prec, width, label="Link-based (avg)", color=LINK_COLOR
         )
-        bars_sphere = ax0.bar(
+        ax0.bar(
             x + width / 2,
             sphere_prec,
             width,
@@ -1357,18 +1327,16 @@ def plot_precision_recall_by_density():
         ax0.set_ylabel("Precision (%)", fontsize=FONT_SIZE_LABEL)
 
         # y 上限基于最大值
-        combined_prec = [v for v in (obb_prec + sphere_prec) if not np.isnan(v)]
-        max_prec = max(combined_prec) if combined_prec else 100
         ax0.set_ylim([0, 100])
-        ax0.grid(axis="y", alpha=0.2, linestyle="--")
+        # grid removed per style requirement
         ax0.tick_params(axis="y", labelsize=FONT_SIZE_TICK)
 
         # 子图2: Recall（grouped bar）
         ax1 = axes[1]
-        bars_link_r = ax1.bar(
+        ax1.bar(
             x - width / 2, obb_rec, width, label="Link-based (avg)", color=LINK_COLOR
         )
-        bars_sphere_r = ax1.bar(
+        ax1.bar(
             x + width / 2,
             sphere_rec,
             width,
@@ -1383,7 +1351,7 @@ def plot_precision_recall_by_density():
         )
         ax1.set_ylabel("Recall (%)", fontsize=FONT_SIZE_LABEL)
         ax1.set_ylim([0, 100])
-        ax1.grid(axis="y", alpha=0.2, linestyle="--")
+        # grid removed per style requirement
         ax1.tick_params(axis="y", labelsize=FONT_SIZE_TICK)
 
         # 共享图例（仅在 dens3 显示）
@@ -1415,12 +1383,6 @@ def plot_link_sphere_comparison_by_density():
     sphere_data = pd.read_csv(Sphere_csv_path, header=0)
 
     densities = ["dens3", "dens6", "dens9", "dens12"]
-    density_labels = {
-        "dens3": "Density 3",
-        "dens6": "Density 6",
-        "dens9": "Density 9",
-        "dens12": "Density 12",
-    }
 
     for density in densities:
         obb_density = obb_data[obb_data["Density"] == density]
@@ -1477,7 +1439,7 @@ def plot_link_sphere_comparison_by_density():
 
         # 定义指标颜色方案 (Colorblind-friendly)
         # Precision: Blue, Recall: Vermilion (Orange-Red), SpeedUp: Bluish Green
-        METRIC_COLORS = ["#0072B2", "#D55E00", "#009E73"]
+        metric_colors_local = METRIC_COLORS
 
         # 画图
         n = len(thresholds)
@@ -1491,56 +1453,56 @@ def plot_link_sphere_comparison_by_density():
 
         # 按新顺序绘制柱状：
         # Link-Precision, Sphere-Precision, Link-Recall, Sphere-Recall, Link-Computation, Sphere-Computation
-        bars1 = ax.bar(
+        ax.bar(
             ind - 2.5 * width,
             link_prec,
             width,
             label="Link-Precision",
             facecolor="white",
-            edgecolor=METRIC_COLORS[0],
+            edgecolor=metric_colors_local[0],
             hatch="///",
             linewidth=1.5,
         )
-        bars4 = ax.bar(
+        ax.bar(
             ind - 1.5 * width,
             sphere_prec,
             width,
             label="Sphere-Precision",
-            color=METRIC_COLORS[0],
+            color=metric_colors_local[0],
         )
-        bars2 = ax.bar(
+        ax.bar(
             ind - 0.5 * width,
             link_rec,
             width,
             label="Link-Recall",
             facecolor="white",
-            edgecolor=METRIC_COLORS[1],
+            edgecolor=metric_colors_local[1],
             hatch="///",
             linewidth=1.5,
         )
-        bars5 = ax.bar(
+        ax.bar(
             ind + 0.5 * width,
             sphere_rec,
             width,
             label="Sphere-Recall",
-            color=METRIC_COLORS[1],
+            color=metric_colors_local[1],
         )
-        bars3 = ax.bar(
+        ax.bar(
             ind + 1.5 * width,
             link_speed,
             width,
             label="Link-Computation",
             facecolor="white",
-            edgecolor=METRIC_COLORS[2],
+            edgecolor=metric_colors_local[2],
             hatch="///",
             linewidth=1.5,
         )
-        bars6 = ax.bar(
+        ax.bar(
             ind + 2.5 * width,
             sphere_speed,
             width,
             label="Sphere-Computation",
-            color=METRIC_COLORS[2],
+            color=metric_colors_local[2],
         )
 
         # 注意：由于柱子按所需展示顺序创建，后续取图例时可直接使用当前 handles 顺序。
@@ -1610,13 +1572,6 @@ def plot_metrics_at_fixed_S_U():
         return
 
     densities = ["dens3", "dens6", "dens9", "dens12"]
-    density_labels = {
-        "dens3": "Density 3",
-        "dens6": "Density 6",
-        "dens9": "Density 9",
-        "dens12": "Density 12",
-    }
-
     # 固定的 (S, U) 列表
     fixed_pairs = [(0.0, 0.0), (0.5, 1.0), (1.0, 0.5), (2.0, 0.25), (4.0, 0.125)]
     frac_map = {0.0: "S=0", 0.5: "S=1/2", 1.0: "S=1", 2.0: "S=2", 4.0: "S=4"}
@@ -1694,14 +1649,14 @@ def plot_metrics_at_fixed_S_U():
         for idx, (link_vals, sphere_vals, ylabel, title) in enumerate(metrics):
             ax = axes[idx]
             x = np.arange(len(S_vals))
-            bars1 = ax.bar(
+            ax.bar(
                 x - bar_width / 2,
                 link_vals,
                 bar_width,
                 label="Link-based",
                 color=LINK_COLOR,
             )
-            bars2 = ax.bar(
+            ax.bar(
                 x + bar_width / 2,
                 sphere_vals,
                 bar_width,
@@ -1712,8 +1667,7 @@ def plot_metrics_at_fixed_S_U():
             ax.set_xticklabels(
                 xu_labels, rotation=0, ha="center", fontsize=FONT_SIZE_TICK - 2
             )
-            if idx == 0:
-                ax.set_ylabel(ylabel, fontsize=FONT_SIZE_LABEL)
+
             ax.set_title(title, fontsize=FONT_SIZE_TITLE)
             ax.tick_params(axis="y", labelsize=FONT_SIZE_TICK)
             # 纵轴加%符号
@@ -1866,7 +1820,7 @@ def plot_update_frequency_impact():
 
     # 合并图例
     lines = l1 + l2 + l3 + l4 + l5 + l6
-    labels = [l.get_label() for l in lines]
+    labels = [str(line_obj.get_label()) for line_obj in lines]
     fig.legend(
         lines,
         labels,
@@ -1977,10 +1931,8 @@ def plot_metric_vs_S_multi_density(
             sphere_vals.append(rows[metric].mean() if not rows.empty else np.nan)
 
         x = np.arange(len(thresholds))
-        bars1 = ax.bar(
-            x - width / 2, obb_vals, width, label="Link-based", color=LINK_COLOR
-        )
-        bars2 = ax.bar(
+        ax.bar(x - width / 2, obb_vals, width, label="Link-based", color=LINK_COLOR)
+        ax.bar(
             x + width / 2, sphere_vals, width, label="Sphere-based", color=SPHERE_COLOR
         )
 

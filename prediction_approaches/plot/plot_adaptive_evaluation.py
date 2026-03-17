@@ -2,13 +2,15 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
+import seaborn as sns
 
 # 设置绘图风格
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
-plt.style.use("seaborn-v0_8-whitegrid")
+sns.set_style("white")
+sns.set_palette("colorblind")
 font = {
-    'family': 'serif',
+    'family': 'Times New Roman',
     'weight': 'normal',
     'size': 22,
 }
@@ -46,8 +48,9 @@ recall = df['Recall'].tolist()
 x = np.arange(len(labels))  # 标签位置
 width = 0.35  # 柱状图宽度
 
-rects1 = ax.bar(x - width/2, precision, width, label='Precision', color='navy')
-rects2 = ax.bar(x + width/2, recall, width, label='Recall', color='darkgreen')
+palette = sns.color_palette("colorblind")
+rects1 = ax.bar(x - width/2, precision, width, label='Precision', color=palette[0])
+rects2 = ax.bar(x + width/2, recall, width, label='Recall', color=palette[2])
 
 # 添加标签、标题和坐标轴
 ax.set_ylabel('Percentage (%)')
@@ -62,7 +65,7 @@ ax.bar_label(rects1, padding=3, fmt='%.1f')
 ax.bar_label(rects2, padding=3, fmt='%.1f')
 
 # 添加分界线以区分策略类型
-ax.axvline(x=5.5, color='gray', linestyle='--', linewidth=1)
+ax.axvline(x=5.5, color=palette[7], linestyle='--', linewidth=1)
 plt.text(2.5, -30, "Fixed S Strategies", ha="center", va="top", fontsize=20)
 plt.text(7, -30, "Adaptive S Strategies", ha="center", va="top", fontsize=20)
 

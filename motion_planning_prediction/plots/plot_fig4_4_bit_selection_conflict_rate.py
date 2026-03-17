@@ -22,6 +22,7 @@ sns.set_palette("colorblind")
 # 确保在PDF和PS文件中正确嵌入字体
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
+matplotlib.rcParams["font.family"] = "Times New Roman"
 
 def plot_conflict_rate_comparison():
     # 2. 读取数据

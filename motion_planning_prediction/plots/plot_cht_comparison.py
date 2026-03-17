@@ -10,7 +10,7 @@ matplotlib.rcParams["ps.fonttype"] = 42
 sns.set_style("white")
 sns.set_palette("colorblind")
 font = {
-    "family": "serif",
+    "family": "Times New Roman",
     "weight": "normal",
     "size": 28,
 }

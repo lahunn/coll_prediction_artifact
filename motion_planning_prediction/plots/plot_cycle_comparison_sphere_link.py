@@ -15,7 +15,7 @@ plt.style.use("seaborn-v0_8-white")
 sns.set_style("white")
 sns.set_palette("colorblind")
 font = {
-    "family": "serif",
+    "family": "Times New Roman",
     "weight": "normal",
     "size": 16,
 }

@@ -17,7 +17,7 @@ sns.set_style("white")
 # use colorblind-friendly palette
 sns.set_palette("colorblind")
 font = {
-    "family": "serif",
+    "family": "Times New Roman",
     "weight": "normal",
     "size": 28,
 }

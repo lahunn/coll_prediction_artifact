@@ -20,6 +20,7 @@ sns.set_palette("colorblind")
 sns.set_context("paper", font_scale=1.5)
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
+matplotlib.rcParams["font.family"] = "Times New Roman"
 
 def plot_hash_strategy_comparison():
     # 2. 读取数据

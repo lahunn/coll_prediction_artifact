@@ -39,12 +39,14 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib
 import os
+import seaborn as sns
 # Unified plotting style
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
-plt.style.use("seaborn-v0_8-whitegrid")
+sns.set_style("white")
+sns.set_palette("colorblind")
 font = {
-    "family": "serif",
+    "family": "Times New Roman",
     "weight": "normal",
     "size": 28,
 }
@@ -63,6 +65,7 @@ class CoordHashingPlotter:
         """
         self.csv_path = csv_path
         self.df = None
+        self.palette = sns.color_palette("colorblind")
         self.load_data()
 
     def load_data(self):
@@ -84,6 +87,8 @@ class CoordHashingPlotter:
         Returns:
             Filtered DataFrame
         """
+        if self.df is None:
+            raise ValueError("Data is not loaded, call load_data() first")
         filtered_df = self.df.copy()
 
         for param, value in fixed_params.items():
@@ -110,6 +115,8 @@ class CoordHashingPlotter:
             show_plot: Whether to display the plot
         """
         # Check if variable exists
+        if self.df is None:
+            raise ValueError("Data is not loaded, call load_data() first")
         if variable not in self.df.columns:
             raise ValueError(f"Variable '{variable}' not found in data")
 
@@ -140,7 +147,7 @@ class CoordHashingPlotter:
             label="Precision",
             linewidth=2,
             markersize=6,
-            color="#2E86AB",
+            color=self.palette[0],
         )
         ax1.plot(
             x_values,
@@ -149,13 +156,13 @@ class CoordHashingPlotter:
             label="Recall",
             linewidth=2,
             markersize=6,
-            color="#A23B72",
+            color=self.palette[1],
         )
         ax1.set_xlabel(self._get_label(variable), fontsize=12)
         ax1.set_ylabel("Percentage (%)", fontsize=12)
         ax1.set_title("Precision & Recall", fontsize=14, fontweight="bold")
         ax1.legend(fontsize=11)
-        ax1.grid(True, alpha=0.3)
+        # grid removed per style requirement
 
         # Subplot 2: Cost (Prediction vs Baseline)
         ax2 = axes[0, 1]
@@ -166,7 +173,7 @@ class CoordHashingPlotter:
             label="Prediction Cost",
             linewidth=2,
             markersize=6,
-            color="#F18F01",
+            color=self.palette[2],
         )
         ax2.plot(
             x_values,
@@ -175,14 +182,14 @@ class CoordHashingPlotter:
             label="Baseline Cost",
             linewidth=2,
             markersize=6,
-            color="#C73E1D",
+            color=self.palette[3],
             alpha=0.7,
         )
         ax2.set_xlabel(self._get_label(variable), fontsize=12)
         ax2.set_ylabel("Computation Cost", fontsize=12)
         ax2.set_title("Cost Comparison", fontsize=14, fontweight="bold")
         ax2.legend(fontsize=11)
-        ax2.grid(True, alpha=0.3)
+        # grid removed per style requirement
 
         # Subplot 3: Speedup
         ax3 = axes[1, 0]
@@ -193,11 +200,11 @@ class CoordHashingPlotter:
             label="Speedup",
             linewidth=2,
             markersize=6,
-            color="#06A77D",
+            color=self.palette[4],
         )
         ax3.axhline(
             y=1.0,
-            color="red",
+            color=self.palette[7],
             linestyle="--",
             linewidth=1.5,
             alpha=0.5,
@@ -207,7 +214,7 @@ class CoordHashingPlotter:
         ax3.set_ylabel("Speedup", fontsize=12)
         ax3.set_title("Speedup", fontsize=14, fontweight="bold")
         ax3.legend(fontsize=11)
-        ax3.grid(True, alpha=0.3)
+        # grid removed per style requirement
 
         # Subplot 4: Collision Ratio
         ax4 = axes[1, 1]
@@ -218,13 +225,13 @@ class CoordHashingPlotter:
             label="Collision Ratio",
             linewidth=2,
             markersize=6,
-            color="#8E44AD",
+            color=self.palette[5],
         )
         ax4.set_xlabel(self._get_label(variable), fontsize=12)
         ax4.set_ylabel("Collision Ratio (%)", fontsize=12)
         ax4.set_title("Collision Ratio", fontsize=14, fontweight="bold")
         ax4.legend(fontsize=11)
-        ax4.grid(True, alpha=0.3)
+        # grid removed per style requirement
 
         # Set overall title
         title_parts = [f"{k}={v}" for k, v in fixed_params.items()]
@@ -286,16 +293,7 @@ class CoordHashingPlotter:
         # Create figure
         fig, axes = plt.subplots(2, 2, figsize=(16, 10))
 
-        # Color mapping (compatible with matplotlib 3.7+)
-        try:
-            # For matplotlib >= 3.7
-            cmap = plt.colormaps["viridis"]
-        except (AttributeError, KeyError):
-            # For older matplotlib versions
-            cmap = plt.cm.get_cmap("viridis")
-        colors = [
-            cmap(i / max(len(group_values) - 1, 1)) for i in range(len(group_values))
-        ]
+        colors = sns.color_palette("colorblind", n_colors=max(len(group_values), 1))
 
         for idx, group_val in enumerate(group_values):
             group_df = filtered_df[filtered_df[group_variable] == group_val]
@@ -368,29 +366,35 @@ class CoordHashingPlotter:
         axes[0, 0].set_ylabel("Percentage (%)", fontsize=12)
         axes[0, 0].set_title("Precision & Recall", fontsize=14, fontweight="bold")
         axes[0, 0].legend(fontsize=9, ncol=2)
-        axes[0, 0].grid(True, alpha=0.3)
+        # grid removed per style requirement
 
         # Setup Subplot 2: Speedup
         axes[0, 1].set_xlabel(self._get_label(x_variable), fontsize=12)
         axes[0, 1].set_ylabel("Speedup", fontsize=12)
         axes[0, 1].set_title("Speedup", fontsize=14, fontweight="bold")
-        axes[0, 1].axhline(y=1.0, color="red", linestyle="--", linewidth=1.5, alpha=0.5)
+        axes[0, 1].axhline(
+            y=1.0,
+            color=self.palette[7],
+            linestyle="--",
+            linewidth=1.5,
+            alpha=0.5,
+        )
         axes[0, 1].legend(fontsize=9)
-        axes[0, 1].grid(True, alpha=0.3)
+        # grid removed per style requirement
 
         # Setup Subplot 3: P-R Curve
         axes[1, 0].set_xlabel("Recall (%)", fontsize=12)
         axes[1, 0].set_ylabel("Precision (%)", fontsize=12)
         axes[1, 0].set_title("Precision-Recall Curve", fontsize=14, fontweight="bold")
         axes[1, 0].legend(fontsize=9)
-        axes[1, 0].grid(True, alpha=0.3)
+        # grid removed per style requirement
 
         # Setup Subplot 4: Collision Ratio
         axes[1, 1].set_xlabel(self._get_label(x_variable), fontsize=12)
         axes[1, 1].set_ylabel("Collision Ratio (%)", fontsize=12)
         axes[1, 1].set_title("Collision Ratio", fontsize=14, fontweight="bold")
         axes[1, 1].legend(fontsize=9)
-        axes[1, 1].grid(True, alpha=0.3)
+        # grid removed per style requirement
 
         # Overall title
         title_parts = [f"{k}={v}" for k, v in fixed_params.items()]

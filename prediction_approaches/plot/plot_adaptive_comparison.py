@@ -2,13 +2,15 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib
 import numpy as np
+import seaborn as sns
 
 # Set plot styles
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
-plt.style.use("seaborn-v0_8-whitegrid")
+sns.set_style("white")
+sns.set_palette("colorblind")
 font = {
-    'family': 'serif',
+    'family': 'Times New Roman',
     'weight': 'normal',
     'size': 28,
 }
@@ -40,8 +42,9 @@ recall = df['Recall'].tolist()
 x = np.arange(len(labels))  # the label locations
 width = 0.35  # the width of the bars
 
-rects1 = ax.bar(x - width/2, precision, width, label='Precision', color='navy')
-rects2 = ax.bar(x + width/2, recall, width, label='Recall', color='darkgreen')
+palette = sns.color_palette("colorblind")
+rects1 = ax.bar(x - width/2, precision, width, label='Precision', color=palette[0])
+rects2 = ax.bar(x + width/2, recall, width, label='Recall', color=palette[2])
 
 # Add some text for labels, title and axes ticks
 ax.set_ylabel('Percentage (%)')
