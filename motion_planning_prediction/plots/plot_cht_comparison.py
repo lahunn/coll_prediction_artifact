@@ -1,20 +1,33 @@
-import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib
+import math
+import sys
+
+import matplotlib.pylab as plt
 import seaborn as sns
+import numpy as np
+import pandas as pd
+import matplotlib
+
+# --- 统一绘图风格配置 ---
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
 import os
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+
 
 # Unified plotting style (serif font, seaborn whitegrid, colors: navy/darkgreen)
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
 sns.set_style("white")
 sns.set_palette("colorblind")
-font = {
-    "family": "Times New Roman",
-    "weight": "normal",
-    "size": 28,
-}
-plt.rc("font", **font)
+
+
 
 # 读取数据
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -42,7 +55,7 @@ for i, metric in enumerate(metrics):
         kind='bar',
         ax=ax,
         rot=0,
-        color=["navy", "darkgreen"],
+        color=[colors[0], "darkgreen"],
     )
     ax.set_title(metric)
     ax.set_ylabel('Value' if metric != 'Utilization' else 'Percentage (%)')

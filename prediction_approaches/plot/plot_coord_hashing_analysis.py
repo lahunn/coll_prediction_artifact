@@ -1,3 +1,18 @@
+import math
+import sys
+
+import matplotlib.pylab as plt
+import seaborn as sns
+import numpy as np
+import pandas as pd
+import matplotlib
+
+# --- 统一绘图风格配置 ---
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
@@ -35,22 +50,20 @@ Usage Example:
     )
 """
 
-import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib
 import os
-import seaborn as sns
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+
 # Unified plotting style
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
 sns.set_style("white")
 sns.set_palette("colorblind")
-font = {
-    "family": "Times New Roman",
-    "weight": "normal",
-    "size": 28,
-}
-plt.rc("font", **font)
+
+
 
 
 class CoordHashingPlotter:
@@ -128,14 +141,14 @@ class CoordHashingPlotter:
 
         # Extract data
         x_values = filtered_df[variable].values
-        precision = filtered_df["Precision"].values
-        recall = filtered_df["Recall"].values
+        precision = filtered_df['精确率'].values
+        recall = filtered_df['召回率'].values
         collision_ratio = filtered_df["CollisionRatio"].values
         pred_cost = filtered_df["PredCost"].values
         baseline_cost = filtered_df["BaselineCost"].values
         speedup = filtered_df["Speedup"].values
 
-        # Create figure: 4 subplots (Precision/Recall, Cost, Speedup, CollisionRatio)
+        # Create figure: 4 subplots (精确率/召回率, Cost, Speedup, CollisionRatio)
         fig, axes = plt.subplots(2, 2, figsize=(16, 10))
 
         # Subplot 1: Precision and Recall
@@ -144,7 +157,7 @@ class CoordHashingPlotter:
             x_values,
             precision,
             "o-",
-            label="Precision",
+            label='精确率',
             linewidth=2,
             markersize=6,
             color=self.palette[0],
@@ -153,7 +166,7 @@ class CoordHashingPlotter:
             x_values,
             recall,
             "s-",
-            label="Recall",
+            label='召回率',
             linewidth=2,
             markersize=6,
             color=self.palette[1],
@@ -262,8 +275,8 @@ class CoordHashingPlotter:
             "QuantBits": "Quantization Bits",
             "Threshold": "Collision Threshold (S)",
             "SampleRate": "Sampling Rate (U)",
-            "Precision": "Precision (%)",
-            "Recall": "Recall (%)",
+            '精确率': "Precision (%)",
+            '召回率': "Recall (%)",
             "CollisionRatio": "Collision Ratio (%)",
             "PredCost": "Prediction Cost",
             "BaselineCost": "Baseline Cost",
@@ -300,8 +313,8 @@ class CoordHashingPlotter:
             group_df = group_df.sort_values(by=x_variable)
 
             x_values = group_df[x_variable].values
-            precision = group_df["Precision"].values
-            recall = group_df["Recall"].values
+            precision = group_df['精确率'].values
+            recall = group_df['召回率'].values
             speedup = group_df["Speedup"].values
             collision_ratio = group_df["CollisionRatio"].values
 

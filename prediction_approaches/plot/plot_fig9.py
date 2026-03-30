@@ -1,23 +1,37 @@
-import seaborn as sns
-import matplotlib.pylab as plt
-import numpy as np
 import math
-from matplotlib.ticker import MaxNLocator
-import pandas as pd
 import sys
+
+import matplotlib.pylab as plt
+import seaborn as sns
+import numpy as np
+import pandas as pd
 import matplotlib
+
+# --- 统一绘图风格配置 ---
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 
-font = {
-    'family' : 'Times New Roman',
-    'weight' : 'normal',
-    'size'   : 35,
-}
+
 
 
 fig = plt.figure(figsize=(16,8))
-plt.rc('font', **font)
+
 width = 1
 
 dflow = pd.read_csv ("result_files/result_low.csv",header=None,sep=",")
@@ -44,14 +58,14 @@ ax = fig.add_subplot(1,1,1)
 grouplabel=["POSE\n12","POSE\n18","POSE+fold\n6","POSE+fold\n9","ENPOSE\n8","ENPOSE\n12","ENCOORD\n10","ENCOORD\n12","COORD\n9","COORD\n12"]
 group=list(range(0,33,3))
 
-ax.bar(group,accuracy_low,width, color="navy",label="Precision")
+ax.bar(group,accuracy_low,width, color=colors[0],label='精确率')
 group= [x +1 for x in group]
-ax.bar(group,coverage_low,width, color="cornflowerblue",label="Recall")
+ax.bar(group,coverage_low,width, color=colors[1],label='召回率')
 ax.legend(loc="upper center")
 ax.set_xticks([i-0.5 for i in group]) 
 ax.set_xticklabels(hashwidth, rotation = 0)
-#ax.set_xlabel("Hash code bitwidth")
-ax.set_ylabel("Collision Prediction \n Precision/Recall (%)")
+#ax.set_xlabel("哈希码位宽")
+ax.set_ylabel("碰撞预测 \n 精确率/召回率 (%)")
 plt.text(2, -13, "POSE",ha="center",va="top")
 plt.text(6.5, -13, "POSE\npart",ha="center",va="top")
 plt.text(11, -13, "POSE+fold",ha="center",va="top")
@@ -68,21 +82,21 @@ plt.tight_layout(pad=0.4, w_pad=0.5, h_pad=1.0)
 plt.savefig('hash_functions_low_fig9a.pdf')
 
 fig = plt.figure(figsize=(16,8))
-plt.rc('font', **font)  
+  
 ax = fig.add_subplot(1,1,1)
 #ax2 = ax.twinx()
 #group=[1,2,4,8,16,32,64]
 grouplabel=["POSE\n12","POSE\n18","POSE+fold\n6","POSE+fold\n9","ENPOSE\n8","ENPOSE\n12","ENCOORD\n10","ENCOORD\n12","COORD\n9","COORD\n12"]
 group=list(range(0,33,3))
 
-ax.bar(group,accuracy_med,width, color="navy",label="Precision")
+ax.bar(group,accuracy_med,width, color=colors[0],label='精确率')
 group= [x +1 for x in group]
-ax.bar(group,coverage_med,width, color="cornflowerblue",label="Recall")
+ax.bar(group,coverage_med,width, color=colors[1],label='召回率')
 ax.legend(loc="upper center")
 ax.set_xticks([i-0.5 for i in group]) 
 ax.set_xticklabels(hashwidth, rotation = 0)
-#ax.set_xlabel("Hash code bitwidth")
-ax.set_ylabel("Collision Prediction \n Precision/Recall (%)")
+#ax.set_xlabel("哈希码位宽")
+ax.set_ylabel("碰撞预测 \n 精确率/召回率 (%)")
 plt.text(2, -13, "POSE",ha="center",va="top")
 plt.text(6.5, -13, "POSE\npart",ha="center",va="top")
 plt.text(11, -13, "POSE+fold",ha="center",va="top")

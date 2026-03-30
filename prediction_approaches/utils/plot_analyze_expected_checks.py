@@ -4,7 +4,10 @@
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
+import matplotlib.pylab as plt
+import seaborn as sns
+import pandas as pd
+import matplotlib
 import sys
 import os
 
@@ -15,12 +18,12 @@ from utils import (
     find_sim_cost,
 )
 
-# 设置中文字体
-plt.rcParams["font.sans-serif"] = ["SimHei", "DejaVu Sans"]
-plt.rcParams["axes.unicode_minus"] = False
-
-# 设置绘图风格
-plt.style.use("seaborn-v0_8-darkgrid")
+# --- 统一绘图风格配置 ---
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
 
 
 def analyze_vs_P():
@@ -29,7 +32,7 @@ def analyze_vs_P():
 
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     fig.suptitle(
-        "Expected Checks S vs Collision Rate P", fontsize=16, fontweight="bold"
+        "期望检测次数 S 与碰撞率 P 的关系", fontsize=16, fontweight="bold"
     )
 
     P_values = np.linspace(0.01, 0.99, 100)
@@ -54,23 +57,23 @@ def analyze_vs_P():
                 S_values.append(np.nan)
                 baseline_values.append(np.nan)
 
-        ax.plot(P_values, S_values, linewidth=2, label="With Predictor", color="blue")
+        ax.plot(P_values, S_values, linewidth=2, label="使用预测器", color=colors[0])
         ax.plot(
             P_values,
             baseline_values,
             linestyle="--",
             linewidth=2,
             alpha=0.7,
-            label="Baseline (No Predictor)",
-            color="orange",
+            label="基准 (无预测器)",
+            color=colors[1],
         )
-        ax.set_xlabel("Collision Rate P", fontsize=11)
-        ax.set_ylabel("Expected Checks S", fontsize=11)
+        ax.set_xlabel("碰撞率 P", fontsize=11)
+        ax.set_ylabel("期望检测次数 S", fontsize=11)
         ax.set_title(config["label"], fontsize=12)
         ax.legend()
         ax.grid(True, alpha=0.3)
 
-        # 调整纵轴范围，从0开始，上限为baseline最大值的1.1倍
+        # 调整纵轴范围
         max_val = max([v for v in baseline_values if not np.isnan(v)])
         ax.set_ylim([0, max_val * 1.1])
 
@@ -85,7 +88,7 @@ def analyze_vs_C():
     print("分析 S vs C...")
 
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-    fig.suptitle("Expected Checks S vs Coverage C", fontsize=16, fontweight="bold")
+    fig.suptitle("期望检测次数 S 与覆盖率 C 的关系", fontsize=16, fontweight="bold")
 
     C_values = np.linspace(0.1, 1.0, 24)
 
@@ -109,22 +112,21 @@ def analyze_vs_C():
             except ValueError:
                 pass
 
-        ax.plot(valid_C, S_values, linewidth=2, label="With Predictor", color="blue")
+        ax.plot(valid_C, S_values, linewidth=2, label="使用预测器", color=colors[0])
         ax.axhline(
             y=baseline,
-            color="orange",
+            color=colors[1],
             linestyle="--",
             linewidth=2,
             alpha=0.7,
-            label=f"Baseline={baseline:.1f}",
+            label=f"基准={baseline:.1f}",
         )
-        ax.set_xlabel("Coverage C (Recall)", fontsize=11)
-        ax.set_ylabel("Expected Checks S", fontsize=11)
+        ax.set_xlabel("覆盖率 C (召回率)", fontsize=11)
+        ax.set_ylabel("期望检测次数 S", fontsize=11)
         ax.set_title(config["label"], fontsize=12)
         ax.legend()
         ax.grid(True, alpha=0.3)
 
-        # 调整纵轴范围
         if S_values:
             max_val = max(baseline, max(S_values))
             ax.set_ylim([0, max_val * 1.1])
@@ -140,7 +142,7 @@ def analyze_vs_A():
     print("分析 S vs A...")
 
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-    fig.suptitle("Expected Checks S vs Accuracy A", fontsize=16, fontweight="bold")
+    fig.suptitle("期望检测次数 S 与准确率 A 的关系", fontsize=16, fontweight="bold")
 
     A_values = np.linspace(0.1, 1.0, 100)
 
@@ -164,22 +166,21 @@ def analyze_vs_A():
             except ValueError:
                 pass
 
-        ax.plot(valid_A, S_values, linewidth=2, label="With Predictor", color="blue")
+        ax.plot(valid_A, S_values, linewidth=2, label="使用预测器", color=colors[0])
         ax.axhline(
             y=baseline,
-            color="orange",
+            color=colors[1],
             linestyle="--",
             linewidth=2,
             alpha=0.7,
-            label=f"Baseline={baseline:.1f}",
+            label=f"基准={baseline:.1f}",
         )
-        ax.set_xlabel("Accuracy A (Precision)", fontsize=11)
-        ax.set_ylabel("Expected Checks S", fontsize=11)
+        ax.set_xlabel("准确率 A (精确率)", fontsize=11)
+        ax.set_ylabel("期望检测次数 S", fontsize=11)
         ax.set_title(config["label"], fontsize=12)
         ax.legend()
         ax.grid(True, alpha=0.3)
 
-        # 调整纵轴范围
         if S_values:
             max_val = max(baseline, max(S_values))
             ax.set_ylim([0, max_val * 1.1])
@@ -196,7 +197,7 @@ def analyze_vs_N():
 
     fig, axes = plt.subplots(1, 3, figsize=(18, 5))
     fig.suptitle(
-        "Normalized Checks S/N vs Total Tasks N", fontsize=16, fontweight="bold"
+        "归一化检测次数 S/N 与总任务数 N 的关系", fontsize=16, fontweight="bold"
     )
 
     N_values = np.arange(10, 501, 10)
@@ -222,23 +223,22 @@ def analyze_vs_N():
                 baseline_over_N.append(np.nan)
 
         ax = axes[idx]
-        ax.plot(N_values, S_over_N, linewidth=2, label="With Predictor", color="blue")
+        ax.plot(N_values, S_over_N, linewidth=2, label="使用预测器", color=colors[0])
         ax.plot(
             N_values,
             baseline_over_N,
             linestyle="--",
             linewidth=2,
             alpha=0.7,
-            label="Baseline",
-            color="orange",
+            label="基准",
+            color=colors[1],
         )
-        ax.set_xlabel("Total Tasks N", fontsize=11)
-        ax.set_ylabel("S/N (Normalized Checks)", fontsize=11)
+        ax.set_xlabel("总任务数 N", fontsize=11)
+        ax.set_ylabel("S/N (归一化检测次数)", fontsize=11)
         ax.set_title(config["label"], fontsize=12)
         ax.legend()
         ax.grid(True, alpha=0.3)
 
-        # 计算有效的最大值（排除NaN）
         valid_baseline = [v for v in baseline_over_N if not np.isnan(v)]
         valid_S = [v for v in S_over_N if not np.isnan(v)]
         if valid_baseline and valid_S:
@@ -256,7 +256,7 @@ def analyze_S_vs_N():
     print("分析 S vs N...")
 
     fig, axes = plt.subplots(1, 3, figsize=(18, 5))
-    fig.suptitle("Expected Checks S vs Total Tasks N", fontsize=16, fontweight="bold")
+    fig.suptitle("期望检测次数 S 与总任务数 N 的关系", fontsize=16, fontweight="bold")
 
     N_values = np.arange(10, 501, 10)
 
@@ -281,23 +281,22 @@ def analyze_S_vs_N():
                 baseline_values.append(np.nan)
 
         ax = axes[idx]
-        ax.plot(N_values, S_values, linewidth=2, label="With Predictor", color="blue")
+        ax.plot(N_values, S_values, linewidth=2, label="使用预测器", color=colors[0])
         ax.plot(
             N_values,
             baseline_values,
             linestyle="--",
             linewidth=2,
             alpha=0.7,
-            label="Baseline",
-            color="orange",
+            label="基准",
+            color=colors[1],
         )
-        ax.set_xlabel("Total Tasks N", fontsize=11)
-        ax.set_ylabel("Expected Checks S", fontsize=11)
+        ax.set_xlabel("总任务数 N", fontsize=11)
+        ax.set_ylabel("期望检测次数 S", fontsize=11)
         ax.set_title(config["label"], fontsize=12)
         ax.legend()
         ax.grid(True, alpha=0.3)
 
-        # 计算有效的最大值（排除NaN）
         valid_baseline = [v for v in baseline_values if not np.isnan(v)]
         valid_S = [v for v in S_values if not np.isnan(v)]
         if valid_baseline and valid_S:
@@ -316,7 +315,7 @@ def analyze_heatmap_C_A():
 
     fig, axes = plt.subplots(1, 2, figsize=(16, 6))
     fig.suptitle(
-        "Heatmap: Expected Checks S (Coverage C vs Accuracy A)",
+        "热力图：期望检测次数 S (覆盖率 C vs 准确率 A)",
         fontsize=16,
         fontweight="bold",
     )
@@ -347,10 +346,10 @@ def analyze_heatmap_C_A():
             extent=[C_values[0], C_values[-1], A_values[0], A_values[-1]],
             cmap="viridis",
         )
-        ax.set_xlabel("Coverage C (Recall)", fontsize=12)
-        ax.set_ylabel("Accuracy A (Precision)", fontsize=12)
+        ax.set_xlabel("覆盖率 C (召回率)", fontsize=12)
+        ax.set_ylabel("准确率 A (精确率)", fontsize=12)
         ax.set_title(config["title"], fontsize=13)
-        plt.colorbar(im, ax=ax, label="Expected Checks S")
+        plt.colorbar(im, ax=ax, label="期望检测次数 S")
 
     plt.tight_layout()
     plt.savefig("analysis_heatmap_C_A.eps", dpi=300, bbox_inches="tight")
@@ -363,7 +362,7 @@ def analyze_efficiency_ratio():
     print("分析效率比 (Oracle/S)...")
 
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-    fig.suptitle("Efficiency Ratio: N/S vs Parameters", fontsize=16, fontweight="bold")
+    fig.suptitle("效率比：N/S 与参数的关系", fontsize=16, fontweight="bold")
 
     # N/S vs P
     ax = axes[0, 0]
@@ -377,9 +376,9 @@ def analyze_efficiency_ratio():
             except ValueError:
                 ratios.append(np.nan)
         ax.plot(P_values, ratios, linewidth=2, label=f"C={C}, A={A}")
-    ax.set_xlabel("Collision Rate P", fontsize=11)
-    ax.set_ylabel("Efficiency Ratio (N/S)", fontsize=11)
-    ax.set_title("Efficiency vs P", fontsize=12)
+    ax.set_xlabel("碰撞率 P", fontsize=11)
+    ax.set_ylabel("效率比 (N/S)", fontsize=11)
+    ax.set_title("效率 vs P", fontsize=12)
     ax.legend()
     ax.grid(True, alpha=0.3)
 
@@ -397,9 +396,9 @@ def analyze_efficiency_ratio():
             except ValueError:
                 pass
         ax.plot(valid_C, ratios, linewidth=2, label=f"P={P}, A={A}")
-    ax.set_xlabel("Coverage C", fontsize=11)
-    ax.set_ylabel("Efficiency Ratio (N/S)", fontsize=11)
-    ax.set_title("Efficiency vs C", fontsize=12)
+    ax.set_xlabel("覆盖率 C", fontsize=11)
+    ax.set_ylabel("效率比 (N/S)", fontsize=11)
+    ax.set_title("效率 vs C", fontsize=12)
     ax.legend()
     ax.grid(True, alpha=0.3)
 
@@ -417,9 +416,9 @@ def analyze_efficiency_ratio():
             except ValueError:
                 pass
         ax.plot(valid_A, ratios, linewidth=2, label=f"P={P}, C={C}")
-    ax.set_xlabel("Accuracy A", fontsize=11)
-    ax.set_ylabel("Efficiency Ratio (N/S)", fontsize=11)
-    ax.set_title("Efficiency vs A", fontsize=12)
+    ax.set_xlabel("准确率 A", fontsize=11)
+    ax.set_ylabel("效率比 (N/S)", fontsize=11)
+    ax.set_title("效率 vs A", fontsize=12)
     ax.legend()
     ax.grid(True, alpha=0.3)
 
@@ -435,9 +434,9 @@ def analyze_efficiency_ratio():
             except ValueError:
                 ratios.append(np.nan)
         ax.plot(N_values, ratios, linewidth=2, label=f"P={P}, C={C}, A={A}")
-    ax.set_xlabel("Total Tasks N", fontsize=11)
-    ax.set_ylabel("Efficiency Ratio (N/S)", fontsize=11)
-    ax.set_title("Efficiency vs N", fontsize=12)
+    ax.set_xlabel("总任务数 N", fontsize=11)
+    ax.set_ylabel("效率比 (N/S)", fontsize=11)
+    ax.set_title("效率 vs N", fontsize=12)
     ax.legend()
     ax.grid(True, alpha=0.3)
 
@@ -451,67 +450,45 @@ def compare_simulation_vs_formula():
     """对比蒙特卡洛模拟和精确公式的结果"""
     print("对比蒙特卡洛模拟 vs 精确公式...")
 
-    # 使用白底风格
     plt.style.use("default")
+    # 重新应用配置（style.use 可能会重置设置）
+    plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+    plt.rcParams['axes.unicode_minus'] = False
+    plt.rcParams['font.size'] = 12
 
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
-    # 测试配置 - 简化标题
     test_configs = [
         {
             "param": "P",
             "values": np.linspace(0.1, 0.9, 9),
             "fixed": {"C": 0.8, "A": 0.8, "N": 20},
-            "xlabel": r"Collision Rate ($P$)",
+            "xlabel": "碰撞率 (P)",
             "label": "(a)",
         },
         {
             "param": "C",
             "values": np.linspace(0.4, 1.0, 7),
             "fixed": {"P": 0.5, "A": 0.8, "N": 20},
-            "xlabel": r"Recall ($C$)",
+            "xlabel": "召回率 (C)",
             "label": "(b)",
         },
         {
             "param": "A",
             "values": np.linspace(0.4, 1.0, 7),
             "fixed": {"P": 0.5, "C": 0.8, "N": 20},
-            "xlabel": r"Precision ($A$)",
+            "xlabel": "精确率 (A)",
             "label": "(c)",
         },
         {
             "param": "N",
-            "values": np.array(
-                [
-                    1,
-                    2,
-                    3,
-                    4,
-                    5,
-                    6,
-                    7,
-                    8,
-                    9,
-                    10,
-                    20,
-                    30,
-                    40,
-                    50,
-                    60,
-                    70,
-                    80,
-                    90,
-                    100,
-                    150,
-                ]
-            ),
+            "values": np.array([1,2,3,4,5,6,7,8,9,10,20,30,40,50,60,70,80,90,100,150]),
             "fixed": {"P": 0.5, "C": 0.8, "A": 0.8},
-            "xlabel": r"Total Tasks ($N$)",
+            "xlabel": "总任务数 (N)",
             "label": "(d)",
         },
     ]
 
-    # 收集所有误差信息用于Caption
     all_errors = []
 
     for idx, (ax, config) in enumerate(zip(axes.flat, test_configs)):
@@ -521,26 +498,20 @@ def compare_simulation_vs_formula():
         valid_params = []
 
         for val in param_values:
-            # 构建参数
             params = config["fixed"].copy()
             params[config["param"]] = val
-
-            # 确保N是整数
             if "N" in params:
                 params["N"] = int(params["N"])
 
             try:
-                # 检查参数有效性
                 if params["C"] * params["P"] > params["A"] + 1e-9:
                     continue
 
-                # 计算精确公式结果 (collision rate passed positionally)
                 formula_result = calculate_expected_checks(
                     params["P"], params["C"], params["A"], params["N"]
                 )
                 formula_results.append(formula_result)
 
-                # 计算蒙特卡洛模拟结果
                 print(f"  模拟 {config['param']}={val:.2f}...", end=" ")
                 simulation_result = find_sim_cost(
                     params["P"], params["C"], params["A"], params["N"]
@@ -550,112 +521,65 @@ def compare_simulation_vs_formula():
                 print("完成")
 
             except (ValueError, ZeroDivisionError):
-                print(f"  跳过 {config['param']}={val:.2f} (无效参数)")
                 continue
 
-        # 绘图
         if valid_params:
-            # 蓝色实心圆点 - 精确公式
+            # 精确公式 - 使用深蓝
             ax.plot(
                 valid_params,
                 formula_results,
                 "o-",
                 linewidth=2.5,
-                color="#1f77b4",  # 深蓝色
+                color=colors[0],
                 markersize=8,
-                markerfacecolor="#1f77b4",
-                markeredgecolor="#1f77b4",
-                label="Exact Formula",
+                label="精确公式",
                 zorder=2,
             )
-            # 红色空心方块 - 蒙特卡洛（不画连接线）
+            # 蒙特卡洛 - 使用深红 (colors[3])
             ax.plot(
                 valid_params,
                 simulation_results,
                 "s",
                 linewidth=0,
-                color="#d62728",  # 深红色
+                color=colors[3],
                 markersize=10,
                 markerfacecolor="none",
-                markeredgecolor="#d62728",
                 markeredgewidth=2,
-                label="Monte Carlo (10k runs)",
+                label="蒙特卡洛模拟 (1万次)",
                 zorder=3,
             )
 
-            # 计算误差
-            errors = [
-                abs(s - f) / f * 100
-                for s, f in zip(simulation_results, formula_results)
-            ]
+            errors = [abs(s - f) / f * 100 for s, f in zip(simulation_results, formula_results)]
             avg_error = np.mean(errors)
-            max_error = np.max(errors)
-            all_errors.append(
-                {"config": config["label"], "avg": avg_error, "max": max_error}
-            )
+            all_errors.append({"config": config["label"], "avg": avg_error})
 
-            # 设置标签
-            ax.set_xlabel(config["xlabel"], fontsize=24)
-            # 只在左侧两个子图显示Y轴标签
+            ax.set_xlabel(config["xlabel"], fontsize=14)
             if idx % 2 == 0:
-                ax.set_ylabel("Expected Checks", fontsize=24)
+                ax.set_ylabel("期望检测次数", fontsize=14)
             
-            # 设置坐标轴刻度标签的字号
-            ax.tick_params(axis='both', which='major', labelsize=20)
+            ax.tick_params(axis='both', which='major', labelsize=12)
 
-            # 在子图左上角添加编号标签
             ax.text(
-                0.1,
-                0.95,
-                config["label"],
-                transform=ax.transAxes,
-                fontsize=20,
-                fontweight="bold",
-                verticalalignment="top",
-                bbox=dict(
-                    boxstyle="round",
-                    facecolor="white",
-                    alpha=0.8,
-                    edgecolor="none",
-                    pad=0.3,
-                ),
+                0.1, 0.95, config["label"], transform=ax.transAxes,
+                fontsize=14, fontweight="bold", va="top",
+                bbox=dict(boxstyle="round", facecolor="white", alpha=0.8, edgecolor="none")
             )
 
-            # 只在第一个子图显示图例
             if idx == 0:
-                ax.legend(loc="best", fontsize=20, framealpha=0.9)
+                ax.legend(loc="best", fontsize=12)
 
-            # 使用淡灰色网格
-            ax.grid(True, alpha=0.2, linestyle="--", linewidth=0.5, color="gray")
-            ax.set_axisbelow(True)
-
-            # 设置Y轴范围
+            ax.grid(True, alpha=0.2, linestyle="--", color="gray")
             ax.set_ylim([0, 4.5])
-
-            # 设置白色背景
             ax.set_facecolor("white")
 
-    # 在图底部添加误差信息说明
-    error_text = "Average errors: "
-    error_text += ", ".join([f"{e['config']}: {e['avg']:.2f}%" for e in all_errors])
-    fig.text(0.5, 0.02, error_text, ha="center", fontsize=24, style="italic")
+    error_text = "平均误差: " + ", ".join([f"{e['config']}: {e['avg']:.2f}%" for e in all_errors])
+    fig.text(0.5, 0.02, error_text, ha="center", fontsize=14, style="italic")
 
     plt.tight_layout(rect=(0, 0.05, 1, 1))
-
-    # 设置白色背景
-    fig.patch.set_facecolor("white")
-
-    plt.savefig(
-        "analysis_simulation_vs_formula.eps",
-        dpi=300,
-        bbox_inches="tight",
-        facecolor="white",
-    )
-    print("保存: analysis_simulation_vs_formula.eps")
+    plt.savefig("analysis_simulation_vs_formula.pdf", dpi=300, bbox_inches="tight")
+    print("保存: analysis_simulation_vs_formula.pdf")
     plt.close()
-
-    # 恢复原来的绘图风格
-    plt.style.use("seaborn-v0_8-darkgrid")
+    sns.set_theme(style="whitegrid") # 恢复主题
 
 
 def main():
@@ -664,13 +588,11 @@ def main():
     print("分析 calculate_expected_checks 函数")
     print("=" * 70)
 
-    # 创建输出目录
     script_dir = os.path.dirname(os.path.abspath(__file__))
     results_dir = os.path.join(script_dir, "analysis_results")
     os.makedirs(results_dir, exist_ok=True)
     os.chdir(results_dir)
 
-    # 执行各项分析
     # analyze_vs_P()
     # analyze_vs_C()
     # analyze_vs_A()
@@ -683,15 +605,6 @@ def main():
     print("=" * 70)
     print(f"分析完成! 所有图表已保存到 {results_dir} 目录")
     print("=" * 70)
-
-    # 打印一些关键观察
-    print("\n关键观察:")
-    print("1. S vs P: 随着碰撞率增加，期望检测次数通常减少")
-    print("2. S vs C: 更高的覆盖率(召回率)通常降低期望检测次数")
-    print("3. S vs A: 更高的准确率(精确率)显著降低期望检测次数")
-    print("4. S/N vs N: 归一化检测次数随N趋于稳定")
-    print("5. 效率比 N/S: 反映预测器相比Oracle的加速比")
-    print("6. 模拟 vs 公式: 精确公式与蒙特卡洛模拟高度吻合，验证了公式的正确性")
 
 
 if __name__ == "__main__":

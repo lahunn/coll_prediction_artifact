@@ -1,3 +1,18 @@
+import math
+import sys
+
+import matplotlib.pylab as plt
+import seaborn as sns
+import numpy as np
+import pandas as pd
+import matplotlib
+
+# --- 统一绘图风格配置 ---
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
@@ -36,23 +51,21 @@
     )
 """
 
-import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib
 import os
-import seaborn as sns
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+
 
 # Unified plotting style
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
 sns.set_style("white")
 sns.set_palette("colorblind")
-font = {
-    "family": "Times New Roman",
-    "weight": "normal",
-    "size": 28,
-}
-plt.rc("font", **font)
+
+
 
 
 class SphereHashingPlotter:
@@ -141,7 +154,7 @@ class SphereHashingPlotter:
         pred_cost = filtered_df["PredCost"].values
         baseline_cost = filtered_df["BaselineCost"].values
 
-        # 创建图形：2个子图（Precision/Recall、Cost）
+        # 创建图形：2个子图（精确率/召回率、Cost）
         fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 
         # Subplot 1: Precision and Recall
@@ -247,8 +260,8 @@ class SphereHashingPlotter:
             "RadiusBits": "Radius Quantization Bits",
             "Threshold": "Collision Threshold (S)",
             "SampleRate": "Sampling Rate (U)",
-            "Precision": "Precision (%)",
-            "Recall": "Recall (%)",
+            '精确率': "Precision (%)",
+            '召回率': "Recall (%)",
             "PredCost": "Prediction Cost",
             "BaselineCost": "Baseline Cost",
             "Speedup": "Speedup",

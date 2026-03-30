@@ -1,3 +1,18 @@
+import math
+import sys
+
+import matplotlib.pylab as plt
+import seaborn as sns
+import numpy as np
+import pandas as pd
+import matplotlib
+
+# --- 统一绘图风格配置 ---
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
 #!/usr/bin/env python3
 """
 绘制预测准确率学习曲线
@@ -5,23 +20,15 @@
 专门用于可视化碰撞预测准确率随训练数据量变化的图表
 """
 
-import sys
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib
-import seaborn as sns
 from pathlib import Path
 import argparse
 
-# 1. 设置绘图风格（白底、带刻度）
-sns.set_style("ticks") 
-
-# 2. 设置调色板（推荐色盲友好型）
-sns.set_palette("colorblind")
-
-# 3. 设置上下文（自动调整线条粗细和字体大小，'paper' 适合论文）
-sns.set_context("paper", font_scale=1.5)
+# Unified Plotting Style
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
 
 # 确保在PDF和PS文件中正确嵌入字体
 matplotlib.rcParams["pdf.fonttype"] = 42
@@ -85,9 +92,9 @@ def plot_single_config(ax, df, config, title_suffix=""):
             color=fill_color
         )
     
-    ax.set_xlabel('Training Data Size (History Dictionary Size)')
-    ax.set_ylabel('Prediction Accuracy')
-    ax.set_title(f'Collision Prediction Accuracy Learning Curve {title_suffix}')
+    ax.set_xlabel('训练数据量 (历史字典大小)')
+    ax.set_ylabel('准确率')
+    ax.set_title(f'碰撞预测准确率学习曲线 {title_suffix}')
     # grid removed per project style
     ax.legend()
     
@@ -179,7 +186,7 @@ def plot_aggregated_curve(df, save_path=None):
     
     plt.xlabel('Training Data Size (History Dictionary Size)')
     plt.ylabel('Prediction Accuracy')
-    plt.title('Aggregated Learning Curve of Collision Prediction Accuracy vs Training Data Size', pad=20)
+    plt.title('Aggregated Learning Curve of 碰撞预测 Accuracy vs Training Data Size', pad=20)
     # grid removed per project style
     plt.legend()
     

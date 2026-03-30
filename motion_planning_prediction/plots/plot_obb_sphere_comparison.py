@@ -1,27 +1,45 @@
+import math
+import sys
+
+import matplotlib.pylab as plt
+import seaborn as sns
+import numpy as np
+import pandas as pd
+import matplotlib
+
+# --- 统一绘图风格配置 ---
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
 #!/usr/bin/env python3
 """
 Plotting OBB and Sphere Methods Comparison Bar Charts
 Based on data from result_files/obb_vs_sphere.csv
 """
 
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-import numpy as np
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+.pyplot as plt
 import os
 
 # 统一绘图风格
-import matplotlib
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
 sns.set_style("white")
 sns.set_palette("colorblind")
-font = {
-    "family": "Times New Roman",
-    "weight": "normal",
-    "size": 28,
-}
-plt.rc("font", **font)
+
+
 
 
 def plot_obb_comparison():
@@ -46,7 +64,7 @@ def plot_obb_comparison():
     # 创建柱状图
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    bars = ax.bar(categories, values, color=['navy', 'darkgreen', 'darkgreen'], alpha=0.8)
+    bars = ax.bar(categories, values, color=[colors[0], 'darkgreen', 'darkgreen'], alpha=0.8)
 
     # 添加数值标签
     for bar, value in zip(bars, values):
@@ -98,7 +116,7 @@ def plot_sphere_comparison():
     # 创建柱状图
     fig, ax = plt.subplots(figsize=(10, 6))
 
-    bars = ax.bar(categories, values, color=['navy', 'darkgreen', 'darkgreen'], alpha=0.8)
+    bars = ax.bar(categories, values, color=[colors[0], 'darkgreen', 'darkgreen'], alpha=0.8)
 
     # 添加数值标签
     for bar, value in zip(bars, values):
@@ -152,7 +170,7 @@ def plot_methods_comparison():
 
     # 绘制三组柱状图
     bars1 = ax.bar(x - width, actual_queries, width, label='Total Actual Queries',
-                   color='navy', alpha=0.8)
+                   color=colors[0], alpha=0.8)
     bars2 = ax.bar(x, predicted_queries, width, label='Predicted Final Stats',
                    color='darkgreen', alpha=0.8)
     bars3 = ax.bar(x + width, oracle_queries, width, label='Oracle Final Stats',

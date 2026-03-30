@@ -1,25 +1,38 @@
-import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib
-import numpy as np
+import math
+import sys
+
+import matplotlib.pylab as plt
 import seaborn as sns
+import numpy as np
+import pandas as pd
+import matplotlib
+
+# --- 统一绘图风格配置 ---
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+
 
 # Set plot styles
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 sns.set_style("white")
 sns.set_palette("colorblind")
-font = {
-    'family': 'Times New Roman',
-    'weight': 'normal',
-    'size': 28,
-}
-plt.rc('font', **font)
+
+
 
 # Load results
 try:
     df = pd.read_csv("result_files/adaptive_comparison.csv", header=None)
-    df.columns = ['Precision', 'Recall']
+    df.columns = ['精确率', '召回率']
 except FileNotFoundError:
     print("Error: result_files/adaptive_comparison.csv not found.")
     print("Please run 'bash launch_adaptive_comparison.sh' first.")
@@ -36,15 +49,15 @@ labels = [
     'Adaptive S (Ours)'
 ]
 
-precision = df['Precision'].tolist()
-recall = df['Recall'].tolist()
+precision = df['精确率'].tolist()
+recall = df['召回率'].tolist()
 
 x = np.arange(len(labels))  # the label locations
 width = 0.35  # the width of the bars
 
 palette = sns.color_palette("colorblind")
-rects1 = ax.bar(x - width/2, precision, width, label='Precision', color=palette[0])
-rects2 = ax.bar(x + width/2, recall, width, label='Recall', color=palette[2])
+rects1 = ax.bar(x - width/2, precision, width, label='精确率', color=palette[0])
+rects2 = ax.bar(x + width/2, recall, width, label='召回率', color=palette[2])
 
 # Add some text for labels, title and axes ticks
 ax.set_ylabel('Percentage (%)')

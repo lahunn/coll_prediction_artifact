@@ -56,3 +56,4 @@ trace_files/bit_kuka7_difficulty/*/problems.pkl
 trace_files/bit_kuka7_difficulty/metadata.csv
 trace_generation/workspace_bound/franka_panda_workspace.json
 prediction_approaches/plot/plot/figs/*
+prediction_approaches/utils/analysis_results/*

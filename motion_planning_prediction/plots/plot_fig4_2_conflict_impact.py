@@ -1,3 +1,18 @@
+import math
+import sys
+
+import matplotlib.pylab as plt
+import seaborn as sns
+import numpy as np
+import pandas as pd
+import matplotlib
+
+# --- 统一绘图风格配置 ---
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
 #!/usr/bin/env python3
 """
 Figure 2: 集中式与无冲突存储架构的性能对比
@@ -8,13 +23,13 @@ Figure 2: 集中式与无冲突存储架构的性能对比
 - result_files/no_conflict_results.csv (No-Conflict)
 """
 
-import pandas as pd
-import matplotlib.pyplot as plt
-import numpy as np
 import os
-import matplotlib
-import seaborn as sns
-from matplotlib.ticker import FuncFormatter
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+
 
 # 1. 设置绘图风格（白底、带刻度）
 sns.set_style("ticks") 
@@ -28,7 +43,7 @@ sns.set_context("paper", font_scale=1.5)
 # 确保在PDF和PS文件中正确嵌入字体
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
-matplotlib.rcParams["font.family"] = "Times New Roman"
+matplotlib.rcParams["font.family"] = 'SimSun'
 
 def load_data(filepath):
     if not os.path.exists(filepath):

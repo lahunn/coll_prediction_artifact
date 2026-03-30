@@ -1,3 +1,18 @@
+import math
+import sys
+
+import matplotlib.pylab as plt
+import seaborn as sns
+import numpy as np
+import pandas as pd
+import matplotlib
+
+# --- 统一绘图风格配置 ---
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
 #!/usr/bin/env python3
 """
 Analyze and plot collision rates at Edge, Pose, and Sphere levels across different difficulties.
@@ -9,19 +24,19 @@ Usage:
     python plot_collision_rates.py --data_folder ../../trace_files/scene_benchmarks/bit_collision_data --basename iiwa_7
 """
 
-import sys
 import os
 import argparse
-import numpy as np
-import matplotlib.pyplot as plt
-import pandas as pd
-import seaborn as sns
-import matplotlib
 from tqdm import tqdm
 
 # Add parent directory to path to import simulation_utils
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
 import simulation_utils as su
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+
 
 # --- Plotting Style ---
 # 1. 设置绘图风格（白底、带刻度）
@@ -35,7 +50,7 @@ sns.set_context("paper", font_scale=1.5)
 
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
-matplotlib.rcParams["font.family"] = "Times New Roman"
+matplotlib.rcParams["font.family"] = 'SimSun'
 
 
 def analyze_difficulty(data_folder, difficulty, basename, num_benchmarks):

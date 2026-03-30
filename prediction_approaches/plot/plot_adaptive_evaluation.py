@@ -1,25 +1,37 @@
-import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib
-import numpy as np
+import math
+import sys
+
+import matplotlib.pylab as plt
 import seaborn as sns
+import numpy as np
+import pandas as pd
+import matplotlib
+
+# --- 统一绘图风格配置 ---
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+
 
 # 设置绘图风格
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 sns.set_style("white")
 sns.set_palette("colorblind")
-font = {
-    'family': 'Times New Roman',
-    'weight': 'normal',
-    'size': 22,
-}
-plt.rc('font', **font)
+
+
 
 # 加载实验结果
 try:
     df = pd.read_csv("result_files/adaptive_evaluation.csv", header=None)
-    df.columns = ['Precision', 'Recall']
+    df.columns = ['精确率', '召回率']
 except FileNotFoundError:
     print("错误: 未找到 result_files/adaptive_evaluation.csv")
     print("请先运行 'bash launch_adaptive_evaluation.sh'")
@@ -42,15 +54,15 @@ labels = [
     'Adaptive S (0.05-2.0)',
 ]
 
-precision = df['Precision'].tolist()
-recall = df['Recall'].tolist()
+precision = df['精确率'].tolist()
+recall = df['召回率'].tolist()
 
 x = np.arange(len(labels))  # 标签位置
 width = 0.35  # 柱状图宽度
 
 palette = sns.color_palette("colorblind")
-rects1 = ax.bar(x - width/2, precision, width, label='Precision', color=palette[0])
-rects2 = ax.bar(x + width/2, recall, width, label='Recall', color=palette[2])
+rects1 = ax.bar(x - width/2, precision, width, label='精确率', color=palette[0])
+rects2 = ax.bar(x + width/2, recall, width, label='召回率', color=palette[2])
 
 # 添加标签、标题和坐标轴
 ax.set_ylabel('Percentage (%)')

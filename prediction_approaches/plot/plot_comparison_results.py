@@ -1,15 +1,30 @@
+import math
+import sys
+
+import matplotlib.pylab as plt
+import seaborn as sns
+import numpy as np
+import pandas as pd
+import matplotlib
+
+# --- 统一绘图风格配置 ---
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
 #!/usr/bin/env python3
 """
 OBB与Sphere碰撞预测性能对比绘图脚本
 """
 
-import matplotlib.pylab as plt
-import numpy as np
-import pandas as pd
-import matplotlib
 import os
-import sys
-import seaborn as sns
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+
 
 # Ensure local package modules are importable when running this script directly
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -21,11 +36,7 @@ sns.set_palette("colorblind")
 
 palette = sns.color_palette("colorblind")
 
-font = {
-    "family": "Times New Roman",
-    "weight": "normal",
-    "size": 28,
-}
+
 Sphere_csv_path = "../result_files/sphere_hashing_cost_results.csv"
 Coord_csv_path = "../result_files/coord_hashing_cost_results.csv"
 # ===== 全局配色方案 =====
@@ -99,7 +110,7 @@ def plot_accuracy_recall_comparison():
 
     # === 精确率图 ===
     fig_prec, ax_prec = plt.subplots(figsize=(10, 7))
-    plt.rc("font", **font)
+    
     fig_prec.patch.set_facecolor("white")
     ax_prec.set_facecolor("white")
 
@@ -153,7 +164,7 @@ def plot_accuracy_recall_comparison():
 
     # === 召回率图 ===
     fig_rec, ax_rec = plt.subplots(figsize=(10, 7))
-    plt.rc("font", **font)
+    
     fig_rec.patch.set_facecolor("white")
     ax_rec.set_facecolor("white")
 
@@ -239,7 +250,7 @@ def plot_cost_comparison():
 
     # 创建图表
     fig, ax = plt.subplots(figsize=(12, 7))
-    plt.rc("font", **font)
+    
     # 白底与轻网格
     fig.patch.set_facecolor("white")
     ax.set_facecolor("white")
@@ -336,7 +347,7 @@ def plot_threshold_comparison(density="dens6"):
             continue
 
         fig, axes = plt.subplots(1, 2, figsize=(18, 7))
-        plt.rc("font", **font)
+        
         fig.patch.set_facecolor("white")
         for ax in axes:
             ax.set_facecolor("white")
@@ -353,7 +364,7 @@ def plot_threshold_comparison(density="dens6"):
             linewidth=2.5,
             markersize=8,
             color=LINK_COLOR,
-            label="Precision",
+            label='精确率',
         )
         axes[0].set_ylabel("Precision (%)", fontsize=FONT_SIZE_LABEL)
         axes[0].set_title(
@@ -375,7 +386,7 @@ def plot_threshold_comparison(density="dens6"):
             linewidth=2.5,
             markersize=8,
             color=LINK_COLOR,
-            label="Recall",
+            label='召回率',
         )
         axes[1].set_ylabel("Recall (%)", fontsize=FONT_SIZE_LABEL)
         axes[1].set_title(
@@ -418,7 +429,7 @@ def plot_threshold_comparison(density="dens6"):
             continue
 
         fig, axes = plt.subplots(1, 2, figsize=(18, 7))
-        plt.rc("font", **font)
+        
         fig.patch.set_facecolor("white")
         for ax in axes:
             ax.set_facecolor("white")
@@ -435,7 +446,7 @@ def plot_threshold_comparison(density="dens6"):
             linewidth=2.5,
             markersize=8,
             color=SPHERE_COLOR,
-            label="Precision",
+            label='精确率',
         )
         axes[0].set_ylabel("Precision (%)", fontsize=FONT_SIZE_LABEL)
         axes[0].set_title(
@@ -457,7 +468,7 @@ def plot_threshold_comparison(density="dens6"):
             linewidth=2.5,
             markersize=8,
             color=SPHERE_COLOR,
-            label="Recall",
+            label='召回率',
         )
         axes[1].set_ylabel("Recall (%)", fontsize=FONT_SIZE_LABEL)
         axes[1].set_title(
@@ -516,7 +527,7 @@ def plot_combined_threshold_comparison():
 
     # 创建4行2列的子图
     fig, axes = plt.subplots(4, 2, figsize=(20, 24))
-    plt.rc("font", **font)
+    
     fig.patch.set_facecolor("white")
     for axrow in axes:
         for ax in axrow:
@@ -680,7 +691,7 @@ def plot_pr_curves():
     # 创建图表 - 4个子图分别对应4种密度
     fig, axes = plt.subplots(2, 2, figsize=(18, 14))
     axes = axes.flatten()
-    plt.rc("font", **font)
+    
     fig.patch.set_facecolor("white")
     for ax in axes:
         ax.set_facecolor("white")
@@ -804,7 +815,7 @@ def plot_cost_vs_threshold():
     # 创建图表 - 4个子图分别对应4种密度
     fig, axes = plt.subplots(2, 2, figsize=(18, 14))
     axes = axes.flatten()
-    plt.rc("font", **font)
+    
     fig.patch.set_facecolor("white")
     for ax in axes:
         ax.set_facecolor("white")
@@ -886,7 +897,7 @@ def plot_cost_vs_threshold():
             xytext=(15, 15),
             textcoords="offset points",
             fontsize=18,
-            color="navy",
+            color=colors[0],
             alpha=0.8,
             bbox=dict(boxstyle="round,pad=0.5", facecolor="white", alpha=0.7),
             arrowprops=dict(arrowstyle="->", color="red", lw=2),
@@ -987,7 +998,7 @@ def plot_cost_vs_quantbits():
 
     # === OBB图表 ===
     fig, ax = plt.subplots(figsize=(12, 8))
-    plt.rc("font", **font)
+    
     fig.patch.set_facecolor("white")
     ax.set_facecolor("white")
 
@@ -1032,7 +1043,7 @@ def plot_cost_vs_quantbits():
 
     # === Sphere图表 ===
     fig, ax = plt.subplots(figsize=(12, 8))
-    plt.rc("font", **font)
+    
     fig.patch.set_facecolor("white")
     ax.set_facecolor("white")
 
@@ -1105,7 +1116,7 @@ def plot_threshold_metrics_by_density():
 
         # 创建1x3子图
         fig, axes = plt.subplots(1, 3, figsize=(20, 6))
-        plt.rc("font", **font)
+        
         fig.patch.set_facecolor("white")
         for ax in axes:
             ax.set_facecolor("white")
@@ -1125,7 +1136,7 @@ def plot_threshold_metrics_by_density():
         ]
 
         metric_names = ["Precision (%)", "Recall (%)", "SpeedUp_Pct (%)"]
-        metric_titles = ["Precision", "Recall", "SpeedUp_Pct"]
+        metric_titles = ['精确率', '召回率', "SpeedUp_Pct"]
 
         # 绘制三个指标
         for i, (ax, name, title) in enumerate(zip(axes, metric_names, metric_titles)):
@@ -1205,8 +1216,8 @@ def plot_precision_recall_by_density():
     """
     图8: 针对每个密度场景，使用分组直方图(bar)比较Sphere与Link在不同阈值下的Precision和Recall（每个密度单独保存一张图）
 
-    - 对每个阈值，计算Link（OBB）在所有QuantBits下的平均Precision/Recall
-    - 对每个阈值，计算Sphere在所有QuantBits（且RadiusBits==1）下的平均Precision/Recall
+    - 对每个阈值，计算Link（OBB）在所有QuantBits下的平均精确率/召回率
+    - 对每个阈值，计算Sphere在所有QuantBits（且RadiusBits==1）下的平均精确率/召回率
     - 使用分组柱状图显示两种方法的平均值，便于直观比较
     """
     # 读取数据时增加错误处理，防止文件不存在导致崩溃
@@ -1272,7 +1283,7 @@ def plot_precision_recall_by_density():
         }
         threshold_labels = [frac_map.get(round(t, 5), f"S={t:.3f}") for t in thresholds]
 
-        # 计算每个阈值上的平均Precision/Recall
+        # 计算每个阈值上的平均精确率/召回率
         obb_prec = []
         obb_rec = []
         sphere_prec = []
@@ -1297,7 +1308,7 @@ def plot_precision_recall_by_density():
 
         # 绘图：分组柱状图（假定源文件数值完整，无 NaN）
         fig, axes = plt.subplots(1, 2, figsize=(18, 7))
-        plt.rc("font", **font)
+        
         fig.patch.set_facecolor("white")
         for ax in axes:
             ax.set_facecolor("white")
@@ -1447,7 +1458,7 @@ def plot_link_sphere_comparison_by_density():
         width = 0.12
         # Use a slightly taller figure to accommodate the legend without squashing the plot
         fig, ax = plt.subplots(figsize=(2.5 * n + 4, 5.5))
-        plt.rc("font", **font)
+        
         fig.patch.set_facecolor("white")
         ax.set_facecolor("white")
 
@@ -1635,15 +1646,15 @@ def plot_metrics_at_fixed_S_U():
 
         # 横向三子图：precision/recall/computation
         fig, axes = plt.subplots(1, 3, figsize=(15, 4.5), sharey=True)
-        plt.rc("font", **font)
+        
         fig.patch.set_facecolor("white")
         for ax in axes:
             ax.set_facecolor("white")
 
         bar_width = 0.35
         metrics = [
-            (link_prec, sphere_prec, "Precision (%)", "Precision"),
-            (link_rec, sphere_rec, "Recall (%)", "Recall"),
+            (link_prec, sphere_prec, "Precision (%)", '精确率'),
+            (link_rec, sphere_rec, "Recall (%)", '召回率'),
             (link_speed, sphere_speed, "Computation (%)", "Computation"),
         ]
         for idx, (link_vals, sphere_vals, ylabel, title) in enumerate(metrics):
@@ -1740,7 +1751,7 @@ def plot_update_frequency_impact():
 
     # 绘图
     fig, ax1 = plt.subplots(figsize=(12, 8))
-    plt.rc("font", **font)
+    
     fig.patch.set_facecolor("white")
     ax1.set_facecolor("white")
 
@@ -1844,7 +1855,7 @@ def plot_update_frequency_impact():
 # 通用函数：可绘制precision/recall/computation三种指标
 def plot_metric_vs_S_multi_density(
     metric="PosePrecision",
-    ylabel="Precision",
+    ylabel='精确率',
     filename="fig_precision_vs_S_multi_density.png",
     add_legend=False,
 ):
@@ -1854,9 +1865,6 @@ def plot_metric_vs_S_multi_density(
     ylabel: y轴标签
     filename: 输出文件名
     """
-    import numpy as np
-    import pandas as pd
-    import matplotlib.pyplot as plt
     import os
 
     obb_data = pd.read_csv(Coord_csv_path, header=0)
@@ -1902,7 +1910,7 @@ def plot_metric_vs_S_multi_density(
     threshold_labels = [frac_map.get(round(t, 5), f"S={t:.3f}") for t in thresholds]
 
     fig, axes = plt.subplots(1, 3, figsize=(18, 4), sharey=True)
-    plt.rc("font", **font)
+    
     fig.patch.set_facecolor("white")
     for ax in axes:
         ax.set_facecolor("white")
@@ -2039,8 +2047,8 @@ def main():
     # print("\n生成图7: QuantBits=4下不同Threshold的性能指标对比...")
     # plot_threshold_metrics_by_density()
 
-    # 图8: 每个密度下Precision/Recall对比
-    # print("\n生成图8: 每个密度下Sphere vs Link Precision/Recall对比...")
+    # 图8: 每个密度下精确率/召回率对比
+    # print("\n生成图8: 每个密度下Sphere vs Link 精确率/召回率对比...")
     # plot_precision_recall_by_density()
     # # 新增: 各密度下Link/Sphere三指标对比
     # print("\n生成图9: 各密度下Link/Sphere三指标对比...")

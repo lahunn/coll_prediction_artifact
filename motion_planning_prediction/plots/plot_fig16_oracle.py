@@ -1,22 +1,35 @@
+import math
+import sys
+
+import matplotlib.pylab as plt
+import seaborn as sns
+import numpy as np
 import pandas as pd
+import matplotlib
+
+# --- 统一绘图风格配置 ---
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
 import pickle
 
-import seaborn as sns
-import matplotlib.pylab as plt
-import numpy as np
-import math
-from matplotlib.ticker import MaxNLocator
-import pandas as pd
-import sys
-import matplotlib
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 
-font = {
-    'family' : 'Times New Roman',
-    'weight' : 'normal',
-    'size'   : 35,
-}
+
 
 
 fig = plt.figure(figsize=(16,8))
@@ -61,7 +74,7 @@ runtime_norm = 1/tput_norm
 #print(perfa_norm,perfw_norm)
 #print(total_power,total_area)
 
-plt.rc('font', **font)  
+  
 ax = fig.add_subplot(1,1,1)
 group=list(range(1,4))
 #group=list(range(0,bins*4,4))
@@ -71,9 +84,9 @@ perfa_norm_s=[perfa_norm[1]/perfa_norm[0],perfa_norm[3]/perfa_norm[2],perfa_norm
 runtime_norm_s=[runtime_norm[1]/runtime_norm[0],runtime_norm[3]/runtime_norm[2],runtime_norm[5]/runtime_norm[4]]
 
 
-ax.plot(group,perfw_norm_s,color="tab:orange",label="Perf/W",linewidth=0,marker="<",markersize=20)
-ax.plot(group,perfa_norm_s,color="tab:blue",label="Perf/mm2",linewidth=0,marker="*",markersize=20)
-ax.plot(group,runtime_norm_s,color="tab:green",label="Runtime",linewidth=0,marker="o",markersize=20)
+ax.plot(group,perfw_norm_s,color=colors[1],label="Perf/W",linewidth=0,marker="<",markersize=20)
+ax.plot(group,perfa_norm_s,color=colors[0],label="Perf/mm2",linewidth=0,marker="*",markersize=20)
+ax.plot(group,runtime_norm_s,color=colors[2],label="Runtime",linewidth=0,marker="o",markersize=20)
 
 ax.legend(ncol=3)
 ax.set_xticks([i for i in group]) 
@@ -85,13 +98,13 @@ ax.set_xticklabels(lab, rotation = 20)
 #ax.set_yticks([0,50,100]) 
 #ax.set_yticklabels(["0%","50%","100%"], rotation = 0)
 #ax.axvline(x = 11,ymin=0,ymax=1, color = 'gray',lw=0.5)
-#ax.set_title("Low obstacles density")
+#ax.set_title("低障碍物密度")
 ax.set_ylabel("Perf/W or Perf/mm2 \n or Runtime (Normalized)")
 ax.set_xlabel("Configurations")
 ax.set_ylim(0,2.5)
 
-#plt.text(5, -24, "Low speed (10-30km/h)",ha="center",va="top", fontsize=36,color="tab:blue")
-#plt.text(17, -24, "High speed (30-50km/h)",ha="center",va="top", fontsize=36,color="tab:blue")
+#plt.text(5, -24, "Low speed (10-30km/h)",ha="center",va="top", fontsize=36,color=colors[0])
+#plt.text(17, -24, "High speed (30-50km/h)",ha="center",va="top", fontsize=36,color=colors[0])
 plt.tight_layout(pad=0.4, w_pad=0.5, h_pad=1.0)
 #plt.show()
 

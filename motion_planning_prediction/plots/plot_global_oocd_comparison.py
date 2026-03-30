@@ -1,14 +1,32 @@
-import os
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.ticker import FuncFormatter
-import matplotlib
-import matplotlib.pyplot as plt
+import math
+import sys
+
+import matplotlib.pylab as plt
 import seaborn as sns
 import numpy as np
-import os
 import pandas as pd
+import matplotlib
+
+# --- 统一绘图风格配置 ---
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+import os
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+
+import os
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+
 
 # Unified plotting style
 matplotlib.rcParams["pdf.fonttype"] = 42
@@ -16,12 +34,8 @@ matplotlib.rcParams["ps.fonttype"] = 42
 sns.set_style("white")
 # use colorblind-friendly palette
 sns.set_palette("colorblind")
-font = {
-    "family": "Times New Roman",
-    "weight": "normal",
-    "size": 28,
-}
-plt.rc("font", **font)
+
+
 
 
 def plot_global_oocd_cycle_comparison():
@@ -70,7 +84,7 @@ def plot_global_oocd_cycle_comparison():
     width = 0.18
 
     colors = {
-        "Dual Port (Pred=8)": "navy",
+        "Dual Port (Pred=8)": colors[0],
         "Dual Port (Pred=16)": "#1f4e79",
         "Multi-Bank (Pred=8)": "darkgreen",
         "Multi-Bank (Pred=16)": "#2e8b57",
@@ -227,7 +241,7 @@ def plot_global_oocd_utilization_comparison():
     width = 0.18
 
     colors = {
-        "Dual Port (Pred=8)": "navy",
+        "Dual Port (Pred=8)": colors[0],
         "Dual Port (Pred=16)": "#1f4e79",
         "Multi-Bank (Pred=8)": "darkgreen",
         "Multi-Bank (Pred=16)": "#2e8b57",

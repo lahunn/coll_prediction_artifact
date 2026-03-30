@@ -1,10 +1,4 @@
 #!/bin/bash
-"""
-Batch run accuracy analysis experiments
-
-Test prediction accuracy changes with training data size under different parameter configurations
-"""
-
 # Parameter configurations
 THRESHOLDS=(0.1)
 SAMPLE_RATES=(1)
@@ -65,17 +59,17 @@ echo ""
 echo "=== All simulations completed ==="
 echo "Generating analysis results..."
 
-# Run analysis script
-echo "Running accuracy analysis..."
-python analyze_accuracy_vs_training_size.py \
-    result_files/sphere_accuracy_curve.csv \
-    plots/accuracy_analysis.png
+# # Run analysis script
+# echo "Running accuracy analysis..."
+# python analyze_accuracy_vs_training_size.py \
+#     result_files/sphere_accuracy_curve.csv \
+#     plots/accuracy_analysis.png
 
-if [ $? -eq 0 ]; then
-    echo "✓ Analysis completed, results saved to plots/accuracy_analysis.png"
-else
-    echo "✗ Analysis failed"
-fi
+# if [ $? -eq 0 ]; then
+#     echo "✓ Analysis completed, results saved to plots/accuracy_analysis.png"
+# else
+#     echo "✗ Analysis failed"
+# fi
 
 # Generate detailed visualization
 echo "Generating detailed visualization..."

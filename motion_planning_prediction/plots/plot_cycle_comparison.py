@@ -1,15 +1,31 @@
+import math
+import sys
+
+import matplotlib.pylab as plt
+import seaborn as sns
+import numpy as np
+import pandas as pd
+import matplotlib
+
+# --- 统一绘图风格配置 ---
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
 #!/usr/bin/env python3
 """
 Compare fall_cycle (total cycles) between LINK and Sphere collision models
 across all difficulty levels (G1, G2, G3, G4, G5)
 """
 
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-import matplotlib
-import numpy as np
 import os
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+
 
 # Create figs directory if it doesn't exist
 os.makedirs("figs", exist_ok=True)
@@ -19,12 +35,8 @@ matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
 sns.set_style("white")
 sns.set_palette("colorblind")
-font = {
-    "family": "Times New Roman",
-    "weight": "normal",
-    "size": 28,
-}
-plt.rc("font", **font)
+
+
 
 # Read data
 link_df = pd.read_csv("../result_files/link_results.csv")
@@ -41,7 +53,7 @@ width = 0.35
 
 plt.figure(figsize=(12, 7))
 link_bars = plt.bar(
-    x - width / 2, link_cycles, width, color="navy", alpha=0.8, label="LINK"
+    x - width / 2, link_cycles, width, color=colors[0], alpha=0.8, label="LINK"
 )
 sphere_bars = plt.bar(
     x + width / 2, sphere_cycles, width, color="darkgreen", alpha=0.8, label="Sphere"

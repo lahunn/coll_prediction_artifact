@@ -1,9 +1,25 @@
-import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib
-import numpy as np
+import math
+import sys
+
+import matplotlib.pylab as plt
 import seaborn as sns
+import numpy as np
+import pandas as pd
+import matplotlib
+
+# --- 统一绘图风格配置 ---
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
 import os
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+
 
 # 1. 设置绘图风格与字体
 matplotlib.rcParams['pdf.fonttype'] = 42
@@ -11,12 +27,8 @@ matplotlib.rcParams['ps.fonttype'] = 42
 sns.set_style("ticks")
 sns.set_palette("colorblind")
 
-font = {
-    'family': 'Times New Roman',
-    'weight': 'normal',
-    'size': 18,
-}
-plt.rc('font', **font)
+
+
 
 # 2. 加载数据
 csv_path = "result_files/sphere_hashing_cost_results.csv"

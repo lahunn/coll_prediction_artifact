@@ -1,3 +1,18 @@
+import math
+import sys
+
+import matplotlib.pylab as plt
+import seaborn as sns
+import numpy as np
+import pandas as pd
+import matplotlib
+
+# --- 统一绘图风格配置 ---
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
 #!/usr/bin/env python3
 """
 Plot Hash Strategy Comparison (StdDev)
@@ -7,11 +22,19 @@ Plot Hash Strategy Comparison (StdDev)
 - motion_planning_prediction/analysis/result_files/hash_analysis_results.csv
 """
 
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+.pyplot as plt
 import os
-import matplotlib
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+
 
 # 1. 统一绘图风格
 sns.set_style("white")
@@ -20,7 +43,7 @@ sns.set_palette("colorblind")
 sns.set_context("paper", font_scale=1.5)
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
-matplotlib.rcParams["font.family"] = "Times New Roman"
+matplotlib.rcParams["font.family"] = 'SimSun'
 
 def plot_hash_strategy_comparison():
     # 2. 读取数据

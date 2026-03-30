@@ -1,12 +1,29 @@
-import matplotlib
-from matplotlib import cm
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
+import math
+import sys
+
+import matplotlib.pylab as plt
+import seaborn as sns
 import numpy as np
+import pandas as pd
+import matplotlib
+
+# --- 统一绘图风格配置 ---
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
 
 from environment import MazeEnv
 from PIL import Image
 from environment.graph import EdgeAttribute
+
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+
 
 
 def draw_node(state, color, radius_scale=1., dim=2, face=False):
@@ -137,8 +154,8 @@ def plot_edges(states, edges, problem, index=0,
     draw_node(init_state, '#e6550d', dim=dim, face=True)
     draw_node(goal_state, '#a63603', dim=dim, face=True)
     
-    plt.annotate('start', init_state+1.0, color='black', backgroundcolor=(1., 1., 1., 0.3), fontsize=20)
-    plt.annotate('goal', goal_state+1.0, color='black', fontsize=20)
+    plt.annotate('起点', init_state+1.0, color='black', backgroundcolor=(1., 1., 1., 0.3), fontsize=20)
+    plt.annotate('终点', goal_state+1.0, color='black', fontsize=20)
 
     plt.axis([0.0, 2.0, 0.0, 2.0])
     plt.axis('off')

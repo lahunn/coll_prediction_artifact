@@ -1,20 +1,33 @@
-import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib
-import os
+import math
+import sys
+
+import matplotlib.pylab as plt
 import seaborn as sns
+import numpy as np
+import pandas as pd
+import matplotlib
+
+# --- 统一绘图风格配置 ---
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+import os
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+
 
 # Unified plotting style
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
 sns.set_style("white")
 sns.set_palette("colorblind")
-font = {
-    "family": "Times New Roman",
-    "weight": "normal",
-    "size": 28,
-}
-plt.rc("font", **font)
+
+
 
 
 def plot_aggregated_metrics(df, parameter_name, density, output_dir="plots"):
@@ -34,7 +47,7 @@ def plot_aggregated_metrics(df, parameter_name, density, output_dir="plots"):
 
     # 按指定参数分组，并计算Precision和Recall的平均值
     aggregated_data = (
-        df.groupby(parameter_name)[["Precision", "Recall"]].mean().reset_index()
+        df.groupby(parameter_name)[['精确率', '召回率']].mean().reset_index()
     )
 
     # 创建一个包含两个子图的图表
@@ -48,7 +61,7 @@ def plot_aggregated_metrics(df, parameter_name, density, output_dir="plots"):
     palette = sns.color_palette("colorblind")
     ax1.bar(
         aggregated_data[parameter_name].astype(str),
-        aggregated_data["Precision"],
+        aggregated_data['精确率'],
         color=palette[0],
     )
     ax1.set_title("Average Precision")
@@ -60,7 +73,7 @@ def plot_aggregated_metrics(df, parameter_name, density, output_dir="plots"):
     # --- 绘制Recall柱状图 ---
     ax2.bar(
         aggregated_data[parameter_name].astype(str),
-        aggregated_data["Recall"],
+        aggregated_data['召回率'],
         color=palette[2],
     )
     ax2.set_title("Average Recall")

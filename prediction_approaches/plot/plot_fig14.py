@@ -1,24 +1,38 @@
+import math
+import sys
+
+import matplotlib.pylab as plt
+import seaborn as sns
+import numpy as np
+import pandas as pd
+import matplotlib
+
+# --- 统一绘图风格配置 ---
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
 import random
 from tqdm import tqdm
-import seaborn as sns
-import matplotlib.pylab as plt
-import numpy as np
-import math
-from matplotlib.ticker import MaxNLocator
-import pandas as pd
-import sys
-import matplotlib
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+
 
 # 设置matplotlib的字体属性，以确保在PDF和PS文件中正确嵌入字体
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 
 # 定义绘图时使用的字体样式
-font = {
-    'family' : 'Times New Roman', # 字体族
-    'weight' : 'normal',         # 字体粗细
-    'size'   : 35,                # 字体大小
-}
+
 
 def find_sim_cost(R,C,A,N):
     """
@@ -95,20 +109,20 @@ print(mid_cost_scale2)
 
 # --- 开始绘图 ---
 fig = plt.figure(figsize=(16,6)) # 创建一个图形实例
-plt.rc('font', **font)  # 应用之前定义的字体设置
+  # 应用之前定义的字体设置
 ax = fig.add_subplot(1,1,1) # 添加一个子图
 
 # 设置柱状图的x轴位置
 group=list(range(0,30,5))
 
 # 绘制代表精确率的蓝色柱状图
-ax.bar(group,mid_acc2,width, color="navy",label="Precision (%)")
+ax.bar(group,mid_acc2,width, color=colors[0],label="Precision (%)")
 group= [x +1 for x in group] # x轴位置右移，为下一组柱子腾出空间
 # 绘制代表召回率的浅蓝色柱状图
-ax.bar(group,mid_cov2,width, color="cornflowerblue",label="Recall (%)")
+ax.bar(group,mid_cov2,width, color=colors[1],label="Recall (%)")
 group= [x +1 for x in group] # x轴位置再次右移
 # 绘制代表归一化计算成本的橙色柱状图
-ax.bar(group,mid_cost_scale2,width, color="tab:orange",label="Compute (%)")
+ax.bar(group,mid_cost_scale2,width, color=colors[1],label="Compute (%)")
 
 # 设置图例
 ax.legend(ncol=2,fontsize=28)
@@ -127,8 +141,8 @@ ax.set_yticklabels(["0%","50%","100%"], rotation = 0)
 ax.axvline(x = 3.5,ymin=0,ymax=1, color = 'gray',lw=0.5)
 
 # 在图的下方添加文本标签
-plt.text(1, -26, "Baseline",ha="center",va="top", fontsize=36,color="tab:blue")
-plt.text(16, -26, "COORD Collision prediction",ha="center",va="top", fontsize=36,color="tab:blue")
+plt.text(1, -26, "Baseline",ha="center",va="top", fontsize=36,color=colors[0])
+plt.text(16, -26, "COORD Collision prediction",ha="center",va="top", fontsize=36,color=colors[0])
 # 调整布局以防止标签重叠
 plt.tight_layout(pad=0.4, w_pad=0.5, h_pad=1.0)
 

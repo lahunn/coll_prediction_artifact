@@ -1,25 +1,41 @@
-#!/usr/bin/env python3
-import pandas as pd
-import matplotlib.pyplot as plt
-from matplotlib.ticker import LogLocator, ScalarFormatter
-import numpy as np
-import os
+import math
 import sys
+
+import matplotlib.pylab as plt
 import seaborn as sns
-# 统一绘图样式
+import numpy as np
+import pandas as pd
 import matplotlib
+
+# --- 统一绘图风格配置 ---
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+#!/usr/bin/env python3
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+.pyplot as plt
+import os
+# 统一绘图样式
+sns.set_theme(style="whitegrid")
+plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
+plt.rcParams['axes.unicode_minus'] = False
+plt.rcParams['font.size'] = 12
+colors = sns.color_palette("deep")
+
 
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
 plt.style.use("seaborn-v0_8-white")
 sns.set_style("white")
 sns.set_palette("colorblind")
-font = {
-    "family": "Times New Roman",
-    "weight": "normal",
-    "size": 16,
-}
-plt.rc("font", **font)
+
+
 
 # 统一配色方案（使用 seaborn colorblind 调色板）
 palette = sns.color_palette("colorblind")
