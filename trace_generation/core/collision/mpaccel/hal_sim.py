@@ -3,8 +3,9 @@ import cocotb
 from cocotb.triggers import RisingEdge
 
 class CocotbHALAdapter(MPAccelHAL):
-    def __init__(self, axi_master):
+    def __init__(self, axi_master, dut=None):
         self.axi = axi_master
+        self.dut = dut
 
     async def write(self, addr: int, data: int):
         # cocotbext-axi write expects bytes
@@ -15,11 +16,10 @@ class CocotbHALAdapter(MPAccelHAL):
         return int.from_bytes(data.data, "little")
 
     async def wait_for_irq(self, timeout: int = 1000000):
-        # We need access to the dut's irq_o port.
-        # This adapter assumes the axi_master is tied to the dut and we can find the port.
-        # Usually in cocotb tests, the irq is part of the dut object.
-        dut = self.axi.bus.reset_n._parent # Hacky way to get DUT? 
-        # Better: let user pass dut or irq signal
+        dut = self.dut
+        if dut is None:
+            raise RuntimeError("CocotbHALAdapter requires dut for wait_for_irq; pass dut in constructor")
+
         if hasattr(dut, 'irq_o'):
             for _ in range(timeout):
                 await RisingEdge(dut.clk)

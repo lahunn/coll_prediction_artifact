@@ -3,7 +3,7 @@
 """
 
 from collections import deque
-from .constants import NUM_OOCDS
+from .constants import NUM_OOCDS, DEFAULT_QCOLL_LEN, DEFAULT_QNONCOLL_LEN
 from .copu_module import COPUModule
 from .cht_access_scheduler import CHT_AccessScheduler
 from .data_preprocessing import allocate_edge_data_to_copus
@@ -26,6 +26,8 @@ class MultiCOPU_Scheduler:
         num_copus,
         num_oocds=NUM_OOCDS,
         cht_size=4096,
+        qcoll_size=DEFAULT_QCOLL_LEN,
+        qnoncoll_size=DEFAULT_QNONCOLL_LEN,
         enable_conflict_check=True,
         cht_type="dual_port",
         copus_per_edge=None,
@@ -51,6 +53,8 @@ class MultiCOPU_Scheduler:
             COPUModule(
                 copu_id=i,
                 num_oocds=num_oocds,
+                qcoll_size=qcoll_size,
+                qnoncoll_size=qnoncoll_size,
                 cht_scheduler=self.cht_scheduler,
                 num_predictions=num_predictions,
             )

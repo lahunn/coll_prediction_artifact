@@ -6,13 +6,13 @@
 set -e  # 遇到错误立即退出
 
 # === 配置参数 ===
+THRESHOLD=1
+SAMPLE_RATE=0.125
+QNONCOLL_MULTIPLIER=8
 BASENAME="iiwa_7"
 BENCHID="1-10"
 # 基础数据路径
 BASE_DATA_FOLDER="../../trace_files/scene_benchmarks/bit_collision_data"
-THRESHOLD=0.5
-SAMPLE_RATE=0.1
-QNONCOLL_MULTIPLIER=2
 ROBOT_NAME="iiwa"
 NUM_PREDICTIONS=2
 # 专用CDU数量（传递给仿真脚本的 num_dedicated_oocds）
@@ -21,7 +21,7 @@ DEDICATED_OOCDS=8
 mkdir -p "../result_files"
 
 # 遍历碰撞模型
-for COLLISION_MODEL in sphere; do
+for COLLISION_MODEL in sphere link; do
     # 结果文件路径
     RESULT_CSV="../result_files/double_buffer_${COLLISION_MODEL}_results.csv"
 
@@ -72,7 +72,6 @@ for COLLISION_MODEL in sphere; do
         REDUCTION_RATE=$(echo "$OUTPUT" | grep "Query Reduction Rate:" | tail -n 1 | awk -F': ' '{print $2}' | sed 's/%//')
         CYCLE_EFFICIENCY=$(echo "$OUTPUT" | grep "Cycle Efficiency:" | tail -n 1 | awk -F': ' '{print $2}' | sed 's/%//')
         CDU_UTILIZATION=$(echo "$OUTPUT" | grep "Average CDU Utilization:" | tail -n 1 | awk -F': ' '{print $2}' | sed 's/%//')
-
         # 写入CSV
         echo "$SCENE,$THRESHOLD,$SAMPLE_RATE,$QNONCOLL_MULTIPLIER,$TOTAL_CHECKS,$TOTAL_PRED_QUERIES,$TOTAL_ORACLE_QUERIES,$TOTAL_CYCLES,$TOTAL_ORACLE_CYCLES,$REDUCTION_RATE,$CYCLE_EFFICIENCY,$CDU_UTILIZATION" >> "$RESULT_CSV"
     done

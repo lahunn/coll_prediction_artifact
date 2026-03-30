@@ -18,6 +18,7 @@
 # [--real-cycles] [--no-cht-conflict]
 # [--cht-type {dual_port,multi_bank}] [--num-banks N]
 # [--copus-per-edge N]
+# [--collision-type {link,sphere}]
 #
 # 示例:
 #   1) 单个benchmark（双端口CHT，使用真实周期）
@@ -31,6 +32,9 @@
 #
 #   4) 指定每Edge分配的COPU数量（例如4个COPU，每Edge用2个，即2组并行）
 #      python multi_copu_real_data_simulation.py iiwa_7 1 ../../trace_files/scene_benchmarks/bit_collision_data/G5 4 1.0 --copus-per-edge 2
+#
+#   5) 指定碰撞模型类型（sphere）
+#      python multi_copu_real_data_simulation.py iiwa_7 1 ../../trace_files/scene_benchmarks/bit_collision_data/G5 4 1.0 --collision-type sphere
 
 import sys
 import os
@@ -38,6 +42,7 @@ import argparse
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
 from simulation_core.multi_copu_scheduler import MultiCOPU_Scheduler
+from simulation_core.constants import NUM_OOCDS, DEFAULT_QCOLL_LEN, DEFAULT_QNONCOLL_LEN
 import simulation_utils as su
 
 # ============================================================================
@@ -53,7 +58,7 @@ def run_multi_copu_simulation(
     all_coll,
     all_cycles,
     num_copus,
-    num_oocds=7,
+    num_oocds=NUM_OOCDS,
     quant_bits=4,
     threshold=1.0,
     sample_rate=1.0,
@@ -61,6 +66,8 @@ def run_multi_copu_simulation(
     cht_type="dual_port",
     copus_per_edge=None,
     num_predictions=1,
+    qcoll_size=DEFAULT_QCOLL_LEN,
+    qnoncoll_size=DEFAULT_QNONCOLL_LEN,
     **cht_kwargs,
 ):
     """
@@ -68,15 +75,17 @@ def run_multi_copu_simulation(
 
     Args:
         all_data: 所有edge的pose数据 List[List[List[coords]]]
-        all_coll: 所有edge的碰撞标志 List[List[List[flags]]]
-        all_cycles: 所有edge的周期数据 List[List[List[cycles]]] (可为None)
+        all_coll: 所有edge of flags List[List[List[flags]]]
+        all_cycles: 所有edge of cycles List[List[List[cycles]]] (可为None)
         num_copus: COPU数量
         num_oocds: OOCD数量（CDU数量），默认7
-        quant_bits: 量化位数，分桶数 = 2^quant_bits（默认3，即8个桶）
+        quant_bits: 量化位数
         threshold: 碰撞预测阈值
         sample_rate: 采样率
         cht_class: CHT类
-        copus_per_edge: 每个edge分配的COPU数量 (默认None, 即num_copus)
+        copus_per_edge: 每个edge分配的COPU数量
+        qcoll_size: 碰撞队列长度
+        qnoncoll_size: 非碰撞队列长度
         **cht_kwargs: CHT类的额外参数
 
     Returns:
@@ -96,6 +105,8 @@ def run_multi_copu_simulation(
         cht_type=cht_type,
         copus_per_edge=copus_per_edge,
         num_predictions=num_predictions,
+        qcoll_size=qcoll_size,
+        qnoncoll_size=qnoncoll_size,
         **cht_kwargs,
     )
 
@@ -143,7 +154,7 @@ def simulate_single_benchmark(
     benchid,
     data_folder,
     num_copus,
-    num_oocds=7,
+    num_oocds=NUM_OOCDS,
     quant_bits=4,
     threshold=1.0,
     sample_rate=1.0,
@@ -152,6 +163,9 @@ def simulate_single_benchmark(
     cht_type="dual_port",
     copus_per_edge=None,
     num_predictions=1,
+    qcoll_size=DEFAULT_QCOLL_LEN,
+    qnoncoll_size=DEFAULT_QNONCOLL_LEN,
+    collision_type="link",
     **cht_kwargs,
 ):
     """
@@ -169,6 +183,9 @@ def simulate_single_benchmark(
         use_real_cycles: 是否使用真实周期数据
         cht_class: CHT类
         copus_per_edge: 每个edge分配的COPU数量
+        qcoll_size: 碰撞队列长度
+        qnoncoll_size: 非碰撞队列长度
+        collision_type: 碰撞模型类型（link/sphere）
         **cht_kwargs: CHT类的额外参数
 
     Returns:
@@ -178,11 +195,11 @@ def simulate_single_benchmark(
     all_cycles = None
     if use_real_cycles:
         all_data, all_coll, all_cycles = su.load_data_with_cycles(
-            basename, benchid, data_folder, collision_model_type="link"
+            basename, benchid, data_folder, collision_model_type=collision_type
         )
     else:
         all_data, all_coll = su.load_data(
-            basename, benchid, data_folder, collision_model_type="link"
+            basename, benchid, data_folder, collision_model_type=collision_type
         )
 
     if all_data is None:
@@ -202,6 +219,8 @@ def simulate_single_benchmark(
         cht_type=cht_type,
         copus_per_edge=copus_per_edge,
         num_predictions=num_predictions,
+        qcoll_size=qcoll_size,
+        qnoncoll_size=qnoncoll_size,
         **cht_kwargs,
     )
 
@@ -214,7 +233,7 @@ def run_benchmark_range_simulation(
     benchid_end,
     data_folder,
     num_copus,
-    num_oocds=7,
+    num_oocds=NUM_OOCDS,
     quant_bits=4,
     threshold=1.0,
     sample_rate=1.0,
@@ -223,6 +242,9 @@ def run_benchmark_range_simulation(
     cht_type="dual_port",
     copus_per_edge=None,
     num_predictions=1,
+    qcoll_size=DEFAULT_QCOLL_LEN,
+    qnoncoll_size=DEFAULT_QNONCOLL_LEN,
+    collision_type="link",
     **cht_kwargs,
 ):
     """
@@ -241,6 +263,9 @@ def run_benchmark_range_simulation(
         use_real_cycles: 是否使用真实周期数据
         cht_class: CHT类
         copus_per_edge: 每个edge分配的COPU数量
+        qcoll_size: 碰撞队列长度
+        qnoncoll_size: 非碰撞队列长度
+        collision_type: 碰撞模型类型（link/sphere）
         **cht_kwargs: CHT类的额外参数
 
     Returns:
@@ -276,6 +301,9 @@ def run_benchmark_range_simulation(
             cht_type=cht_type,
             copus_per_edge=copus_per_edge,
             num_predictions=num_predictions,
+            qcoll_size=qcoll_size,
+            qnoncoll_size=qnoncoll_size,
+            collision_type=collision_type,
             **cht_kwargs,
         )
 
@@ -444,6 +472,18 @@ def main():
         default=None,
         help="number of COPUs assigned to each edge (default: num_copus)",
     )
+    parser.add_argument(
+        "--qnoncoll-multiplier",
+        type=float,
+        default=None,
+        help="multiplier for QNONCOLL queue length (based on robot joints/spheres)",
+    )
+    parser.add_argument(
+        "--collision-type",
+        choices=["link", "sphere"],
+        default="link",
+        help="collision model type used for dataset loading",
+    )
 
     args = parser.parse_args()
 
@@ -461,8 +501,14 @@ def main():
     cht_type = args.cht_type
     num_banks = args.num_banks
     copus_per_edge = args.copus_per_edge
+    qnoncoll_multiplier = args.qnoncoll_multiplier
+    collision_type = args.collision_type
 
     is_range_mode = "-" in benchid_arg
+
+    qnoncoll_size = DEFAULT_QNONCOLL_LEN
+    if qnoncoll_multiplier is not None:
+        qnoncoll_size = int(num_oocds * qnoncoll_multiplier)
 
     # CHT 额外参数
     cht_kwargs = {"num_banks": num_banks} if cht_type == "multi_bank" else {}
@@ -488,7 +534,10 @@ def main():
     print(f"  使用真实周期: {use_real_cycles}")
     print(f"  CHT冲突检测: {enable_conflict_check}")
     print(f"  CHT类型: {cht_type}")
+    print(f"  Collision模型类型: {collision_type}")
     print(f"  每Edge COPU数: {copus_per_edge if copus_per_edge else num_copus}")
+    if qnoncoll_size is not None:
+        print(f"  QNONCOLL长度: {qnoncoll_size} (multiplier: {qnoncoll_multiplier})")
     if cht_type == "multi_bank":
         print(f"  Bank数量: {num_banks}")
 
@@ -510,6 +559,8 @@ def main():
             cht_type=cht_type,
             copus_per_edge=copus_per_edge,
             num_predictions=num_predictions,
+            qnoncoll_size=qnoncoll_size,
+            collision_type=collision_type,
             **cht_kwargs,
         )
     else:
@@ -528,6 +579,8 @@ def main():
             cht_type=cht_type,
             copus_per_edge=copus_per_edge,
             num_predictions=num_predictions,
+            qnoncoll_size=qnoncoll_size,
+            collision_type=collision_type,
             **cht_kwargs,
         )
 

@@ -4,8 +4,9 @@
 # 遍历碰撞模型: link, sphere
 # 遍历难度等级: G1, G2, G3, G4, G5
 
-THRESHOLD=0.5
-SAMPLE_RATE=0.1
+# === 配置参数 ===
+THRESHOLD=1
+SAMPLE_RATE=0.125
 QNONCOLL_MULTIPLIER=8
 BASE_DATA_FOLDER="../../trace_files/scene_benchmarks/bit_collision_data"
 BASENAME="iiwa_7"

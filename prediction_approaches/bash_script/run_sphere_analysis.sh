@@ -12,19 +12,21 @@
 # --- 配置 ---
 
 # 定义结果输出文件
-OUTPUT_FILE="./result_files/sphere_hashing_results.csv"
+OUTPUT_FILE="../result_files/sphere_hashing_results.csv"
+mkdir -p ../result_files
 
 # 定义要测试的参数范围
 DENSITY_LEVELS=("low" "mid" "high")             # 目标场景密度: "low", "mid", "high"
 COORD_BITS_LIST=(3 4 5 6)           # 坐标量化位数
-RADIUS_BITS_LIST=(0 1 2 3)           # 半径量化位数
-THRESHOLDS=(0.01 0.05 0.1 0.5)       # 碰撞阈值 (S)
-SAMPLE_RATES=(0.01 0.05 0.1 0.5 1.0)     # 自由样本采样率 (U)
+RADIUS_BITS_LIST=(0)           # 半径量化位数
+THRESHOLDS=(0.0 0.125 0.5 1.0 2.0)  # 碰撞阈值
+SAMPLE_RATES=(0 0.125 0.25 0.5 1)           # 自由样本采样率
+
 
 # --- 执行 ---
 
 # 检查Python脚本是否存在
-if [ ! -f "coord_hashing_sphere.py" ]; then
+if [ ! -f "../coord_hashing_sphere.py" ]; then
     echo "错误: 脚本 'coord_hashing_sphere.py' 未找到。"
     exit 1
 fi
@@ -46,7 +48,7 @@ for density in "${DENSITY_LEVELS[@]}"; do
           echo "  - 正在运行: 密度=$density, 坐标位数=$coord_bits, 半径位数=$radius_bits, 阈值=$threshold, 采样率=$sample_rate"
 
           # 执行Python脚本并捕获输出
-          result=$(python coord_hashing_sphere.py "$density" "$coord_bits" "$radius_bits" "$threshold" "$sample_rate")
+          result=$(cd .. && python coord_hashing_sphere.py "$density" "$coord_bits" "$radius_bits" "$threshold" "$sample_rate" 20 iiwa 2>&1)
 
           # 清理输出,移除末尾的百分号,然后追加到CSV文件
           # 使用 sed 's/%,/,/g' 替换所有 '%, ' 为 ','

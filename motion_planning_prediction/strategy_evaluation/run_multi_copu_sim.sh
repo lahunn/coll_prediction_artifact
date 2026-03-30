@@ -6,16 +6,17 @@
 set -e  # 遇到错误立即退出
 
 # === 配置参数 ===
-BASENAME="iiwa_7"
-BENCHID="1-10"
+THRESHOLD=1
+SAMPLE_RATE=0.125
+LINK_QNONCOLL_MULTIPLIER=8
+NUM_COPUS=8
+NUM_OOCDS=8
 # 基础数据路径
 BASE_DATA_FOLDER="../../trace_files/scene_benchmarks/bit_collision_data"
-NUM_COPUS=16
-THRESHOLD=0.5
+BASENAME="iiwa_7"
+BENCHID="1-10"
 COPUS_PER_EDGE=1  # 每个Edge分配的COPU数量
-NUM_OOCDS=7
 NUM_BANKS=8
-SAMPLE_RATE=0.1
 
 # 结果文件路径
 RESULT_DIR="../result_files"
@@ -28,9 +29,24 @@ echo "开始执行多COPU仿真遍历..."
 echo "数据集: $BASENAME, Benchmark范围: $BENCHID"
 echo "总COPU数: $NUM_COPUS, 每Edge分配: $COPUS_PER_EDGE"
 echo "OOCD数: $NUM_OOCDS, 采样率: $SAMPLE_RATE"
+echo "Collision类型: link + sphere"
+echo "QNONCOLL multiplier (link): $LINK_QNONCOLL_MULTIPLIER"
+echo "QNONCOLL multiplier (sphere): $((LINK_QNONCOLL_MULTIPLIER * 4))"
 echo "=========================================="
 
-# 遍历 CHT 类型和 Prediction 配置
+# 遍历 Collision 类型、CHT 类型和 Prediction 配置
+for COLLISION_TYPE in link sphere; do
+    if [ "$COLLISION_TYPE" == "sphere" ]; then
+        QNONCOLL_MULTIPLIER=$((LINK_QNONCOLL_MULTIPLIER * 4))
+    else
+        QNONCOLL_MULTIPLIER=$LINK_QNONCOLL_MULTIPLIER
+    fi
+
+    echo ""
+    echo "=========================================="
+    echo "Collision类型: $COLLISION_TYPE (QNONCOLL multiplier=$QNONCOLL_MULTIPLIER)"
+    echo "=========================================="
+
 for CHT_TYPE in dual_port multi_bank; do
     if [ "$CHT_TYPE" == "multi_bank" ]; then
         echo ""
@@ -52,10 +68,10 @@ for CHT_TYPE in dual_port multi_bank; do
 
         # 在进入场景循环前，预先确定 CSV 文件并写入表头（每个 CHT_TYPE + NUM_PRED 只写一次）
         if [ "$CHT_TYPE" == "dual_port" ]; then
-            CSV_FILE="$RESULT_DIR/dual_port_pred${NUM_PRED}_results.csv"
+            CSV_FILE="$RESULT_DIR/dual_port_pred${NUM_PRED}_${COLLISION_TYPE}_results.csv"
             echo "Scene,Total_Cycles,Total_Queries,Throughput,Utilization,Conflicts" > "$CSV_FILE"
         else
-            CSV_FILE="$RESULT_DIR/multi_bank_pred${NUM_PRED}_results.csv"
+            CSV_FILE="$RESULT_DIR/multi_bank_pred${NUM_PRED}_${COLLISION_TYPE}_results.csv"
             echo "Scene,Num_Banks,Total_Cycles,Total_Queries,Throughput,Utilization,Conflicts" > "$CSV_FILE"
         fi
 
@@ -80,7 +96,9 @@ for CHT_TYPE in dual_port multi_bank; do
                 "$NUM_PRED" \
                 --copus-per-edge "$COPUS_PER_EDGE" \
                 --cht-type "$CHT_TYPE" \
-                --num-banks "$NUM_BANKS" 2>&1)
+                --num-banks "$NUM_BANKS" \
+                --collision-type "$COLLISION_TYPE" \
+                --qnoncoll-multiplier "$QNONCOLL_MULTIPLIER" 2>&1)
 
             # 检查 python 脚本是否执行成功
             if [ $? -ne 0 ]; then
@@ -107,14 +125,19 @@ for CHT_TYPE in dual_port multi_bank; do
         done
     done
 done
+done
 
 echo ""
 echo "=========================================="
 echo "仿真完成！"
 echo "结果已保存至:"
-echo "  - $RESULT_DIR/dual_port_pred1_results.csv    (Dual Port, Prediction=1)"
-echo "  - $RESULT_DIR/dual_port_pred2_results.csv    (Dual Port, Prediction=2)"
-echo "  - $RESULT_DIR/multi_bank_pred1_results.csv   (Multi Bank, Prediction=1)"
-echo "  - $RESULT_DIR/multi_bank_pred2_results.csv   (Multi Bank, Prediction=2)"
+echo "  - $RESULT_DIR/dual_port_pred1_link_results.csv     (Dual Port, Prediction=1, link)"
+echo "  - $RESULT_DIR/dual_port_pred2_link_results.csv     (Dual Port, Prediction=2, link)"
+echo "  - $RESULT_DIR/multi_bank_pred1_link_results.csv    (Multi Bank, Prediction=1, link)"
+echo "  - $RESULT_DIR/multi_bank_pred2_link_results.csv    (Multi Bank, Prediction=2, link)"
+echo "  - $RESULT_DIR/dual_port_pred1_sphere_results.csv   (Dual Port, Prediction=1, sphere)"
+echo "  - $RESULT_DIR/dual_port_pred2_sphere_results.csv   (Dual Port, Prediction=2, sphere)"
+echo "  - $RESULT_DIR/multi_bank_pred1_sphere_results.csv  (Multi Bank, Prediction=1, sphere)"
+echo "  - $RESULT_DIR/multi_bank_pred2_sphere_results.csv  (Multi Bank, Prediction=2, sphere)"
 echo "=========================================="
 
