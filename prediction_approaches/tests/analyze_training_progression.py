@@ -452,12 +452,12 @@ axes[1, 1].grid(True, alpha=0.3)
 plt.tight_layout()
 
 # 保存图像
-output_filename = f"training_progression_{data_type}_{density_level}_{quantize_param.replace(',', '_')}_t{collision_threshold}_r{free_sample_rate}_step{step_size}.png"
+output_filename = f"training_progression_{data_type}_{density_level}_{quantize_param.replace(',', '_')}_t{collision_threshold}_r{free_sample_rate}_step{step_size}.pdf"
 plt.savefig(output_filename, dpi=150, bbox_inches="tight")
 print(f"\n趋势图已保存到: {output_filename}")
 
 # 保存CSV数据
-csv_filename = output_filename.replace(".png", ".csv")
+csv_filename = output_filename.replace(".pdf", ".csv")
 print(f"正在保存数据到: {csv_filename}")
 with open(csv_filename, "w", newline="", encoding="utf-8") as f:
     if results:

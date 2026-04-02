@@ -42,6 +42,9 @@ total_oracle_coll_cycles = 0
 total_oracle_noncoll_cycles = 0
 total_oocd_utilization = 0.0
 total_edges = 0
+total_dead_cycles = 0
+total_dead_ratio_sum = 0.0
+total_dead_edges = 0
 
 # --- Simulation Parameters from Command Line ---
 
@@ -190,38 +193,50 @@ for benchid in tqdm(benchrange, desc="Processing Benchmarks"):
         linklist, linklist_coll = su.csp_rearrange(edge_coords, edge_coll, groupsize=4)
 
         if prediction_strategy == "link_coord":
-            edge_query_count, colldict, coll_found, cycle, oocd_utilization = (
-                su.simulate_parallel_collision_detection_link(
-                    linklist,
-                    linklist_coll,
-                    colldict,
-                    threshold,
-                    sample_rate,
-                    bins,
-                    link_to_spheres,
-                    sphere_to_link,
-                    num_spheres_per_pose,
-                    qnoncoll_len=qnoncoll_len * 4,
-                    cycle_check=check_cost,
-                    num_oocds=num_oocds,
-                )
+            (
+                edge_query_count,
+                colldict,
+                coll_found,
+                cycle,
+                oocd_utilization,
+                deadtime_stats,
+            ) = su.simulate_parallel_collision_detection_link(
+                linklist,
+                linklist_coll,
+                colldict,
+                threshold,
+                sample_rate,
+                bins,
+                link_to_spheres,
+                sphere_to_link,
+                num_spheres_per_pose,
+                qnoncoll_len=qnoncoll_len,
+                cycle_check=check_cost,
+                num_oocds=num_oocds,
+                collect_deadtime=True,
             )
         else:
-            edge_query_count, colldict, coll_found, cycle, oocd_utilization = (
-                su.simulate_parallel_collision_detection_sphere(
-                    linklist,
-                    linklist_coll,
-                    colldict,
-                    threshold,
-                    sample_rate,
-                    bins,
-                    link_to_spheres,
-                    sphere_to_link,
-                    num_spheres_per_pose,
-                    qnoncoll_len=qnoncoll_len,
-                    cycle_check=check_cost,
-                    num_oocds=num_oocds,
-                )
+            (
+                edge_query_count,
+                colldict,
+                coll_found,
+                cycle,
+                oocd_utilization,
+                deadtime_stats,
+            ) = su.simulate_parallel_collision_detection_sphere(
+                linklist,
+                linklist_coll,
+                colldict,
+                threshold,
+                sample_rate,
+                bins,
+                link_to_spheres,
+                sphere_to_link,
+                num_spheres_per_pose,
+                qnoncoll_len=qnoncoll_len * 4,
+                cycle_check=check_cost,
+                num_oocds=num_oocds,
+                collect_deadtime=True,
             )
             # edge_query_count, colldict, coll_found, cycle, oocd_utilization = (
             #     su.simulate_parallel_collision_detection(
@@ -238,6 +253,9 @@ for benchid in tqdm(benchrange, desc="Processing Benchmarks"):
             # )
         total_oocd_utilization += oocd_utilization
         total_edges += 1
+        total_dead_cycles += deadtime_stats["dead_cycles"]
+        total_dead_ratio_sum += deadtime_stats["dead_ratio"]
+        total_dead_edges += 1
 
         if coll_found:
             total_pred_coll_cycles += cycle
@@ -256,7 +274,15 @@ for benchid in tqdm(benchrange, desc="Processing Benchmarks"):
             f"[{benchid}/{end_bench}] Pred Queries: {all_prediction:.2f}, Oracle Queries: {all_oracle}"
         )
 
-avg_oocd_utilization = total_oocd_utilization / total_edges
+avg_oocd_utilization = total_oocd_utilization / total_edges if total_edges > 0 else 0.0
+avg_dead_cycles_per_edge = (
+    total_dead_cycles / total_dead_edges if total_dead_edges > 0 else 0.0
+)
+avg_dead_ratio_per_edge = (
+    total_dead_ratio_sum / total_dead_edges if total_dead_edges > 0 else 0.0
+)
+dead_cycle_ratio_total = (total_dead_cycles / fall_cycle) if fall_cycle > 0 else 0.0
+
 print_final_statistics(
     total_checks=total_checks,
     fall_prediction=fall_prediction,
@@ -265,7 +291,13 @@ print_final_statistics(
     total_pred_noncoll_cycles=total_pred_noncoll_cycles,
     total_oracle_coll_cycles=total_oracle_coll_cycles,
     total_oracle_noncoll_cycles=total_oracle_noncoll_cycles,
-    extra_stats={"Avg OOCD Utilization": f"{avg_oocd_utilization:.4f}"}
+    extra_stats={
+        "Avg OOCD Utilization": f"{avg_oocd_utilization:.4f}",
+        "Dead Time Total Cycles": f"{total_dead_cycles}",
+        "Dead Time Avg Cycles Per Edge": f"{avg_dead_cycles_per_edge:.4f}",
+        "Dead Time Ratio (Total Dead / Total Pred Cycles)": f"{dead_cycle_ratio_total * 100:.2f}%",
+        "Dead Time Avg Ratio Per Edge": f"{avg_dead_ratio_per_edge * 100:.2f}%",
+    },
 )
 
 print(f"\n  Total Cycles (Prediction): {fall_cycle}")

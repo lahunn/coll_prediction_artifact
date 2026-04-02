@@ -14,7 +14,7 @@
 
 整个加速器系统按层次结构组织，如图 12 (左) 所示：
 
-![alt text](image.png)
+![alt text](image.pdf)
 
 1. **Controller (控制器)**:
     
@@ -54,7 +54,7 @@
 ## 3. COPU (碰撞预测单元) 模块微架构
 
 每个 `COPU + CDUs` 模块（如图 12 (右) 所示）包含以下关键组件：
-![alt text](image-1.png)
+![alt text](image-1.pdf)
 
 ### 3.1. OBB Generation Unit (OBB 生成单元)
 

@@ -6,14 +6,9 @@ import seaborn as sns
 import numpy as np
 import pandas as pd
 import matplotlib
-
-# --- 统一绘图风格配置 ---
-sns.set_theme(style="whitegrid")
-plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
-plt.rcParams['axes.unicode_minus'] = False
-plt.rcParams['font.size'] = 12
-colors = sns.color_palette("deep")
+from matplotlib.ticker import FuncFormatter
 import os
+# --- 统一绘图风格配置 ---
 sns.set_theme(style="whitegrid")
 plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
 plt.rcParams['axes.unicode_minus'] = False
@@ -38,14 +33,14 @@ matplotlib.rcParams["font.family"] = 'SimSun'
 
 def build_result_files(collision_type, include_multi_bank=True):
     files = {
-        "Dual Port (Pred=1)": f"dual_port_pred1_{collision_type}_results.csv",
-        "Dual Port (Pred=2)": f"dual_port_pred2_{collision_type}_results.csv",
+        "共享双端口SRAM（预测通道数=1）": f"dual_port_pred1_{collision_type}_results.csv",
+        "共享双端口SRAM（预测通道数=2）": f"dual_port_pred2_{collision_type}_results.csv",
     }
     if include_multi_bank:
         files.update(
             {
-                "Multi-Bank (Pred=1)": f"multi_bank_pred1_{collision_type}_results.csv",
-                "Multi-Bank (Pred=2)": f"multi_bank_pred2_{collision_type}_results.csv",
+                "分布式多Bank SRAM（预测通道数=1）": f"multi_bank_pred1_{collision_type}_results.csv",
+                "分布式多Bank SRAM（预测通道数=2）": f"multi_bank_pred2_{collision_type}_results.csv",
             }
         )
     return files
@@ -61,12 +56,12 @@ def plot_cycle_comparison(collision_type="link"):
     data = {}
     scenes = None
 
-    print("Reading data files...")
+    print("正在读取数据文件...")
     # 读取数据
     for label, filename in files.items():
         filepath = os.path.join(result_dir, filename)
         if not os.path.exists(filepath):
-            print(f"Warning: File not found: {filepath}")
+            print(f"警告：未找到文件: {filepath}")
             continue
 
         try:
@@ -79,13 +74,13 @@ def plot_cycle_comparison(collision_type="link"):
                 scenes = current_scenes
             
             data[label] = df["Total_Cycles"].tolist()
-            print(f"Loaded {label}: {len(df)} records")
+            print(f"已加载 {label}: {len(df)} 条记录")
 
         except Exception as e:
-            print(f"Error reading {filename}: {e}")
+            print(f"读取 {filename} 时出错: {e}")
 
     if not data or scenes is None:
-        print("No data or scenes loaded. Exiting.")
+        print("未加载到数据或场景，退出。")
         return
 
     x = np.arange(len(scenes))
@@ -94,12 +89,12 @@ def plot_cycle_comparison(collision_type="link"):
 
     # 从 Seaborn 调色板获取颜色
     palette = sns.color_palette()
-    # 映射策略到颜色：Dual 使用红色系，Multi 使用绿色系
+    # 映射策略到颜色：共享双端口SRAM使用红色系，分布式多Bank SRAM使用绿色系
     colors_map = {
-        "Dual Port (Pred=1)": palette[3],  # Red
-        "Dual Port (Pred=2)": sns.light_palette(palette[3], n_colors=3)[1],
-        "Multi-Bank (Pred=1)": palette[2],  # Green
-        "Multi-Bank (Pred=2)": sns.light_palette(palette[2], n_colors=3)[1],
+        "共享双端口SRAM（预测通道数=1）": palette[3],
+        "共享双端口SRAM（预测通道数=2）": sns.light_palette(palette[3], n_colors=3)[1],
+        "分布式多Bank SRAM（预测通道数=1）": palette[2],
+        "分布式多Bank SRAM（预测通道数=2）": sns.light_palette(palette[2], n_colors=3)[1],
     }
 
     fig, ax = plt.subplots(figsize=(14, 8))
@@ -111,10 +106,10 @@ def plot_cycle_comparison(collision_type="link"):
                color=colors_map.get(strategy_name, palette[7]), 
                edgecolor='black', linewidth=1, alpha=0.85)
 
-    # 标注 Dual Port (Pred=1) 与 Multi-Bank (Pred=2) 之间的差距
-    if "Dual Port (Pred=1)" in data and "Multi-Bank (Pred=2)" in data:
-        dp1 = data["Dual Port (Pred=1)"]
-        mb2 = data["Multi-Bank (Pred=2)"]
+    # 标注共享双端口SRAM（预测通道数=1）与分布式多Bank SRAM（预测通道数=2）之间的差距
+    if "共享双端口SRAM（预测通道数=1）" in data and "分布式多Bank SRAM（预测通道数=2）" in data:
+        dp1 = data["共享双端口SRAM（预测通道数=1）"]
+        mb2 = data["分布式多Bank SRAM（预测通道数=2）"]
 
         for idx in range(len(scenes)):
             reduction_pct = (dp1[idx] - mb2[idx]) / dp1[idx] * 100 if dp1[idx] > 0 else 0
@@ -125,11 +120,9 @@ def plot_cycle_comparison(collision_type="link"):
                         bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor="darkgreen", alpha=0.8))
 
     # 设置标签和标题
-    ax.set_ylabel("Total Cycles")
-    ax.set_xlabel("Scenario")
-    ax.set_title(
-        f"Multi-COPU Strategy Comparison ({collision_type.capitalize()}): Cycle Count Across Scenes"
-    )
+    ax.set_ylabel("总周期数")
+    ax.set_xlabel("场景")
+    ax.set_title(f"多COPU策略对比（{collision_type}）：各场景周期数")
 
     # 设置X轴刻度
     ax.set_xticks(x)
@@ -144,15 +137,15 @@ def plot_cycle_comparison(collision_type="link"):
 
     plt.tight_layout()
     output_path = os.path.join(
-        current_dir, f"figs/cycle_comparison_strategies_{collision_type}.png"
+        current_dir, f"figs/cycle_comparison_strategies_{collision_type}.pdf"
     )
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     plt.savefig(output_path, dpi=300)
-    print(f"Plot saved to {output_path}")
+    print(f"图表已保存至 {output_path}")
 
 
 def plot_prediction_impact_comparison(collision_type="link"):
-    """对比 Dual Port (Pred=1) 和 Dual Port (Pred=2) 的性能差异"""
+    """对比共享双端口SRAM（预测通道数=1）和共享双端口SRAM（预测通道数=2）的性能差异"""
     current_dir = os.path.dirname(os.path.abspath(__file__))
     result_dir = os.path.join(current_dir, "../result_files")
 
@@ -187,11 +180,11 @@ def plot_prediction_impact_comparison(collision_type="link"):
     colors = [palette[0], palette[1]]
 
     for ax, data_dict, title, ylabel in zip([ax1, ax2], [cycles_data, queries_data], 
-                                            ["Total Cycles", "Total Queries"], ["Cycles", "Queries"]):
+                                            ["总周期数", "总查询数"], ["周期数", "查询数"]):
         for i, (label, vals) in enumerate(data_dict.items()):
             ax.bar(x + (i-0.5)*width, vals, width, label=label, color=colors[i], edgecolor='black', alpha=0.8)
         
-        ax.set_title(f"{title} ({collision_type.capitalize()})")
+        ax.set_title(f"{title}（{collision_type}）")
         ax.set_ylabel(ylabel)
         ax.set_xticks(x)
         ax.set_xticklabels(scenes)
@@ -201,20 +194,20 @@ def plot_prediction_impact_comparison(collision_type="link"):
 
     plt.tight_layout()
     output_path = os.path.join(
-        current_dir, f"figs/prediction_impact_comparison_{collision_type}.png"
+        current_dir, f"figs/prediction_impact_comparison_{collision_type}.pdf"
     )
     plt.savefig(output_path, dpi=300)
-    print(f"Plot saved to {output_path}")
+    print(f"图表已保存至 {output_path}")
 
 
 def plot_cht_cycles_conflicts_comparison(collision_type="link"):
-    """比较 Dual Port (Pred=1) 和 Multi-Bank (Pred=1) 的 Total_Cycles 与 Conflicts 指标"""
+    """比较共享双端口SRAM（预测通道数=1）和分布式多Bank SRAM（预测通道数=1）的总周期与冲突指标"""
     current_dir = os.path.dirname(os.path.abspath(__file__))
     result_dir = os.path.join(current_dir, "../result_files")
 
     files = {
-        "Dual Port (Pred=1)": f"dual_port_pred1_{collision_type}_results.csv",
-        "Multi-Bank (Pred=1)": f"multi_bank_pred1_{collision_type}_results.csv",
+        "共享双端口SRAM（预测通道数=1）": f"dual_port_pred1_{collision_type}_results.csv",
+        "分布式多Bank SRAM（预测通道数=1）": f"multi_bank_pred1_{collision_type}_results.csv",
     }
 
     cycles = {}
@@ -243,11 +236,11 @@ def plot_cht_cycles_conflicts_comparison(collision_type="link"):
     palette = sns.color_palette()
     
     for ax, data_dict, title, ylabel in zip([ax1, ax2], [cycles, conflicts], 
-                                            ["Total Cycles", "Conflicts"], ["Count", "Count"]):
+                                            ["总周期数", "冲突数"], ["数量", "数量"]):
         for i, (label, vals) in enumerate(data_dict.items()):
             ax.bar(x + (i-0.5)*width, vals, width, label=label, color=palette[i], edgecolor='black', alpha=0.8)
         
-        ax.set_title(f"{title} ({collision_type.capitalize()})")
+        ax.set_title(f"{title}（{collision_type}）")
         ax.set_ylabel(ylabel)
         ax.set_xticks(x)
         ax.set_xticklabels(scenes)
@@ -257,10 +250,10 @@ def plot_cht_cycles_conflicts_comparison(collision_type="link"):
 
     plt.tight_layout()
     output_path = os.path.join(
-        current_dir, f"figs/cht_cycles_conflicts_comparison_pred1_{collision_type}.png"
+        current_dir, f"figs/cht_cycles_conflicts_comparison_pred1_{collision_type}.pdf"
     )
     plt.savefig(output_path, dpi=300)
-    print(f"Plot saved to {output_path}")
+    print(f"图表已保存至 {output_path}")
 
 
 if __name__ == "__main__":

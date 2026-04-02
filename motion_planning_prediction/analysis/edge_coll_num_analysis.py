@@ -138,7 +138,7 @@ def print_stats(
 
         # 保存图表
         filename = (
-            f"result_files/edge_coll_check_distribution_{collision_type.lower()}.png"
+            f"result_files/edge_coll_check_distribution_{collision_type.lower()}.pdf"
         )
         plt.savefig(filename, dpi=300, bbox_inches="tight")
         plt.show()

@@ -38,7 +38,7 @@ Usage Example:
     plotter.plot_variable_analysis(
         variable='Threshold',
         fixed_params={'Density': 'dens6', 'QuantBits': 4, 'SampleRate': 1.0},
-        output_file='threshold_analysis.png'
+        output_file='threshold_analysis.pdf'
     )
 
     # Example 2: Compare different densities
@@ -46,7 +46,7 @@ Usage Example:
         x_variable='Threshold',
         group_variable='Density',
         fixed_params={'QuantBits': 4, 'SampleRate': 1.0},
-        output_file='density_comparison.png'
+        output_file='density_comparison.pdf'
     )
 """
 
@@ -450,7 +450,7 @@ def main():
     plotter.plot_variable_analysis(
         variable="Threshold",
         fixed_params={"Density": "dens6", "QuantBits": 4, "SampleRate": 1.0},
-        output_file=f"{output_dir}/threshold_analysis.png",
+        output_file=f"{output_dir}/threshold_analysis.pdf",
         show_plot=False,
     )
 
@@ -462,7 +462,7 @@ def main():
     plotter.plot_variable_analysis(
         variable="QuantBits",
         fixed_params={"Density": "dens6", "Threshold": 0.125, "SampleRate": 1.0},
-        output_file=f"{output_dir}/quantbits_analysis.png",
+        output_file=f"{output_dir}/quantbits_analysis.pdf",
         show_plot=False,
     )
 
@@ -475,7 +475,7 @@ def main():
         x_variable="Threshold",
         group_variable="Density",
         fixed_params={"QuantBits": 4, "SampleRate": 1.0},
-        output_file=f"{output_dir}/threshold_vs_density.png",
+        output_file=f"{output_dir}/threshold_vs_density.pdf",
         show_plot=False,
     )
 
@@ -488,7 +488,7 @@ def main():
         x_variable="Threshold",
         group_variable="QuantBits",
         fixed_params={"Density": "dens6", "SampleRate": 1.0},
-        output_file=f"{output_dir}/threshold_vs_quantbits.png",
+        output_file=f"{output_dir}/threshold_vs_quantbits.pdf",
         show_plot=False,
     )
 

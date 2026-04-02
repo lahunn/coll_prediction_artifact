@@ -139,6 +139,13 @@ def run_multi_copu_simulation(
         "num_edges": len(all_data),
         "avg_copu_utilization": avg_copu_utilization,
         "total_cht_conflicts": cht_conflicts,
+        "total_wait_cycles": result.get("total_wait_cycles", 0),
+        "avg_wait_cycles": result.get("avg_wait_cycles", 0.0),
+        "dead_avg_ratio": (
+            (result.get("total_wait_cycles", 0) / result["total_cycles"] * 100.0)
+            if result["total_cycles"] > 0
+            else 0.0
+        ),
         "collision_found": result["collision_found"],
         "num_collisions": num_collisions,
         "num_safe": num_safe,
@@ -276,6 +283,8 @@ def run_benchmark_range_simulation(
     total_cht_conflicts_all = 0
     total_collisions_all = 0
     total_safe_all = 0
+    total_wait_cycles_all = 0
+    total_wait_samples_all = 0
     all_copu_utils_all = []
     num_benchmarks_processed = 0
 
@@ -319,6 +328,8 @@ def run_benchmark_range_simulation(
         total_cht_conflicts_all += result.get("total_cht_conflicts", 0)
         total_collisions_all += result.get("num_collisions", 0)
         total_safe_all += result.get("num_safe", 0)
+        total_wait_cycles_all += result.get("total_wait_cycles", 0)
+        total_wait_samples_all += result.get("num_edges", 0)
 
         # 累计COPU占用率样本
         if "copu_utilizations" in result:
@@ -329,6 +340,11 @@ def run_benchmark_range_simulation(
     # 计算全局平均COPU占用率
     avg_copu_utilization_all = (
         sum(all_copu_utils_all) / len(all_copu_utils_all) if all_copu_utils_all else 0.0
+    )
+    avg_wait_cycles_all = (
+        total_wait_cycles_all / total_wait_samples_all
+        if total_wait_samples_all > 0
+        else 0.0
     )
 
     # 构建批量仿真结果
@@ -341,6 +357,13 @@ def run_benchmark_range_simulation(
         "total_queries": total_queries_all,
         "avg_copu_utilization": avg_copu_utilization_all,
         "total_cht_conflicts": total_cht_conflicts_all,
+        "total_wait_cycles": total_wait_cycles_all,
+        "avg_wait_cycles": avg_wait_cycles_all,
+        "dead_avg_ratio": (
+            (total_wait_cycles_all / total_cycles_all * 100.0)
+            if total_cycles_all > 0
+            else 0.0
+        ),
         "num_collisions": total_collisions_all,
         "num_safe": total_safe_all,
     }
@@ -381,6 +404,8 @@ def print_results(results, is_range=False):
 
     print(f"  平均COPU占用率: {results.get('avg_copu_utilization', 0.0):.2%}")
     print(f"  CHT冲突数: {results.get('total_cht_conflicts', 0)}")
+    print(f"  平均等待周期: {results.get('avg_wait_cycles', 0.0):.4f}")
+    print(f"  Dead Time Avg Ratio Per Edge: {results.get('dead_avg_ratio', 0.0):.4f}%")
 
     # 输出CHT访问统计信息（统一格式：各Bank访问数 + 总读/写计数）
     if "cht_stats" in results:

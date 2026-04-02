@@ -78,9 +78,9 @@ if coll_check_counts:
     plt.grid(True, alpha=0.3)
 
     # 保存图表
-    plt.savefig('result_files/edge_coll_check_distribution.png', dpi=300, bbox_inches='tight')
+    plt.savefig('result_files/edge_coll_check_distribution.pdf', dpi=300, bbox_inches='tight')
     plt.show()
 
-    print("\n分布图已保存到: result_files/edge_coll_check_distribution.png")
+    print("\n分布图已保存到: result_files/edge_coll_check_distribution.pdf")
 else:
     print("未找到有效的碰撞数据")

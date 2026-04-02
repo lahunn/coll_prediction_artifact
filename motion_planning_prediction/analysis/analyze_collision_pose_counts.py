@@ -165,7 +165,7 @@ def main():
         result_dir = os.path.join(os.path.dirname(__file__), 'result_files')
         if not os.path.exists(result_dir):
             os.makedirs(result_dir)
-        out_path = os.path.join(result_dir, 'pose_count_distribution.png')
+        out_path = os.path.join(result_dir, 'pose_count_distribution.pdf')
         plt.tight_layout()
         plt.savefig(out_path)
         print(f"Saved histogram to {out_path}")

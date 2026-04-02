@@ -110,7 +110,7 @@ def plot_cdu_performance_bottleneck():
     plt.tight_layout()
     
     # Save the figure
-    output_path = os.path.join(base_dir, 'figs/chapter4_4/cdu_performance_bottleneck.png')
+    output_path = os.path.join(base_dir, 'figs/chapter4_4/cdu_performance_bottleneck.pdf')
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     plt.savefig(output_path, dpi=300)
     print(f"Figure saved to {output_path}")

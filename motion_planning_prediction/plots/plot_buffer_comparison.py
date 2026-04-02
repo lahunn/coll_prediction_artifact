@@ -192,7 +192,7 @@ def plot_comparison(model_type):
 
     plt.tight_layout()
 
-    output_path = os.path.join(base_dir, f"figs/buffer_comparison_{model_type}.png")
+    output_path = os.path.join(base_dir, f"figs/buffer_comparison_{model_type}.pdf")
     # 确保figs目录存在
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 

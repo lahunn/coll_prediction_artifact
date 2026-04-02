@@ -114,6 +114,7 @@ def simulate_parallel_collision_detection_sphere(
     qcoll_len=DEFAULT_QCOLL_LEN,
     cycle_check=DEFAULT_CYCLE_CHECK,
     num_oocds=NUM_OOCDS,
+    collect_deadtime=False,
 ):
     """
     模拟并行的碰撞检测过程，每次预测时对属于同一link的所有sphere都进行预测。
@@ -133,6 +134,7 @@ def simulate_parallel_collision_detection_sphere(
     everything_free = 0
     query_count = 0.0
     total_idle_cycles = 0
+    first_dispatch_cycle = None
 
     while not coll_found and not everything_free:
         query_count, coll_found, cdu_idle_this_cycle = process_oocds(
@@ -150,6 +152,12 @@ def simulate_parallel_collision_detection_sphere(
             qnoncoll_len,
         )
         total_idle_cycles += cdu_idle_this_cycle
+
+        # Dead-time metric: first cycle when any CDU starts processing this edge.
+        if first_dispatch_cycle is None and any(
+            oocd.busy == 1 and oocd.free_cycle > cycle for oocd in oocds
+        ):
+            first_dispatch_cycle = cycle
 
         # 使用enqueue_predictions_by_link：对同一link的所有sphere一起预测
         enqueue_predictions_by_link(
@@ -187,6 +195,18 @@ def simulate_parallel_collision_detection_sphere(
         1.0 - (total_idle_cycles / (cycle * num_oocds)) if cycle > 0 else 0.0
     )
 
+    dead_cycles = first_dispatch_cycle if first_dispatch_cycle is not None else cycle
+    dead_ratio = (dead_cycles / cycle) if cycle > 0 else 0.0
+
+    if collect_deadtime:
+        deadtime_stats = {
+            "issue_cycle": 0,
+            "first_dispatch_cycle": first_dispatch_cycle,
+            "dead_cycles": dead_cycles,
+            "dead_ratio": dead_ratio,
+        }
+        return query_count, colldict, coll_found, cycle, oocd_utilization, deadtime_stats
+
     return query_count, colldict, coll_found, cycle, oocd_utilization
 
 
@@ -204,6 +224,7 @@ def simulate_parallel_collision_detection_link(
     qcoll_len=DEFAULT_QCOLL_LEN,
     cycle_check=DEFAULT_CYCLE_CHECK,
     num_oocds=NUM_OOCDS,
+    collect_deadtime=False,
 ):
     """Parallel collision simulation with link-level prediction enqueue and per-sphere dispatch."""
     oocds = [OOCDState() for _ in range(num_oocds)]
@@ -218,6 +239,7 @@ def simulate_parallel_collision_detection_link(
     everything_free = 0
     query_count = 0.0
     total_idle_cycles = 0
+    first_dispatch_cycle = None
 
     while not coll_found and not everything_free:
         query_count, coll_found, cdu_idle_this_cycle = process_oocds_link(
@@ -236,6 +258,12 @@ def simulate_parallel_collision_detection_link(
             qnoncoll_len,
         )
         total_idle_cycles += cdu_idle_this_cycle
+
+        # Dead-time metric: first cycle when any CDU starts processing this edge.
+        if first_dispatch_cycle is None and any(
+            oocd.busy == 1 and oocd.free_cycle > cycle for oocd in oocds
+        ):
+            first_dispatch_cycle = cycle
 
         enqueue_link_predictions(
             pred.linklist,
@@ -272,6 +300,18 @@ def simulate_parallel_collision_detection_link(
     oocd_utilization = (
         1.0 - (total_idle_cycles / (cycle * num_oocds)) if cycle > 0 else 0.0
     )
+
+    dead_cycles = first_dispatch_cycle if first_dispatch_cycle is not None else cycle
+    dead_ratio = (dead_cycles / cycle) if cycle > 0 else 0.0
+
+    if collect_deadtime:
+        deadtime_stats = {
+            "issue_cycle": 0,
+            "first_dispatch_cycle": first_dispatch_cycle,
+            "dead_cycles": dead_cycles,
+            "dead_ratio": dead_ratio,
+        }
+        return query_count, colldict, coll_found, cycle, oocd_utilization, deadtime_stats
 
     return query_count, colldict, coll_found, cycle, oocd_utilization
 

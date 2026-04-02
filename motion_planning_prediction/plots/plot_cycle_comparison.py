@@ -118,7 +118,7 @@ plt.legend()
 
 plt.tight_layout()
 plt.savefig(
-    "figs/cycle_comparison_link_vs_sphere.png",
+    "figs/cycle_comparison_link_vs_sphere.pdf",
     dpi=300,
     bbox_inches="tight",
 )
@@ -134,4 +134,4 @@ for level, link_c, sphere_c in zip(difficulty_levels, link_cycles, sphere_cycles
     status = "Sphere faster" if sphere_c < link_c else "LINK faster"
     print(f"{level:5} | {link_c:10,} | {sphere_c:12,} | {diff:10,} | {pct_diff:6.1f}% ({status})")
 
-print("\nPlot saved as: figs/cycle_comparison_link_vs_sphere.png")
+print("\nPlot saved as: figs/cycle_comparison_link_vs_sphere.pdf")

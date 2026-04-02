@@ -1,41 +1,32 @@
+#!/usr/bin/env python3
 import math
 import sys
-
+import os
+import matplotlib
 import matplotlib.pylab as plt
 import seaborn as sns
 import numpy as np
 import pandas as pd
-import matplotlib
+import matplotlib.font_manager as fm
+from matplotlib.ticker import LogLocator, ScalarFormatter
 
 # --- 统一绘图风格配置 ---
 sns.set_theme(style="whitegrid")
-plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
-plt.rcParams['axes.unicode_minus'] = False
-plt.rcParams['font.size'] = 12
-colors = sns.color_palette("deep")
-#!/usr/bin/env python3
-sns.set_theme(style="whitegrid")
-plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
-plt.rcParams['axes.unicode_minus'] = False
-plt.rcParams['font.size'] = 12
-colors = sns.color_palette("deep")
-.pyplot as plt
-import os
-# 统一绘图样式
-sns.set_theme(style="whitegrid")
-plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
-plt.rcParams['axes.unicode_minus'] = False
-plt.rcParams['font.size'] = 12
-colors = sns.color_palette("deep")
-
-
-matplotlib.rcParams["pdf.fonttype"] = 42
-matplotlib.rcParams["ps.fonttype"] = 42
-plt.style.use("seaborn-v0_8-white")
 sns.set_style("white")
 sns.set_palette("colorblind")
 
+# 字体加载与配置
+font_path = os.path.expanduser("~/.local/share/fonts/simsun.ttc")
+if os.path.exists(font_path):
+    fm.fontManager.addfont(font_path)
 
+plt.rcParams.update({
+    'font.sans-serif': ['SimSun', 'NSimSun', 'STSong', 'Songti SC', 'Noto Sans CJK SC', 'WenQuanYi Micro Hei', 'Droid Sans Fallback', 'Arial Unicode MS', 'sans-serif'],
+    'axes.unicode_minus': False,
+    'font.size': 12,
+    'pdf.fonttype': 42,
+    'ps.fonttype': 42
+})
 
 # 统一配色方案（使用 seaborn colorblind 调色板）
 palette = sns.color_palette("colorblind")
@@ -76,6 +67,7 @@ def extract_metrics(df, difficulties):
     sphere_utilization = []
     link_utilization = []
     total_checks = []
+    baseline_cycles = []
 
     for diff in difficulties:
         s_row = df[(df["Difficulty"] == diff) & (df["Strategy"] == "sphere_coord")]
@@ -124,15 +116,16 @@ def extract_metrics(df, difficulties):
         )
 
         # Total_Checks 作为基线（优先从 sphere 行取值，其次 link 行）
+        current_checks = 0
         if "Total_Checks" in df.columns:
             if not s_row.empty and "Total_Checks" in s_row.columns:
-                total_checks.append(s_row["Total_Checks"].values[0])
+                current_checks = s_row["Total_Checks"].values[0]
             elif not l_row.empty and "Total_Checks" in l_row.columns:
-                total_checks.append(l_row["Total_Checks"].values[0])
-            else:
-                total_checks.append(0)
-        else:
-            total_checks.append(0)
+                current_checks = l_row["Total_Checks"].values[0]
+        
+        total_checks.append(current_checks)
+        # 估算基准周期: (Checks * Cost) / Num_OOCDs = (Checks * 15) / 8
+        baseline_cycles.append((current_checks * 15) / 8)
 
     return (
         sphere_cycles,
@@ -144,6 +137,7 @@ def extract_metrics(df, difficulties):
         link_utilization,
         oracle_cycles,
         total_checks,
+        baseline_cycles,
     )
 
 
@@ -177,47 +171,55 @@ def autolabel(rects, labels=None):
         )
 
 
-def plot_total_prediction_cycles(difficulties, link_cycles, sphere_cycles, oracle_cycles):
+def plot_total_prediction_cycles(difficulties, link_cycles, sphere_cycles, oracle_cycles, baseline_cycles):
     x = np.arange(len(difficulties))
-    width = 0.25
+    width = 0.2
 
-    plt.figure(figsize=(10, 6))
-    rects1 = plt.bar(
-        x - width, link_cycles, width, label="Link-based", color=LINK_COLOR
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    # 在对数坐标系下无法显示0，给极小值添加轻微抬升避免警告
+    min_positive = 1.0
+    safe_baseline = [max(v, min_positive) for v in baseline_cycles]
+    safe_link = [max(v, min_positive) for v in link_cycles]
+    safe_sphere = [max(v, min_positive) for v in sphere_cycles]
+    safe_oracle = [max(v, min_positive) for v in oracle_cycles]
+
+    rects0 = ax.bar(
+        x - 1.5 * width, safe_baseline, width, label="基准检测周期", color=BASELINE_COLOR
     )
-    rects2 = plt.bar(
-        x, sphere_cycles, width, label="Sphere-based", color=SPHERE_COLOR
+    rects1 = ax.bar(
+        x - 0.5 * width, safe_link, width, label="连杆级", color=LINK_COLOR
     )
-    rects3 = plt.bar(
-        x + width,
-        oracle_cycles,
+    rects2 = ax.bar(
+        x + 0.5 * width, safe_sphere, width, label="球体级", color=SPHERE_COLOR
+    )
+    rects3 = ax.bar(
+        x + 1.5 * width,
+        safe_oracle,
         width,
-        label="Oracle (ideal)",
+        label="理想情况",
         color="none",
         edgecolor=ORACLE_COLOR,
         hatch="//",
         linewidth=1.5,
     )
 
-    plt.xlabel("Difficulty Level")
-    plt.ylabel("Total Prediction Cycles")
-    plt.xticks(x, difficulties)
-    plt.legend()
-
-    for i in range(len(difficulties)):
-        l_val = link_cycles[i]
-        s_val = sphere_cycles[i]
-        if l_val > 0:
-            diff_pct = (s_val - l_val) / l_val * 100
-            max_height = max(l_val, s_val)
-            text_color = "black"
-            sign = "+" if diff_pct > 0 else ""
-            place_diff_label(
-                plt.gca(), i, max_height, f"{sign}{diff_pct:.1f}%", text_color
-            )
+    ax.set_xlabel("难度等级")
+    ax.set_ylabel("总预测周期 (对数尺度)")
+    ax.set_xticks(x)
+    ax.set_xticklabels(difficulties)
+    ax.set_yscale("log")
+    
+    # 增加主次刻度，提升读数可读性
+    ax.yaxis.set_major_locator(LogLocator(base=10.0))
+    ax.yaxis.set_minor_locator(LogLocator(base=10.0, subs=(np.arange(2, 10) * 0.1).tolist()))
+    ax.yaxis.set_major_formatter(ScalarFormatter())
+    ax.tick_params(axis="y", which="major", length=6)
+    ax.tick_params(axis="y", which="minor", length=3)
+    ax.legend()
 
     plt.tight_layout()
-    output_path = os.path.join(output_dir, f"cycle_comparison_sphere_link{algorithm_tag}.png")
+    output_path = os.path.join(output_dir, f"cycle_comparison_sphere_link{algorithm_tag}.pdf")
     plt.savefig(output_path)
     print(f"Plot saved to {output_path}")
 
@@ -234,13 +236,13 @@ def plot_total_prediction_queries(
     # 构建按顺序的系列：[Baseline, Link, Sphere, Oracle]
     series = []
     if baseline_available:
-        series.append(("Baseline Checks", total_checks, BASELINE_COLOR, {}))
-    series.append(("Link-based", link_queries, LINK_COLOR, {}))
-    series.append(("Sphere-based", sphere_queries, SPHERE_COLOR, {}))
+        series.append(("基准检测次数", total_checks, BASELINE_COLOR, {}))
+    series.append(("连杆级", link_queries, LINK_COLOR, {}))
+    series.append(("球体级", sphere_queries, SPHERE_COLOR, {}))
     if oracle_available:
         series.append(
             (
-                "Oracle (ideal)",
+                "理想情况",
                 oracle_queries,
                 "none",
                 {"edgecolor": ORACLE_COLOR, "hatch": "//", "linewidth": 1.5},
@@ -267,8 +269,8 @@ def plot_total_prediction_queries(
         rects = ax.bar(x + dx, safe_values, width, label=label, color=color, **kw)
         rects_map[label] = rects
 
-    ax.set_xlabel("Difficulty Level")
-    ax.set_ylabel("Total Prediction Queries (Log Scale)")
+    ax.set_xlabel("难度等级")
+    ax.set_ylabel("总预测查询次数 (对数尺度)")
     ax.set_xticks(x)
     ax.set_xticklabels(difficulties)
     ax.set_yscale("log")
@@ -281,10 +283,8 @@ def plot_total_prediction_queries(
     ax.legend()
     # grid removed per project style
 
-    # 移除相对 Baseline 的百分比标注，保持图面简洁
-
     plt.tight_layout()
-    output_path = os.path.join(output_dir, f"query_comparison_sphere_link{algorithm_tag}.png")
+    output_path = os.path.join(output_dir, f"query_comparison_sphere_link{algorithm_tag}.pdf")
     plt.savefig(output_path)
     print(f"Plot saved to {output_path}")
 
@@ -295,64 +295,23 @@ def plot_oocd_utilization(difficulties, link_utilization, sphere_utilization):
 
     plt.figure(figsize=(10, 6))
     rects5 = plt.bar(
-        x - width / 2, link_utilization, width, label="Link-based", color=LINK_COLOR
+        x - width / 2, link_utilization, width, label="连杆级", color=LINK_COLOR
     )
     rects6 = plt.bar(
         x + width / 2,
         sphere_utilization,
         width,
-        label="Sphere-based",
+        label="球体级",
         color=SPHERE_COLOR,
     )
 
-    plt.xlabel("Difficulty Level")
-    plt.ylabel("OOCD Utilization (%)")
+    plt.xlabel("难度等级")
+    plt.ylabel("OOCD 利用率 (%)")
     plt.xticks(x, difficulties)
     plt.legend()
 
-    for rect in rects5:
-        height = rect.get_height()
-        plt.annotate(
-            f"{height:.1f}%",
-            xy=(rect.get_x() + rect.get_width() / 2, height),
-            xytext=(0, 3),
-            textcoords="offset points",
-            ha="center",
-            va="bottom",
-            fontsize=8,
-        )
-
-    for rect in rects6:
-        height = rect.get_height()
-        plt.annotate(
-            f"{height:.1f}%",
-            xy=(rect.get_x() + rect.get_width() / 2, height),
-            xytext=(0, 3),
-            textcoords="offset points",
-            ha="center",
-            va="bottom",
-            fontsize=8,
-        )
-
-    for i in range(len(difficulties)):
-        l_val = link_utilization[i]
-        s_val = sphere_utilization[i]
-        if l_val > 0:
-            diff_pct = s_val - l_val
-            max_height = max(l_val, s_val)
-            text_color = "green" if diff_pct > 0 else "red"
-            sign = "+" if diff_pct > 0 else ""
-            place_diff_label(
-                plt.gca(),
-                i,
-                max_height,
-                f"{sign}{diff_pct:.1f}pp",
-                text_color,
-                pixel_offset=10,
-            )
-
     plt.tight_layout()
-    output_path = os.path.join(output_dir, f"utilization_comparison_sphere_link{algorithm_tag}.png")
+    output_path = os.path.join(output_dir, f"utilization_comparison_sphere_link{algorithm_tag}.pdf")
     plt.savefig(output_path)
     print(f"Plot saved to {output_path}")
 
@@ -375,9 +334,10 @@ def main():
         link_utilization,
         oracle_cycles,
         total_checks,
+        baseline_cycles,
     ) = extract_metrics(df, difficulties)
 
-    plot_total_prediction_cycles(difficulties, link_cycles, sphere_cycles, oracle_cycles)
+    plot_total_prediction_cycles(difficulties, link_cycles, sphere_cycles, oracle_cycles, baseline_cycles)
     plot_total_prediction_queries(
         difficulties, link_queries, sphere_queries, total_checks, oracle_queries
     )

@@ -6,6 +6,7 @@ import seaborn as sns
 import numpy as np
 import pandas as pd
 import matplotlib
+from matplotlib.ticker import FuncFormatter
 
 # --- 统一绘图风格配置 ---
 sns.set_theme(style="whitegrid")
@@ -19,8 +20,8 @@ Figure 2: 集中式与无冲突存储架构的性能对比
 绘制柱状图，展示 Shared Dual-Port SRAM 与 Conflict-Free SRAM 的总周期数对比。
 
 数据来源:
-- result_files/shared_dual_port_results.csv (Shared)
-- result_files/no_conflict_results.csv (No-Conflict)
+- result_files/shared_dual_port_sphere_results.csv (Shared)
+- result_files/no_conflict_sphere_results.csv (No-Conflict)
 """
 
 import os
@@ -61,8 +62,8 @@ def plot_conflict_impact():
     result_dir = os.path.join(base_dir, "../result_files")
     
     # 文件路径
-    shared_file = os.path.join(result_dir, "shared_dual_port_results.csv")
-    nc_file = os.path.join(result_dir, "no_conflict_results.csv")
+    shared_file = os.path.join(result_dir, "shared_dual_port_sphere_results.csv")
+    nc_file = os.path.join(result_dir, "no_conflict_sphere_results.csv")
     
     df_shared = load_data(shared_file)
     df_nc = load_data(nc_file)
@@ -81,38 +82,24 @@ def plot_conflict_impact():
     x = np.arange(len(scenes))
     width = 0.35
     
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(10, 3))
     
     # 从 Seaborn 调色板获取颜色
     colors = sns.color_palette()
     shared_color = colors[0]
     nc_color = colors[1]
     
-    # 绘制 Shared
-    rects1 = ax.bar(x - width/2, cycles_shared, width, label='Shared Dual-Port SRAM', 
+    # 绘制共享双端口
+    rects1 = ax.bar(x - width/2, cycles_shared, width, label='共享双端口SRAM', 
                     color=shared_color, edgecolor='black', alpha=0.85)
     
-    # 绘制 No-Conflict
-    rects2 = ax.bar(x + width/2, cycles_nc, width, label='Conflict-Free SRAM', 
+    # 绘制无冲突存储
+    rects2 = ax.bar(x + width/2, cycles_nc, width, label='理想无冲突情况', 
                     color=nc_color, edgecolor='black', alpha=0.85)
-    
-    # 添加数值和差异标注
-    for i in range(len(scenes)):
-        shared = cycles_shared.iloc[i]
-        nc = cycles_nc.iloc[i]
-        
-        # 计算差异百分比 (Shared比No-Conflict慢多少)
-        overhead = (shared - nc) / nc * 100
-        
-        # 在 Shared 柱子上标注 Overhead
-        if overhead > 1.0: # 忽略微小差异
-            ax.text(i - width/2, shared * 1.02, f"+{overhead:.1f}%", 
-                    ha='center', va='bottom', fontsize=10, 
-                    color=shared_color, fontweight='bold')
             
-    ax.set_ylabel('Total Simulation Cycles')
-    ax.set_xlabel('Benchmark Scenario')
-    ax.set_title('Performance Impact of Memory Conflicts: Shared vs Conflict-Free')
+    ax.set_ylabel('总运行周期数')
+    ax.set_xlabel('基准测试场景')
+    ax.set_title('存储冲突的性能影响')
     ax.set_xticks(x)
     ax.set_xticklabels(scenes)
     ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{int(y):,}"))
@@ -126,10 +113,10 @@ def plot_conflict_impact():
     
     plt.tight_layout()
     
-    output_path = os.path.join(base_dir, "figs/fig4_2_conflict_impact.png")
+    output_path = os.path.join(base_dir, "figs/fig_conflict_impact.pdf")
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     plt.savefig(output_path, dpi=300)
-    print(f"Figure 2 saved to {output_path}")
+    print(f"图表已保存至: {output_path}")
 
 if __name__ == "__main__":
     plot_conflict_impact()

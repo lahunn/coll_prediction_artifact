@@ -49,19 +49,19 @@ bins = su.calculate_bins_from_workspace("iiwa", quant_bits)
 # --- Simulation Parameters from Command Line ---
 if len(sys.argv) < 9:
     print(
-        "Usage: python prediction_simulation_nDOF_double_buffer.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <benchmarks> <robot_name> <num_predictions> [collision_model_type] [num_dedicated_oocds]"
+        "Usage: python prediction_simulation_nDOF_double_buffer.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <benchmarks> <robot_name> <num_predictions> [collision_model_type] [num_dedicated_oocds] [num_oocds]"
     )
     print(
         "  <benchmarks> can be: a single number (5), a range (2-10), or total count (10)"
     )
     print(
-        "Example 1: python prediction_simulation_nDOF_double_buffer.py 0.5 0.1 8 ../../trace_files/scene_benchmarks/bit_collision_data iiwa_7 10 iiwa 2 link 2"
+        "Example 1: python prediction_simulation_nDOF_double_buffer.py 0.5 0.1 8 ../../trace_files/scene_benchmarks/bit_collision_data iiwa_7 10 iiwa 2 link 2 8"
     )
     print(
-        "Example 2: python prediction_simulation_nDOF_double_buffer.py 0.5 0.1 8 ../../trace_files/scene_benchmarks/bit_collision_data iiwa_7 5 iiwa 3 link 1"
+        "Example 2: python prediction_simulation_nDOF_double_buffer.py 0.5 0.1 8 ../../trace_files/scene_benchmarks/bit_collision_data iiwa_7 5 iiwa 3 link 1 8"
     )
     print(
-        "Example 3: python prediction_simulation_nDOF_double_buffer.py 0.5 0.1 8 ../../trace_files/scene_benchmarks/bit_collision_data iiwa_7 2-10 iiwa 4 link 3"
+        "Example 3: python prediction_simulation_nDOF_double_buffer.py 0.5 0.1 8 ../../trace_files/scene_benchmarks/bit_collision_data iiwa_7 2-10 iiwa 4 link 3 8"
     )
     sys.exit(1)
 
@@ -91,6 +91,14 @@ num_dedicated_oocds = 1
 if len(sys.argv) > 10:
     try:
         num_dedicated_oocds = int(sys.argv[10])
+    except ValueError:
+        pass
+
+# Optional: total num_oocds
+num_oocds = 8
+if len(sys.argv) > 11:
+    try:
+        num_oocds = int(sys.argv[11])
     except ValueError:
         pass
 
@@ -152,6 +160,7 @@ print(f"Number of Benchmarks: {num_benchmarks}")
 print(f"Robot: {robot_name}")
 print(f"Collision Model: {collision_model_type}")
 print(f"Number of Predictions: {num_predictions}")
+print(f"Total OOCDs: {num_oocds}")
 print(f"Dedicated OOCDs: {num_dedicated_oocds}")
 print("Architecture: Double Buffer (Bank A + Bank B)")
 print("=" * 50)
@@ -206,7 +215,7 @@ for benchid in tqdm(benchrange, desc="Processing benchmarks"):
 
     # 计算 Oracle 理论周期数
     bench_oracle_cycles = su.calculate_oracle_cycles_for_edges(
-        edge_link_coll_data, num_oocds=7, cycle_check=check_cost
+        edge_link_coll_data, num_oocds=num_oocds, cycle_check=check_cost
     )
     total_oracle_cycles += bench_oracle_cycles
 
@@ -225,7 +234,7 @@ for benchid in tqdm(benchrange, desc="Processing benchmarks"):
 
         # 计算Oracle的edge周期数
         oracle_edge_cycles = su.calculate_oracle_cycles(
-            edge_coll, num_oocds=7, cycle_check=check_cost
+            edge_coll, num_oocds=num_oocds, cycle_check=check_cost
         )
         if coll_found_oracle:
             total_oracle_coll_edge_cycles += oracle_edge_cycles
@@ -248,7 +257,7 @@ for benchid in tqdm(benchrange, desc="Processing benchmarks"):
             num_spheres_per_pose=num_spheres_per_pose,
             qnoncoll_len=qnoncoll_len * 4,
             cycle_check=check_cost,
-            num_oocds=7,
+            num_oocds=num_oocds,
             num_predictions=num_predictions,
             num_dedicated_oocds=num_dedicated_oocds,
         )
@@ -306,7 +315,7 @@ print(f"  Average Checks per Collision Edge: {avg_coll_edge_checks:.2f}")
 
 print(f"\n  Total CDU Idle Cycles: {total_cdu_idle_cycles}")
 print(
-    f"  Average CDU Utilization: {(1.0 - total_cdu_idle_cycles / (total_cycles * 7)) * 100:.2f}%"
+    f"  Average CDU Utilization: {(1.0 - total_cdu_idle_cycles / (total_cycles * num_oocds)) * 100:.2f}%"
 )
 
 # Calculate statistics for qcoll lengths

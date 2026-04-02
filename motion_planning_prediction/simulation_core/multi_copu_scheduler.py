@@ -72,11 +72,20 @@ class MultiCOPU_Scheduler:
         # [{'edge_idx': -1, 'finished': [False, False, ...]} for _ in range(num_predictions)]
         self.group_status = [
             [
-                {"edge_idx": -1, "finished": [False] * (self.copus_per_edge)}
+                {
+                    "edge_idx": -1,
+                    "finished": [False] * (self.copus_per_edge),
+                    "assign_cycle": 0,
+                    "first_dispatch_cycle": None,
+                }
                 for _ in range(num_predictions)
             ]
             for _ in range(self.num_groups)
         ]
+
+        # 等待周期统计：任务进入队列到首次CDU执行
+        self.total_wait_cycles = 0
+        self.total_wait_samples = 0
 
         # 原始数据存储
         self.all_data = []
@@ -92,11 +101,18 @@ class MultiCOPU_Scheduler:
         self.all_cycles = all_cycles
         self.edge_queue = deque(range(len(all_data)))
         self.edge_results = {}
+        self.total_wait_cycles = 0
+        self.total_wait_samples = 0
 
         # 重置组状态
         for i in range(self.num_groups):
             self.group_status[i] = [
-                {"edge_idx": -1, "finished": [False] * self.copus_per_edge}
+                {
+                    "edge_idx": -1,
+                    "finished": [False] * self.copus_per_edge,
+                    "assign_cycle": 0,
+                    "first_dispatch_cycle": None,
+                }
                 for _ in range(self.num_predictions)
             ]
 
@@ -142,6 +158,9 @@ class MultiCOPU_Scheduler:
                         copu_idx_in_group
                     ] = True
 
+            # 1.5 记录每个活跃edge首次被CDU执行的周期
+            self._update_first_dispatch_cycles()
+
             # 2. 检查组任务完成情况和碰撞情况
             for group_id in range(self.num_groups):
                 self._check_group_status(group_id)
@@ -180,6 +199,12 @@ class MultiCOPU_Scheduler:
             "copus": [copu.get_stats() for copu in self.copus],
             "cht_stats": self.cht_scheduler.cht.get_stats(),
             "edge_results": self.edge_results,
+            "total_wait_cycles": self.total_wait_cycles,
+            "avg_wait_cycles": (
+                self.total_wait_cycles / self.total_wait_samples
+                if self.total_wait_samples > 0
+                else 0.0
+            ),
         }
 
         return results
@@ -204,17 +229,28 @@ class MultiCOPU_Scheduler:
         self.group_status[group_id][prediction_idx] = {
             "edge_idx": edge_idx,
             "finished": [False] * self.copus_per_edge,
+            "assign_cycle": self.cycle,
+            "first_dispatch_cycle": None,
         }
 
     def _finish_task(self, group_id, prediction_idx, group_copus):
         """完成一个任务的处理：重置状态、停止COPU任务、重置OOCD、加载新任务"""
-        print(
-            f"current cycle: {self.cycle} - current edge idx: {self.group_status[group_id][prediction_idx]['edge_idx']}"
-        )
+        task_state = self.group_status[group_id][prediction_idx]
+        assign_cycle = task_state.get("assign_cycle", self.cycle)
+        first_dispatch_cycle = task_state.get("first_dispatch_cycle")
+        if first_dispatch_cycle is None:
+            wait_cycles = 0
+        else:
+            wait_cycles = max(0, first_dispatch_cycle - assign_cycle)
+        self.total_wait_cycles += wait_cycles
+        self.total_wait_samples += 1
+
         # 重置该prediction状态
         self.group_status[group_id][prediction_idx] = {
             "edge_idx": -1,
             "finished": [False] * self.copus_per_edge,
+            "assign_cycle": 0,
+            "first_dispatch_cycle": None,
         }
 
         # 停止组内所有COPU在该prediction的任务
@@ -233,6 +269,29 @@ class MultiCOPU_Scheduler:
         # 切换该组所有COPU到下一个prediction
         for c in group_copus:
             c.active_idx = (c.active_idx + 1) % self.num_predictions
+
+    def _update_first_dispatch_cycles(self):
+        """记录每个活跃edge首次有CDU开始执行的周期。"""
+        for group_id in range(self.num_groups):
+            for prediction_idx in range(self.num_predictions):
+                status = self.group_status[group_id][prediction_idx]
+                if status["edge_idx"] == -1 or status["first_dispatch_cycle"] is not None:
+                    continue
+
+                start_copu = group_id * self.copus_per_edge
+                group_copus = self.copus[start_copu : start_copu + self.copus_per_edge]
+
+                dispatched = False
+                for copu in group_copus:
+                    for oocd in copu.oocds:
+                        if oocd.busy == 1 and oocd.free_cycle > self.cycle:
+                            dispatched = True
+                            break
+                    if dispatched:
+                        break
+
+                if dispatched:
+                    status["first_dispatch_cycle"] = self.cycle
 
     def _check_group_status(self, group_id):
         """检查组内任务是否完成或发现碰撞，并管理active_idx"""

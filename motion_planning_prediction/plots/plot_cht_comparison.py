@@ -87,7 +87,7 @@ for i, metric in enumerate(metrics):
             ax.set_ylim(top=ax.get_ylim()[1] * 1.1)
 
 plt.tight_layout()
-output_path = os.path.join(os.path.dirname(__file__), 'figs/cht_comparison.png')
+output_path = os.path.join(os.path.dirname(__file__), 'figs/cht_comparison.pdf')
 os.makedirs(os.path.dirname(output_path), exist_ok=True)
 plt.savefig(output_path)
 print(f"Figure saved to {output_path}")

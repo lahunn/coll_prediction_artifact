@@ -39,7 +39,7 @@ colors = sns.color_palette("deep")
     plotter.plot_variable_analysis(
         variable='Threshold',
         fixed_params={'Density': 'dens6', 'CoordBits': 4, 'RadiusBits': 2, 'SampleRate': 1.0},
-        output_file='threshold_analysis.png'
+        output_file='threshold_analysis.pdf'
     )
 
     # 示例2: 对比不同密度下的表现
@@ -47,7 +47,7 @@ colors = sns.color_palette("deep")
         x_variable='Threshold',
         group_variable='Density',
         fixed_params={'CoordBits': 4, 'RadiusBits': 2, 'SampleRate': 1.0},
-        output_file='density_comparison.png'
+        output_file='density_comparison.pdf'
     )
 """
 
@@ -518,7 +518,7 @@ def main():
     #         "RadiusBits": 2,
     #         "SampleRate": 1.0,
     #     },
-    #     output_file=f"{output_dir}/threshold_analysis.png",
+    #     output_file=f"{output_dir}/threshold_analysis.pdf",
     #     show_plot=False,
     # )
 
@@ -535,7 +535,7 @@ def main():
     #         "Threshold": 0.5,
     #         "SampleRate": 1.0,
     #     },
-    #     output_file=f"{output_dir}/coordbits_analysis.png",
+    #     output_file=f"{output_dir}/coordbits_analysis.pdf",
     #     show_plot=False,
     # )
 
@@ -548,7 +548,7 @@ def main():
     #     x_variable="Threshold",
     #     group_variable="Density",
     #     fixed_params={"CoordBits": 4, "RadiusBits": 2, "SampleRate": 1.0},
-    #     output_file=f"{output_dir}/threshold_vs_density.png",
+    #     output_file=f"{output_dir}/threshold_vs_density.pdf",
     #     show_plot=False,
     # )
 
@@ -561,7 +561,7 @@ def main():
     #     x_variable="Threshold",
     #     group_variable="RadiusBits",
     #     fixed_params={"Density": "dens9", "CoordBits": 4, "SampleRate": 1.0},
-    #     output_file=f"{output_dir}/threshold_vs_radiusbits.png",
+    #     output_file=f"{output_dir}/threshold_vs_radiusbits.pdf",
     #     show_plot=False,
     # )
 
@@ -574,7 +574,7 @@ def main():
     #     x_variable="CoordBits",
     #     group_variable="Density",
     #     fixed_params={"RadiusBits": 2, "Threshold": 0.5, "SampleRate": 1.0},
-    #     output_file=f"{output_dir}/coordbits_vs_density.png",
+    #     output_file=f"{output_dir}/coordbits_vs_density.pdf",
     #     show_plot=False,
     # )
 
@@ -587,7 +587,7 @@ def main():
     #     x_variable="RadiusBits",
     #     group_variable="Density",
     #     fixed_params={"CoordBits": 4, "Threshold": 0.5, "SampleRate": 1.0},
-    #     output_file=f"{output_dir}/radiusbits_vs_density.png",
+    #     output_file=f"{output_dir}/radiusbits_vs_density.pdf",
     #     show_plot=False,
     # )
 
@@ -600,7 +600,7 @@ def main():
     #     x_variable="CoordBits",
     #     group_variable="Density",
     #     fixed_params={"RadiusBits": 2, "Threshold": 0.5, "SampleRate": 1.0},
-    #     output_file=f"{output_dir}/elem_coordbits_vs_density.png",
+    #     output_file=f"{output_dir}/elem_coordbits_vs_density.pdf",
     #     show_plot=False,
     # )
 
@@ -613,7 +613,7 @@ def main():
     #     x_variable="RadiusBits",
     #     group_variable="Density",
     #     fixed_params={"CoordBits": 4, "Threshold": 0.5, "SampleRate": 1.0},
-    #     output_file=f"{output_dir}/elem_radiusbits_vs_density.png",
+    #     output_file=f"{output_dir}/elem_radiusbits_vs_density.pdf",
     #     show_plot=False,
     # )
 

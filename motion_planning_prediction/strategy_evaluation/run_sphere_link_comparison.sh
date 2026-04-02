@@ -31,7 +31,7 @@ else
 fi
 
 # 初始化 CSV 文件 (新增 QNON_MUL 列)
-echo "Difficulty,Strategy,QNON_MUL,Threshold,Sample_Rate,Total_Checks,Total_Pred_Queries,Total_Oracle_Queries,Query_Reduction_Rate,Query_Difference,Total_Pred_Cycles,Total_Oracle_Cycles,Cycle_Efficiency,OOCD_Utilization" > "$RESULT_FILE"
+echo "Difficulty,Strategy,QNON_MUL,Threshold,Sample_Rate,Total_Checks,Total_Pred_Queries,Total_Oracle_Queries,Query_Reduction_Rate,Query_Difference,Total_Pred_Cycles,Total_Oracle_Cycles,Cycle_Efficiency,OOCD_Utilization,Dead_Time_Total_Cycles,Dead_Time_Avg_Cycles_Per_Edge,Dead_Time_Total_Ratio,Dead_Time_Avg_Ratio_Per_Edge" > "$RESULT_FILE"
 
 echo "=== 开始运行对比仿真 ==="
 
@@ -65,15 +65,19 @@ for STRATEGY in sphere_coord link_coord; do
                 $NUM_OOCDS)
                 
             # 解析结果
-            TOTAL_CHECKS=$(echo "$OUTPUT" | grep "Total Actual Checks:" | awk -F': ' '{print $2}')
-            PRED_QUERIES=$(echo "$OUTPUT" | grep "Total Prediction Queries:" | awk -F': ' '{print $2}')
-            ORACLE_QUERIES=$(echo "$OUTPUT" | grep "Total Oracle Queries:" | awk -F': ' '{print $2}')
-            REDUCTION_RATE=$(echo "$OUTPUT" | grep "Query Reduction Rate:" | awk -F': ' '{print $2}' | sed 's/%//')
-            QUERY_DIFF=$(echo "$OUTPUT" | grep "Query Difference (Prediction - Oracle):" | awk -F': ' '{print $2}' | sed 's/%//')
-            PRED_CYCLES=$(echo "$OUTPUT" | grep "Total Cycles (Prediction):" | awk -F': ' '{print $2}')
-            ORACLE_CYCLES=$(echo "$OUTPUT" | grep "Total Cycles (Oracle):" | awk -F': ' '{print $2}')
-            CYCLE_EFFICIENCY=$(echo "$OUTPUT" | grep "Cycle Efficiency:" | awk -F': ' '{print $2}' | sed 's/%//')
-            OOCD_UTILIZATION=$(echo "$OUTPUT" | grep "Average OOCD Utilization:" | awk -F': ' '{print $2}' | sed 's/%//')
+            TOTAL_CHECKS=$(echo "$OUTPUT" | grep -m1 "Total Actual Checks:" | awk -F': ' '{print $2}')
+            PRED_QUERIES=$(echo "$OUTPUT" | grep -m1 "Total Prediction Queries:" | awk -F': ' '{print $2}')
+            ORACLE_QUERIES=$(echo "$OUTPUT" | grep -m1 "Total Oracle Queries:" | awk -F': ' '{print $2}')
+            REDUCTION_RATE=$(echo "$OUTPUT" | grep -m1 "Query Reduction Rate:" | awk -F': ' '{print $2}' | sed 's/%//')
+            QUERY_DIFF=$(echo "$OUTPUT" | grep -m1 "Query Difference (Prediction - Oracle):" | awk -F': ' '{print $2}' | sed 's/%//')
+            PRED_CYCLES=$(echo "$OUTPUT" | grep -m1 "Total Cycles (Prediction):" | awk -F': ' '{print $2}')
+            ORACLE_CYCLES=$(echo "$OUTPUT" | grep -m1 "Total Cycles (Oracle):" | awk -F': ' '{print $2}')
+            CYCLE_EFFICIENCY=$(echo "$OUTPUT" | grep -m1 "Cycle Efficiency:" | awk -F': ' '{print $2}' | sed 's/%//')
+            OOCD_UTILIZATION=$(echo "$OUTPUT" | grep -m1 "Average OOCD Utilization:" | awk -F': ' '{print $2}' | sed 's/%//')
+            DEAD_TOTAL_CYCLES=$(echo "$OUTPUT" | grep -m1 "Dead Time Total Cycles:" | awk -F': ' '{print $2}')
+            DEAD_AVG_CYCLES=$(echo "$OUTPUT" | grep -m1 "Dead Time Avg Cycles Per Edge:" | awk -F': ' '{print $2}')
+            DEAD_TOTAL_RATIO=$(echo "$OUTPUT" | grep -m1 "Dead Time Ratio (Total Dead / Total Pred Cycles):" | awk -F': ' '{print $2}' | sed 's/%//')
+            DEAD_AVG_RATIO=$(echo "$OUTPUT" | grep -m1 "Dead Time Avg Ratio Per Edge:" | awk -F': ' '{print $2}' | sed 's/%//')
             
             # 检查是否成功提取到数据
             if [ -z "$TOTAL_CHECKS" ]; then
@@ -82,8 +86,8 @@ for STRATEGY in sphere_coord link_coord; do
                 echo "$OUTPUT" | tail -n 10
             else
                 # 写入 CSV (新增 $QNONCOLL_MULTIPLIER 到数据行)
-                echo "$DIFFICULTY,$STRATEGY,$QNONCOLL_MULTIPLIER,$THRESHOLD,$SAMPLE_RATE,$TOTAL_CHECKS,$PRED_QUERIES,$ORACLE_QUERIES,$REDUCTION_RATE,$QUERY_DIFF,$PRED_CYCLES,$ORACLE_CYCLES,$CYCLE_EFFICIENCY,$OOCD_UTILIZATION" >> "$RESULT_FILE"
-                echo "结果已写入 CSV: PRED_QUERIES=$PRED_QUERIES, Efficiency=$CYCLE_EFFICIENCY%, Utilization=$OOCD_UTILIZATION%"
+                echo "$DIFFICULTY,$STRATEGY,$QNONCOLL_MULTIPLIER,$THRESHOLD,$SAMPLE_RATE,$TOTAL_CHECKS,$PRED_QUERIES,$ORACLE_QUERIES,$REDUCTION_RATE,$QUERY_DIFF,$PRED_CYCLES,$ORACLE_CYCLES,$CYCLE_EFFICIENCY,$OOCD_UTILIZATION,$DEAD_TOTAL_CYCLES,$DEAD_AVG_CYCLES,$DEAD_TOTAL_RATIO,$DEAD_AVG_RATIO" >> "$RESULT_FILE"
+                echo "结果已写入 CSV: PRED_QUERIES=$PRED_QUERIES, Efficiency=$CYCLE_EFFICIENCY%, Utilization=$OOCD_UTILIZATION%, DeadRatio=$DEAD_TOTAL_RATIO%"
             fi
         done
     done

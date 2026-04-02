@@ -93,7 +93,7 @@ echo "   ax1.plot(df['qnoncoll_multiplier'], df['prediction_cycles'], 'o-', labe
 echo "   ax1.set_xlabel('qnoncoll_multiplier'); ax1.set_ylabel('Prediction Cycles'); ax1.set_title('Cycles vs qnoncoll_multiplier'); ax1.grid(True)"
 echo "   ax2.plot(df['qnoncoll_multiplier'], df['reduction_rate'], 's-', color='red', label='Reduction Rate')"
 echo "   ax2.set_xlabel('qnoncoll_multiplier'); ax2.set_ylabel('Reduction Rate (%)'); ax2.set_title('Reduction Rate vs qnoncoll_multiplier'); ax2.grid(True)"
-echo "   plt.tight_layout(); plt.savefig('qnoncoll_analysis.png', dpi=150); plt.show()"
+echo "   plt.tight_layout(); plt.savefig('qnoncoll_analysis.pdf', dpi=150); plt.show()"
 echo "   \""
 
 echo

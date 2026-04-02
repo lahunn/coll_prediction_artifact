@@ -89,8 +89,8 @@ def plot_obb_comparison():
     plt.tight_layout()
 
     # 保存图片
-    plt.savefig('result_files/obb_statistics_comparison.png', dpi=300, bbox_inches='tight')
-    print("保存: result_files/obb_statistics_comparison.png")
+    plt.savefig('result_files/obb_statistics_comparison.pdf', dpi=300, bbox_inches='tight')
+    print("保存: result_files/obb_statistics_comparison.pdf")
     plt.close()
 
 
@@ -141,8 +141,8 @@ def plot_sphere_comparison():
     plt.tight_layout()
 
     # 保存图片
-    plt.savefig('sphere_statistics_comparison.png', dpi=300, bbox_inches='tight')
-    print("保存: sphere_statistics_comparison.png")
+    plt.savefig('sphere_statistics_comparison.pdf', dpi=300, bbox_inches='tight')
+    print("保存: sphere_statistics_comparison.pdf")
     plt.close()
 
 
@@ -205,8 +205,8 @@ def plot_methods_comparison():
     plt.tight_layout()
 
     # 保存图片
-    plt.savefig('obb_sphere_methods_comparison.png', dpi=300, bbox_inches='tight')
-    print("保存: obb_sphere_methods_comparison.png")
+    plt.savefig('obb_sphere_methods_comparison.pdf', dpi=300, bbox_inches='tight')
+    print("保存: obb_sphere_methods_comparison.pdf")
     plt.close()
 
 
@@ -230,9 +230,9 @@ def main():
     print("=" * 70)
     print("Plotting completed! Images saved to current directory")
     print("Generated files:")
-    print("- obb_statistics_comparison.png")
-    print("- sphere_statistics_comparison.png")
-    print("- obb_sphere_methods_comparison.png")
+    print("- obb_statistics_comparison.pdf")
+    print("- sphere_statistics_comparison.pdf")
+    print("- obb_sphere_methods_comparison.pdf")
     print("=" * 70)
 
 

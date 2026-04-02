@@ -185,7 +185,7 @@ def plot_global_oocd_cycle_comparison():
 
     output_dir = os.path.join(current_dir, "figs")
     os.makedirs(output_dir, exist_ok=True)
-    output_path = os.path.join(output_dir, "global_oocd_cycle_comparison.png")
+    output_path = os.path.join(output_dir, "global_oocd_cycle_comparison.pdf")
 
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
     print(f"\nPlot saved to {output_path}")
@@ -291,7 +291,7 @@ def plot_global_oocd_utilization_comparison():
 
     output_dir = os.path.join(current_dir, "figs")
     os.makedirs(output_dir, exist_ok=True)
-    output_path = os.path.join(output_dir, "global_oocd_utilization_comparison.png")
+    output_path = os.path.join(output_dir, "global_oocd_utilization_comparison.pdf")
 
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
     print(f"\nPlot saved to {output_path}")
@@ -397,7 +397,7 @@ def plot_global_oocd_throughput_comparison():
 
     output_dir = os.path.join(current_dir, "figs")
     os.makedirs(output_dir, exist_ok=True)
-    output_path = os.path.join(output_dir, "global_oocd_throughput_comparison.png")
+    output_path = os.path.join(output_dir, "global_oocd_throughput_comparison.pdf")
 
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
     print(f"\nPlot saved to {output_path}")
@@ -578,7 +578,7 @@ def plot_global_oocd_pred_impact():
 
     output_dir = os.path.join(current_dir, "figs")
     os.makedirs(output_dir, exist_ok=True)
-    output_path = os.path.join(output_dir, "global_oocd_pred_impact.png")
+    output_path = os.path.join(output_dir, "global_oocd_pred_impact.pdf")
 
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
     print(f"\nPlot saved to {output_path}")

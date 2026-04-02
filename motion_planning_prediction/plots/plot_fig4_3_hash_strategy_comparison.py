@@ -6,12 +6,14 @@ import seaborn as sns
 import numpy as np
 import pandas as pd
 import matplotlib
+import os
+from matplotlib.ticker import FuncFormatter
 
 # --- 统一绘图风格配置 ---
 sns.set_theme(style="whitegrid")
 plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
 plt.rcParams['axes.unicode_minus'] = False
-plt.rcParams['font.size'] = 12
+plt.rcParams['font.size'] = 16
 colors = sns.color_palette("deep")
 #!/usr/bin/env python3
 """
@@ -21,29 +23,6 @@ Plot Hash Strategy Comparison (StdDev)
 数据来源:
 - motion_planning_prediction/analysis/result_files/hash_analysis_results.csv
 """
-
-sns.set_theme(style="whitegrid")
-plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
-plt.rcParams['axes.unicode_minus'] = False
-plt.rcParams['font.size'] = 12
-colors = sns.color_palette("deep")
-.pyplot as plt
-import os
-sns.set_theme(style="whitegrid")
-plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
-plt.rcParams['axes.unicode_minus'] = False
-plt.rcParams['font.size'] = 12
-colors = sns.color_palette("deep")
-
-
-# 1. 统一绘图风格
-sns.set_style("white")
-# set colorblind-friendly palette
-sns.set_palette("colorblind")
-sns.set_context("paper", font_scale=1.5)
-matplotlib.rcParams["pdf.fonttype"] = 42
-matplotlib.rcParams["ps.fonttype"] = 42
-matplotlib.rcParams["font.family"] = 'SimSun'
 
 def plot_hash_strategy_comparison():
     # 2. 读取数据
@@ -64,7 +43,7 @@ def plot_hash_strategy_comparison():
     best_configs = best_configs.sort_values("StdDev")
 
     # 4. 绘图
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=(10, 2.8))
     
     # 使用 Seaborn 绘制条形图
     ax = sns.barplot(
@@ -83,12 +62,12 @@ def plot_hash_strategy_comparison():
         # 在柱子末尾标注数值
         ax.text(row["StdDev"] * 1.02, i, 
                 f"{int(row['StdDev']):,}", 
-                va='center', fontsize=10, fontweight='bold', color='#333333')
+                va='center', fontsize=16, fontweight='bold', color='#333333')
 
     # 6. 图表装饰
-    plt.title("Load Balance Comparison: Best Configuration per Strategy", pad=20, fontweight='bold')
-    plt.xlabel("Standard Deviation (Lower is Better)")
-    plt.ylabel("Hash Strategy")
+    plt.title("负载均衡对比：每种策略的最佳配置", pad=20, fontweight='bold')
+    plt.xlabel("标准差（越低越好）")
+    plt.ylabel("地址划分策略")
     
     # 移除多余的图例（因为Y轴已经是标签了）
     if ax.legend_:
@@ -100,7 +79,7 @@ def plot_hash_strategy_comparison():
     plt.tight_layout()
 
     # 7. 保存
-    output_path = os.path.join(base_dir, 'plots/figs/fig4_3_hash_strategy_comparison.png')
+    output_path = os.path.join(base_dir, 'plots/figs/fig4_3_hash_strategy_comparison.pdf')
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     plt.savefig(output_path, dpi=300)
     print(f"Figure saved to {output_path}")

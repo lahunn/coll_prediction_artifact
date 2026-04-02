@@ -190,7 +190,7 @@ def plot_rates(results, output_dir="figs"):
     autolabel(rects3)
 
     plt.tight_layout()
-    output_path = os.path.join(output_dir, "collision_rates_comparison.png")
+    output_path = os.path.join(output_dir, "collision_rates_comparison.pdf")
     plt.savefig(output_path)
     print(f"Plot saved to {output_path}")
     
@@ -211,7 +211,7 @@ def plot_rates(results, output_dir="figs"):
     sns.despine(ax=ax_log)
     
     plt.tight_layout()
-    output_path_log = os.path.join(output_dir, "collision_rates_comparison_log.png")
+    output_path_log = os.path.join(output_dir, "collision_rates_comparison_log.pdf")
     plt.savefig(output_path_log)
     print(f"Log-scale plot saved to {output_path_log}")
 

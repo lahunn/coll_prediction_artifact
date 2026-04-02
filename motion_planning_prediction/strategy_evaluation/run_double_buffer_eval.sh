@@ -15,6 +15,8 @@ BENCHID="1-10"
 BASE_DATA_FOLDER="../../trace_files/scene_benchmarks/bit_collision_data"
 ROBOT_NAME="iiwa"
 NUM_PREDICTIONS=2
+# 总CDU数量（传递给仿真脚本的 num_oocds）
+TOTAL_OOCDS=8
 # 专用CDU数量（传递给仿真脚本的 num_dedicated_oocds）
 DEDICATED_OOCDS=8
 # 创建结果目录（如果不存在）
@@ -34,6 +36,7 @@ for COLLISION_MODEL in sphere link; do
     echo "阈值: $THRESHOLD, 采样率: $SAMPLE_RATE"
     echo "非碰撞队列乘数: $QNONCOLL_MULTIPLIER"
     echo "机器人: $ROBOT_NAME, 碰撞模型: $COLLISION_MODEL"
+    echo "总CDU数量: $TOTAL_OOCDS"
     echo "专用CDU数量: $DEDICATED_OOCDS"
     echo "=========================================="
 
@@ -54,7 +57,8 @@ for COLLISION_MODEL in sphere link; do
             "$ROBOT_NAME" \
             "$NUM_PREDICTIONS" \
             "$COLLISION_MODEL" \
-            "$DEDICATED_OOCDS")
+            "$DEDICATED_OOCDS" \
+            "$TOTAL_OOCDS")
         
         # 检查 python 脚本是否执行成功
         if [ $? -ne 0 ]; then

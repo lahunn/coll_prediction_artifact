@@ -1,58 +1,45 @@
-import math
-import sys
-
-import matplotlib.pylab as plt
-import seaborn as sns
-import numpy as np
-import pandas as pd
-import matplotlib
-
-# --- 统一绘图风格配置 ---
-sns.set_theme(style="whitegrid")
-plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
-plt.rcParams['axes.unicode_minus'] = False
-plt.rcParams['font.size'] = 12
-colors = sns.color_palette("deep")
 #!/usr/bin/env python3
 """
-Figure 1: Single Dual-Port CHT 访问冲突统计
-绘制柱状图，展示在不同场景复杂度 (G1-G5) 下，集中式双端口存储架构产生的访问冲突总数。
-
-数据来源:
-- result_files/shared_dual_port_results.csv
+图 4.1: Sphere 场景下共享双端口 CHT 访问冲突统计
+绘制柱状图，展示在不同场景复杂度 (G1-G5) 下，sphere 碰撞模型在集中式双端口存储架构产生的访问冲突总数。
 """
 
 import os
+import numpy as np
+import pandas as pd
+import matplotlib.pylab as plt
+import seaborn as sns
+import matplotlib.font_manager as fm
+from matplotlib.ticker import FuncFormatter
+
+# --- 1. 统一绘图风格配置 ---
 sns.set_theme(style="whitegrid")
-plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
-plt.rcParams['axes.unicode_minus'] = False
-plt.rcParams['font.size'] = 12
-colors = sns.color_palette("deep")
-
-
-# 1. 设置绘图风格（白底、带刻度）
 sns.set_style("ticks") 
-
-# 2. 设置调色板（推荐色盲友好型）
 sns.set_palette("colorblind")
-
-# 3. 设置上下文（自动调整线条粗细和字体大小，'paper' 适合论文）
 sns.set_context("paper", font_scale=1.5)
 
-# 确保在PDF和PS文件中正确嵌入字体
-matplotlib.rcParams["pdf.fonttype"] = 42
-matplotlib.rcParams["ps.fonttype"] = 42
-matplotlib.rcParams["font.family"] = 'SimSun'
+# 字体加载与配置
+font_path = os.path.expanduser("~/.local/share/fonts/simsun.ttc")
+if os.path.exists(font_path):
+    fm.fontManager.addfont(font_path)
+
+plt.rcParams.update({
+    'font.sans-serif': ['SimSun', 'NSimSun', 'Arial Unicode MS', 'sans-serif'],
+    'axes.unicode_minus': False,
+    'font.size': 12,
+    'pdf.fonttype': 42,
+    'ps.fonttype': 42
+})
 
 def load_data(filepath):
     if not os.path.exists(filepath):
-        print(f"Error: File not found: {filepath}")
+        print(f"错误: 未找到文件: {filepath}")
         return None
     try:
         df = pd.read_csv(filepath)
         return df
     except Exception as e:
-        print(f"Error reading {filepath}: {e}")
+        print(f"读取 {filepath} 时出错: {e}")
         return None
 
 def plot_cht_conflicts():
@@ -60,7 +47,7 @@ def plot_cht_conflicts():
     result_dir = os.path.join(base_dir, "../result_files")
     
     # 文件路径
-    data_file = os.path.join(result_dir, "shared_dual_port_results.csv")
+    data_file = os.path.join(result_dir, "shared_dual_port_sphere_results.csv")
     
     df = load_data(data_file)
     
@@ -74,44 +61,56 @@ def plot_cht_conflicts():
     conflicts = df['Conflicts']
     
     x = np.arange(len(scenes))
-    width = 0.6
     
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(10, 3))
     
     # 获取 Seaborn 调色板颜色 (使用红色系以警示“冲突”)
     palette = sns.color_palette()
-    bar_color = palette[3] # 通常是红色/橘红色
-    
-    # 绘制冲突数柱状图
-    bars = ax.bar(x, conflicts, width, color=bar_color, edgecolor='black', alpha=0.8)
+    line_color = palette[3]  # 通常是红色/橘红色
+
+    # 绘制冲突数折线图
+    ax.plot(
+        x,
+        conflicts.values,
+        color=line_color,
+        linewidth=2.5,
+        marker='o',
+        markersize=8,
+        markerfacecolor='white',
+        markeredgewidth=2,
+    )
     
     # 添加数值标注
-    for bar in bars:
-        height = bar.get_height()
-        ax.text(bar.get_x() + bar.get_width()/2., height + (conflicts.max() * 0.01),
-                f'{int(height):,}', ha='center', va='bottom', fontsize=12, fontweight='bold')
+    for xi, yi in zip(x, conflicts.values):
+        ax.text(
+            xi,
+            yi + (conflicts.max() * 0.02),
+            f'{int(yi):,}',
+            ha='center',
+            va='bottom',
+            fontsize=12,
+            fontweight='bold',
+        )
 
-    # 设置标签
-    ax.set_ylabel('Total Memory Conflicts')
-    ax.set_xlabel('Benchmark Scenario')
-    ax.set_title('CHT Access Conflicts in Shared Dual-Port Architecture')
+    # 设置中文标签
+    ax.set_ylabel('存储访问冲突总数')
+    ax.set_xlabel('基准测试场景')
+    ax.set_title('Sphere 场景下共享双端口架构的 CHT 访问冲突统计')
     ax.set_xticks(x)
     ax.set_xticklabels(scenes)
     
     # 格式化 Y 轴
     ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{int(y):,}"))
     
-    # grid removed per project style
-    
     # 移除顶部和右侧边框
     sns.despine()
     
     plt.tight_layout()
     
-    output_path = os.path.join(base_dir, "figs/fig4_1_cht_conflicts.png")
+    output_path = os.path.join(base_dir, "figs/fig_cht_conflicts.pdf")
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     plt.savefig(output_path, dpi=300)
-    print(f"Figure 1 (Conflicts) saved to {output_path}")
+    print(f"图表已保存至: {output_path}")
 
 if __name__ == "__main__":
     plot_cht_conflicts()

@@ -46,9 +46,9 @@ if [ -f "$RESULT_DIR/hash_analysis_report.txt" ]; then
     echo "关键文件："
     echo "  [1] 文本报告      : $RESULT_DIR/hash_analysis_report.txt"
     echo "  [2] 统计数据      : $RESULT_DIR/hash_statistics.csv"
-    echo "  [3] 维度差异图    : $RESULT_DIR/dimension_diff_frequency.png"
-    echo "  [4] Bit位热力图   : $RESULT_DIR/bit_diff_heatmap.png"
-    echo "  [5] 差异类型图    : $RESULT_DIR/difference_types_distribution.png"
+    echo "  [3] 维度差异图    : $RESULT_DIR/dimension_diff_frequency.pdf"
+    echo "  [4] Bit位热力图   : $RESULT_DIR/bit_diff_heatmap.pdf"
+    echo "  [5] 差异类型图    : $RESULT_DIR/difference_types_distribution.pdf"
 else
     echo "✗ 分析失败，未生成结果文件"
     exit 1

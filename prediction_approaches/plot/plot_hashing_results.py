@@ -1,51 +1,45 @@
 import math
 import sys
-
+import os
 import matplotlib.pylab as plt
 import seaborn as sns
 import numpy as np
 import pandas as pd
 import matplotlib
+import matplotlib.font_manager as fm
 
 # --- 统一绘图风格配置 ---
 sns.set_theme(style="whitegrid")
-plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
-plt.rcParams['axes.unicode_minus'] = False
-plt.rcParams['font.size'] = 12
-colors = sns.color_palette("deep")
-import os
-sns.set_theme(style="whitegrid")
-plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
-plt.rcParams['axes.unicode_minus'] = False
-plt.rcParams['font.size'] = 12
-colors = sns.color_palette("deep")
-
-
-# Unified plotting style
-matplotlib.rcParams["pdf.fonttype"] = 42
-matplotlib.rcParams["ps.fonttype"] = 42
 sns.set_style("white")
 sns.set_palette("colorblind")
 
+# 字体加载与配置
+font_path = os.path.expanduser("~/.local/share/fonts/simsun.ttc")
+if os.path.exists(font_path):
+    fm.fontManager.addfont(font_path)
 
-
+plt.rcParams.update({
+    'font.sans-serif': ['SimSun', 'NSimSun', 'Arial Unicode MS', 'sans-serif'],
+    'axes.unicode_minus': False,
+    'font.size': 12,
+    'pdf.fonttype': 42,
+    'ps.fonttype': 42
+})
 
 def plot_aggregated_metrics(df, parameter_name, density, output_dir="plots"):
     """
-    对指定参数进行分组，计算Precision和Recall的平均值，并绘制柱状图。
-
-    Args:
-        df (pd.DataFrame): 包含结果数据的DataFrame。
-        parameter_name (str): 要分析的参数列名 (例如 'CoordBits')。
-        density (str): 密度级别 ('low', 'medium', 'high')。
-        output_dir (str): 保存图表的目录。
+    对指定参数进行分组，计算精确率和召回率的平均值，并绘制柱状图。
     """
     # 确保输出目录存在
     density_dir = os.path.join(output_dir, density)
     if not os.path.exists(density_dir):
         os.makedirs(density_dir)
 
-    # 按指定参数分组，并计算Precision和Recall的平均值
+    # 映射密度名称
+    density_map = {"low": "低", "mid": "中", "high": "高"}
+    cn_density = density_map.get(density, density)
+
+    # 按指定参数分组，并计算精确率和召回率的平均值
     aggregated_data = (
         df.groupby(parameter_name)[['精确率', '召回率']].mean().reset_index()
     )
@@ -53,49 +47,46 @@ def plot_aggregated_metrics(df, parameter_name, density, output_dir="plots"):
     # 创建一个包含两个子图的图表
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
     fig.suptitle(
-        f"Impact of {parameter_name} on Precision and Recall ({density} density)",
+        f"{parameter_name} 对精确率和召回率的影响 ({cn_density} 密度)",
         fontsize=16,
     )
 
-    # --- 绘制Precision柱状图 ---
+    # --- 绘制精确率柱状图 ---
     palette = sns.color_palette("colorblind")
     ax1.bar(
         aggregated_data[parameter_name].astype(str),
         aggregated_data['精确率'],
         color=palette[0],
     )
-    ax1.set_title("Average Precision")
+    ax1.set_title("平均精确率")
     ax1.set_xlabel(parameter_name)
-    ax1.set_ylabel("Precision (%)")
+    ax1.set_ylabel("精确率 %")
     ax1.tick_params(axis="x", rotation=45)
-    # grid removed per style requirement
 
-    # --- 绘制Recall柱状图 ---
+    # --- 绘制召回率柱状图 ---
     ax2.bar(
         aggregated_data[parameter_name].astype(str),
         aggregated_data['召回率'],
         color=palette[2],
     )
-    ax2.set_title("Average Recall")
+    ax2.set_title("平均召回率")
     ax2.set_xlabel(parameter_name)
-    ax2.set_ylabel("Recall (%)")
+    ax2.set_ylabel("召回率 %")
     ax2.tick_params(axis="x", rotation=45)
-    # grid removed per style requirement
 
     # 调整布局并保存图表
     plt.tight_layout(rect=(0, 0.03, 1, 0.95))
 
-    output_path = os.path.join(density_dir, f"{parameter_name}_performance.png")
+    output_path = os.path.join(density_dir, f"{parameter_name}_performance.pdf")
     plt.savefig(output_path)
     plt.close()
     print(f"图表已保存至: {output_path}")
-
 
 def main():
     """
     主函数，加载数据并为每个密度和参数组合生成图表。
     """
-    # 获取当前脚本的目录  # 获取当前脚本的绝对路径
+    # 获取当前脚本的绝对路径
     script_path = os.path.abspath(__file__)
     script_dir = os.path.dirname(script_path)
     output_dir = os.path.join(script_dir, "plots")
@@ -138,7 +129,6 @@ def main():
                 )
             else:
                 print(f"警告: 在密度 '{density}' 的数据中未找到列 '{param}'。")
-
 
 if __name__ == "__main__":
     main()

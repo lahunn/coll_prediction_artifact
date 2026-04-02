@@ -6,6 +6,8 @@ import seaborn as sns
 import numpy as np
 import pandas as pd
 import matplotlib
+import os
+from matplotlib.ticker import PercentFormatter
 
 # --- 统一绘图风格配置 ---
 sns.set_theme(style="whitegrid")
@@ -22,19 +24,10 @@ Plot Bit Selection Strategy Comparison (Conflict Rate)
 - motion_planning_prediction/analysis/result_files/multi_bank_bit_selection_results.csv
 """
 
-import os
-sns.set_theme(style="whitegrid")
-plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
-plt.rcParams['axes.unicode_minus'] = False
-plt.rcParams['font.size'] = 12
-colors = sns.color_palette("deep")
-
-
 # 1. 统一绘图风格
 sns.set_style("ticks")
 sns.set_context("paper", font_scale=1.4)
 sns.set_palette("colorblind")
-
 # 确保在PDF和PS文件中正确嵌入字体
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
@@ -46,7 +39,7 @@ def plot_conflict_rate_comparison():
     csv_path = os.path.join(base_dir, 'analysis/result_files/multi_bank_bit_selection_results.csv')
     
     if not os.path.exists(csv_path):
-        print(f"Error: File not found: {csv_path}")
+        print(f"错误：文件未找到: {csv_path}")
         return
 
     df = pd.read_csv(csv_path)
@@ -57,7 +50,7 @@ def plot_conflict_rate_comparison():
     df = df.sort_values("conflict_rate", ascending=True)
 
     # 4. 绘图
-    plt.figure(figsize=(10, 7))
+    plt.figure(figsize=(10, 4.5))
     
     # 使用 Seaborn 绘制水平条形图
     # 使用 'viridis_r' 颜色映射：数值越低(越好)颜色越亮/绿，数值越高(越差)颜色越深/紫
@@ -87,9 +80,9 @@ def plot_conflict_rate_comparison():
         )
 
     # 6. 图表装饰
-    plt.title("Conflict Rate Comparison by Bit Selection Strategy", pad=20, fontweight='bold', fontsize=16)
-    plt.xlabel("Conflict Rate (Lower is Better)", fontweight='bold')
-    plt.ylabel("Bit Selection Configuration", fontweight='bold')
+    plt.title("位选择策略的冲突率对比", pad=20, fontweight='bold', fontsize=16)
+    plt.xlabel("冲突率（越低越好）", fontweight='bold')
+    plt.ylabel("位选择配置", fontweight='bold')
     
     # X轴格式化为百分比
     ax.xaxis.set_major_formatter(PercentFormatter(1.0))
@@ -105,7 +98,7 @@ def plot_conflict_rate_comparison():
     plt.tight_layout()
 
     # 7. 保存
-    output_path = os.path.join(base_dir, 'plots/figs/fig4_4_bit_selection_conflict_rate.png')
+    output_path = os.path.join(base_dir, 'plots/figs/fig4_4_bit_selection_conflict_rate.pdf')
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     plt.savefig(output_path, dpi=300)
     print(f"Figure saved to {output_path}")

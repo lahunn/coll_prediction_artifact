@@ -41,10 +41,10 @@ current_actuals = []
 # --- Simulation Parameters from Command Line ---
 if len(sys.argv) < 8:
     print(
-        "Usage: python prediction_simulation_nDOF_accuracy_tracking.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <num_benchmarks> <robot_name> [collision_model_type]"
+        "Usage: python prediction_simulation_nDOF_accuracy_tracking.py <threshold> <sample_rate> <qnoncoll_multiplier> <data_folder> <basename> <num_benchmarks> <robot_name> [collision_model_type] [start_benchid]"
     )
     print(
-        "Example: python prediction_simulation_nDOF_accuracy_tracking.py 0.5 0.1 8 ../trace_files/scene_benchmarks/bit_collision_data franka_14 100 franka link"
+        "Example: python prediction_simulation_nDOF_accuracy_tracking.py 0.5 0.1 8 ../trace_files/scene_benchmarks/bit_collision_data franka_14 100 franka link 1"
     )
     sys.exit(1)
 
@@ -56,6 +56,7 @@ basename = sys.argv[5]
 num_benchmarks = int(sys.argv[6])
 robot_name = sys.argv[7]
 collision_model_type = sys.argv[8] if len(sys.argv) > 8 else "link"
+start_benchid = int(sys.argv[9]) if len(sys.argv) > 9 else 1
 
 # 获取机器人参数
 robot_params = get_robot_params(robot_name)
@@ -85,11 +86,12 @@ print(f"Queue Length Multiplier: {qnoncoll_multiplier}")
 print(f"Non-collision Queue Length: {qnoncoll_len}")
 print(f"Data Folder: {data_folder}")
 print(f"Number of Benchmarks: {num_benchmarks}")
+print(f"Start Bench ID: {start_benchid}")
 print(f"Collision Model: {collision_model_type}")
 print("=" * 50)
 
 # --- Benchmark Range ---
-benchrange = range(1, num_benchmarks + 1)
+benchrange = range(start_benchid, start_benchid + num_benchmarks)
 
 # --- Main Simulation Loop ---
 for benchid in tqdm(benchrange, desc="处理基准测试"):
@@ -197,53 +199,62 @@ reduction_rate = (
     (1 - fall_prediction / total_checks) * 100 if total_checks > 0 else 0
 )
 
-# with open(csv_file, "a", newline="") as csvfile:
-#     writer = csv.writer(csvfile)
-#     writer.writerow(
-#         [
-#             threshold,
-#             sample_rate,
-#             qnoncoll_multiplier,
-#             basename,
-#             num_benchmarks,
-#             robot_name,
-#             total_checks,
-#             fall_prediction,
-#             fall_oracle,
-#             fall_cycle,
-#             reduction_rate,
-#         ]
-#     )
+with open(csv_file, "a", newline="") as csvfile:
+    writer = csv.writer(csvfile)
+    writer.writerow(
+        [
+            threshold,
+            sample_rate,
+            qnoncoll_multiplier,
+            basename,
+            num_benchmarks,
+            robot_name,
+            total_checks,
+            fall_prediction,
+            fall_oracle,
+            fall_cycle,
+            reduction_rate,
+        ]
+    )
 
 # 输出准确率曲线数据到单独的CSV文件
 if accuracy_stages:
-    # with open(accuracy_csv_file, "a", newline="") as csvfile:
-    #     writer = csv.writer(csvfile)
-    #     # 写入表头（如果文件为空）
-    #     if csvfile.tell() == 0:
-    #         writer.writerow(
-    #             [
-    #                 "threshold",
-    #                 "sample_rate",
-    #                 "qnoncoll_multiplier",
-    #                 "training_size",
-    #                 "accuracy",
-    #                 "stage",
-    #             ]
-    #         )
+    # 检查文件是否已经存在且有内容
+    file_exists = False
+    try:
+        with open(accuracy_csv_file, "r") as f:
+            if f.readline():
+                file_exists = True
+    except FileNotFoundError:
+        pass
 
-    #     # 写入准确率曲线数据
-    #     for i, (size, acc) in enumerate(zip(training_sizes, accuracy_stages)):
-    #         writer.writerow(
-    #             [
-    #                 threshold,
-    #                 sample_rate,
-    #                 qnoncoll_multiplier,
-    #                 size,
-    #                 acc,
-    #                 i + 1,  # 阶段编号
-    #             ]
-    #         )
+    with open(accuracy_csv_file, "a", newline="") as csvfile:
+        writer = csv.writer(csvfile)
+        # 写入表头（如果文件是新创建的）
+        if not file_exists:
+            writer.writerow(
+                [
+                    "threshold",
+                    "sample_rate",
+                    "qnoncoll_multiplier",
+                    "training_size",
+                    "accuracy",
+                    "stage",
+                ]
+            )
+
+        # 写入准确率曲线数据
+        for i, (size, acc) in enumerate(zip(training_sizes, accuracy_stages)):
+            writer.writerow(
+                [
+                    threshold,
+                    sample_rate,
+                    qnoncoll_multiplier,
+                    size,
+                    acc,
+                    i + 1,  # 阶段编号
+                ]
+            )
 
     print(f"准确率曲线数据已保存到 {accuracy_csv_file}")
     print(f"记录了 {len(accuracy_stages)} 个准确率阶段")
