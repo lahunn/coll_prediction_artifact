@@ -72,7 +72,7 @@ lab = ["第" + str(i) + "组" for i in range(1, bins + 1)]
 ax.set_xticklabels(lab, rotation=0)
 
 # 设置轴标签
-ax.set_xlabel("运动规划查询分组（难度递增）")
+ax.set_xlabel("运动规划任务分组(按碰撞检测请求总数)")
 ax.set_ylabel("碰撞检测次数 (归一化)")
 
 plt.tight_layout()

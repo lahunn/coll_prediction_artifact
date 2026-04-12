@@ -127,7 +127,7 @@ fall_oracle = 0  # 跨 bench 累积 oracle 成本
 # ====== 微架构/资源参数 ======
 qnoncoll_len = 56  # 低风险队列容量（批量缓冲）
 qcoll_len = 8  # 高风险队列容量（小而快）
-cycle_check = 40  # 统一固定 latency（所有任务同一执行时长）
+cycle_check = DEFAULT_CYCLE_CHECK  # 统一固定 latency（所有任务同一执行时长）
 cycle_check_free = 30  # （未真正使用于执行时间区分，可能为未来扩展）
 
 # ====== 记录每条路径的周期/成本明细 ======

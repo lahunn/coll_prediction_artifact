@@ -39,10 +39,11 @@
 import sys
 import os
 import argparse
+import pickle
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
 from simulation_core.multi_copu_scheduler import MultiCOPU_Scheduler
-from simulation_core.constants import NUM_OOCDS, DEFAULT_QCOLL_LEN, DEFAULT_QNONCOLL_LEN
+from simulation_core.constants import NUM_OOCDS, DEFAULT_QCOLL_LEN, DEFAULT_QNONCOLL_LEN, DEFAULT_CYCLE_CHECK
 import simulation_utils as su
 
 # ============================================================================
@@ -50,7 +51,6 @@ import simulation_utils as su
 # ============================================================================
 QUANT_MIN = -1.5  # 量化最小值
 QUANT_MAX = 1.5  # 量化最大值
-DEFAULT_CHECK_CYCLE = 45
 
 
 def run_multi_copu_simulation(
@@ -68,6 +68,7 @@ def run_multi_copu_simulation(
     num_predictions=1,
     qcoll_size=DEFAULT_QCOLL_LEN,
     qnoncoll_size=DEFAULT_QNONCOLL_LEN,
+    warmstart_package=None,
     **cht_kwargs,
 ):
     """
@@ -110,6 +111,9 @@ def run_multi_copu_simulation(
         **cht_kwargs,
     )
 
+    if warmstart_package is not None:
+        scheduler.load_warmstart_package(warmstart_package)
+
     # 3. 加载数据
 
     scheduler.set_benchmark_data(all_data, all_coll, all_cycles)
@@ -140,12 +144,16 @@ def run_multi_copu_simulation(
         "avg_copu_utilization": avg_copu_utilization,
         "total_cht_conflicts": cht_conflicts,
         "total_wait_cycles": result.get("total_wait_cycles", 0),
+        "total_wait_samples": result.get("total_wait_samples", 0),
         "avg_wait_cycles": result.get("avg_wait_cycles", 0.0),
-        "dead_avg_ratio": (
+        "wait_load_ratio": (
             (result.get("total_wait_cycles", 0) / result["total_cycles"] * 100.0)
             if result["total_cycles"] > 0
             else 0.0
         ),
+        "dead_avg_ratio": result.get("dead_avg_ratio", 0.0),
+        "total_dead_ratio_sum": result.get("total_dead_ratio_sum", 0.0),
+        "total_dead_ratio_samples": result.get("total_dead_ratio_samples", 0),
         "collision_found": result["collision_found"],
         "num_collisions": num_collisions,
         "num_safe": num_safe,
@@ -173,6 +181,7 @@ def simulate_single_benchmark(
     qcoll_size=DEFAULT_QCOLL_LEN,
     qnoncoll_size=DEFAULT_QNONCOLL_LEN,
     collision_type="link",
+    warmstart_dir=None,
     **cht_kwargs,
 ):
     """
@@ -212,6 +221,17 @@ def simulate_single_benchmark(
     if all_data is None:
         return None
 
+    warmstart_package = None
+    if warmstart_dir:
+        warmstart_filename = f"{basename}_{benchid:04d}_warmstart.pkl"
+        warmstart_path = os.path.join(warmstart_dir, warmstart_filename)
+        if os.path.exists(warmstart_path):
+            with open(warmstart_path, "rb") as f:
+                warmstart_package = pickle.load(f)
+            print(f"  加载warm-start包: {warmstart_path}")
+        else:
+            print(f"  warm-start包不存在，跳过: {warmstart_path}")
+
     # 执行仿真
     result = run_multi_copu_simulation(
         all_data,
@@ -228,6 +248,7 @@ def simulate_single_benchmark(
         num_predictions=num_predictions,
         qcoll_size=qcoll_size,
         qnoncoll_size=qnoncoll_size,
+        warmstart_package=warmstart_package,
         **cht_kwargs,
     )
 
@@ -252,6 +273,7 @@ def run_benchmark_range_simulation(
     qcoll_size=DEFAULT_QCOLL_LEN,
     qnoncoll_size=DEFAULT_QNONCOLL_LEN,
     collision_type="link",
+    warmstart_dir=None,
     **cht_kwargs,
 ):
     """
@@ -285,6 +307,8 @@ def run_benchmark_range_simulation(
     total_safe_all = 0
     total_wait_cycles_all = 0
     total_wait_samples_all = 0
+    total_dead_ratio_sum_all = 0.0
+    total_dead_ratio_samples_all = 0
     all_copu_utils_all = []
     num_benchmarks_processed = 0
 
@@ -313,6 +337,7 @@ def run_benchmark_range_simulation(
             qcoll_size=qcoll_size,
             qnoncoll_size=qnoncoll_size,
             collision_type=collision_type,
+            warmstart_dir=warmstart_dir,
             **cht_kwargs,
         )
 
@@ -329,7 +354,9 @@ def run_benchmark_range_simulation(
         total_collisions_all += result.get("num_collisions", 0)
         total_safe_all += result.get("num_safe", 0)
         total_wait_cycles_all += result.get("total_wait_cycles", 0)
-        total_wait_samples_all += result.get("num_edges", 0)
+        total_wait_samples_all += result.get("total_wait_samples", 0)
+        total_dead_ratio_sum_all += result.get("total_dead_ratio_sum", 0.0)
+        total_dead_ratio_samples_all += result.get("total_dead_ratio_samples", 0)
 
         # 累计COPU占用率样本
         if "copu_utilizations" in result:
@@ -358,12 +385,20 @@ def run_benchmark_range_simulation(
         "avg_copu_utilization": avg_copu_utilization_all,
         "total_cht_conflicts": total_cht_conflicts_all,
         "total_wait_cycles": total_wait_cycles_all,
+        "total_wait_samples": total_wait_samples_all,
         "avg_wait_cycles": avg_wait_cycles_all,
-        "dead_avg_ratio": (
+        "wait_load_ratio": (
             (total_wait_cycles_all / total_cycles_all * 100.0)
             if total_cycles_all > 0
             else 0.0
         ),
+        "dead_avg_ratio": (
+            (total_dead_ratio_sum_all / total_dead_ratio_samples_all * 100.0)
+            if total_dead_ratio_samples_all > 0
+            else 0.0
+        ),
+        "total_dead_ratio_sum": total_dead_ratio_sum_all,
+        "total_dead_ratio_samples": total_dead_ratio_samples_all,
         "num_collisions": total_collisions_all,
         "num_safe": total_safe_all,
     }
@@ -406,16 +441,14 @@ def print_results(results, is_range=False):
     print(f"  CHT冲突数: {results.get('total_cht_conflicts', 0)}")
     print(f"  平均等待周期: {results.get('avg_wait_cycles', 0.0):.4f}")
     print(f"  Dead Time Avg Ratio Per Edge: {results.get('dead_avg_ratio', 0.0):.4f}%")
+    print(f"  Wait Load Ratio (legacy): {results.get('wait_load_ratio', 0.0):.4f}%")
 
     # 输出CHT访问统计信息（统一格式：各Bank访问数 + 总读/写计数）
     if "cht_stats" in results:
         cht_stats = results["cht_stats"]
-        # 尝试获取各Bank访问数；若不存在（例如双端口CHT），则从总读写数推导为单Bank
-        bank_counts = cht_stats.get("bank_access_counts")
         total_reads = cht_stats.get("total_reads", 0)
         total_writes = cht_stats.get("total_writes", 0)
         total_accesses = total_reads + total_writes
-        print(f"  CHT各Bank访问数: {bank_counts}")
         print(
             f"  CHT访问总数: {total_accesses} (读: {total_reads}, 写: {total_writes})"
         )
@@ -481,7 +514,12 @@ def main():
     )
     parser.add_argument(
         "--cht-type",
-        choices=["dual_port", "multi_bank"],
+        choices=[
+            "dual_port",
+            "multi_bank",
+            "distri_dual_port",
+            "distri_multi_bank",
+        ],
         default="dual_port",
         help="CHT implementation type",
     )
@@ -509,6 +547,11 @@ def main():
         default="link",
         help="collision model type used for dataset loading",
     )
+    parser.add_argument(
+        "--cht-warmstart-dir",
+        default=None,
+        help="directory containing warm-start packages named <basename>_<benchid>_warmstart.pkl",
+    )
 
     args = parser.parse_args()
 
@@ -528,6 +571,7 @@ def main():
     copus_per_edge = args.copus_per_edge
     qnoncoll_multiplier = args.qnoncoll_multiplier
     collision_type = args.collision_type
+    warmstart_dir = args.cht_warmstart_dir
 
     is_range_mode = "-" in benchid_arg
 
@@ -536,7 +580,11 @@ def main():
         qnoncoll_size = int(num_oocds * qnoncoll_multiplier)
 
     # CHT 额外参数
-    cht_kwargs = {"num_banks": num_banks} if cht_type == "multi_bank" else {}
+    cht_kwargs = (
+        {"num_banks": num_banks}
+        if cht_type in {"multi_bank", "distri_multi_bank"}
+        else {}
+    )
 
     print("=" * 80)
     print("多COPU实际数据仿真")
@@ -561,6 +609,8 @@ def main():
     print(f"  CHT类型: {cht_type}")
     print(f"  Collision模型类型: {collision_type}")
     print(f"  每Edge COPU数: {copus_per_edge if copus_per_edge else num_copus}")
+    if warmstart_dir:
+        print(f"  warm-start目录: {warmstart_dir}")
     if qnoncoll_size is not None:
         print(f"  QNONCOLL长度: {qnoncoll_size} (multiplier: {qnoncoll_multiplier})")
     if cht_type == "multi_bank":
@@ -586,6 +636,7 @@ def main():
             num_predictions=num_predictions,
             qnoncoll_size=qnoncoll_size,
             collision_type=collision_type,
+            warmstart_dir=warmstart_dir,
             **cht_kwargs,
         )
     else:
@@ -606,6 +657,7 @@ def main():
             num_predictions=num_predictions,
             qnoncoll_size=qnoncoll_size,
             collision_type=collision_type,
+            warmstart_dir=warmstart_dir,
             **cht_kwargs,
         )
 

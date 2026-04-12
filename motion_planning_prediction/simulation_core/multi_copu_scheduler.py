@@ -86,6 +86,8 @@ class MultiCOPU_Scheduler:
         # 等待周期统计：任务进入队列到首次CDU执行
         self.total_wait_cycles = 0
         self.total_wait_samples = 0
+        self.total_dead_ratio_sum = 0.0
+        self.total_dead_ratio_samples = 0
 
         # 原始数据存储
         self.all_data = []
@@ -103,6 +105,8 @@ class MultiCOPU_Scheduler:
         self.edge_results = {}
         self.total_wait_cycles = 0
         self.total_wait_samples = 0
+        self.total_dead_ratio_sum = 0.0
+        self.total_dead_ratio_samples = 0
 
         # 重置组状态
         for i in range(self.num_groups):
@@ -119,6 +123,10 @@ class MultiCOPU_Scheduler:
         # 重置所有COPU
         for copu in self.copus:
             copu.reset_task()
+
+    def load_warmstart_package(self, warmstart_package):
+        """将warm-start包注入到底层CHT调度器。"""
+        self.cht_scheduler.load_warmstart_package(warmstart_package)
 
     def _has_active_tasks(self):
         """检查是否还有活跃任务"""
@@ -197,12 +205,20 @@ class MultiCOPU_Scheduler:
             "total_cycles": self.cycle,
             "collision_found": self.global_coll_found,
             "copus": [copu.get_stats() for copu in self.copus],
-            "cht_stats": self.cht_scheduler.cht.get_stats(),
+            "cht_stats": self.cht_scheduler.get_stats(),
             "edge_results": self.edge_results,
             "total_wait_cycles": self.total_wait_cycles,
+            "total_wait_samples": self.total_wait_samples,
             "avg_wait_cycles": (
                 self.total_wait_cycles / self.total_wait_samples
                 if self.total_wait_samples > 0
+                else 0.0
+            ),
+            "total_dead_ratio_sum": self.total_dead_ratio_sum,
+            "total_dead_ratio_samples": self.total_dead_ratio_samples,
+            "dead_avg_ratio": (
+                (self.total_dead_ratio_sum / self.total_dead_ratio_samples * 100.0)
+                if self.total_dead_ratio_samples > 0
                 else 0.0
             ),
         }
@@ -244,6 +260,12 @@ class MultiCOPU_Scheduler:
             wait_cycles = max(0, first_dispatch_cycle - assign_cycle)
         self.total_wait_cycles += wait_cycles
         self.total_wait_samples += 1
+
+        # 真实 per-edge dead ratio：按任务周期归一化
+        task_cycles = max(1, self.cycle - assign_cycle + 1)
+        dead_ratio = wait_cycles / task_cycles
+        self.total_dead_ratio_sum += dead_ratio
+        self.total_dead_ratio_samples += 1
 
         # 重置该prediction状态
         self.group_status[group_id][prediction_idx] = {

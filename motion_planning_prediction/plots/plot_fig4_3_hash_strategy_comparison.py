@@ -79,7 +79,7 @@ def plot_hash_strategy_comparison():
     plt.tight_layout()
 
     # 7. 保存
-    output_path = os.path.join(base_dir, 'plots/figs/fig4_3_hash_strategy_comparison.pdf')
+    output_path = os.path.join(base_dir, 'plots/figs/hash_strategy_comparison.pdf')
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     plt.savefig(output_path, dpi=300)
     print(f"Figure saved to {output_path}")

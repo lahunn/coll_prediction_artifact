@@ -4,6 +4,7 @@ OOCD (Out-Of-Order Collision Detector) processing functions.
 
 from .data_structures import OOCDState, OOCDStatePreemptive
 from .collision_prediction import update_collision_dict, submit_cht_write
+from .constants import DEFAULT_NUM_DEDICATED_OOCDS
 
 
 def check_completion(oocd, cycle, query_count, coll_found, colldict, sample_rate):
@@ -392,7 +393,7 @@ def dispatch_new_tasks(
     cycle_check,
     num_oocds,
     qnoncoll_size,
-    num_dedicated_oocds=8,
+    num_dedicated_oocds=DEFAULT_NUM_DEDICATED_OOCDS,
 ):
     """分派新任务给空闲的OOCD（改进版：支持多OOCD并行分派）
 

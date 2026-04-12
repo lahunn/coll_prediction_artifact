@@ -21,11 +21,15 @@ CSP方法特点:
 """
 
 import sys
+import os
 
 import numpy as np
 import matplotlib.pyplot as plt
 
 import pickle
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "./")))
+from simulation_core.constants import DEFAULT_CYCLE_CHECK
 
 
 def plot(code, ytest, name):
@@ -170,7 +174,7 @@ fall_oracle = 0  # Oracle方法累积成本
 # ========================================
 qnoncoll_len = 56  # 非碰撞队列最大长度(CSP方法中所有任务都进此队列)
 qcoll_len = 8  # 碰撞队列最大长度(CSP方法中不使用,保留参数)
-cycle_check = 40  # 每次碰撞检测所需周期数(模拟硬件延迟)
+cycle_check = DEFAULT_CYCLE_CHECK  # 每次碰撞检测所需周期数(模拟硬件延迟)
 
 # 性能记录数组(用于详细分析)
 cycle_count = []  # 记录每个benchmark中每条路径的周期数

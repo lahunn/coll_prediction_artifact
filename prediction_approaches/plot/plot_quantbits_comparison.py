@@ -54,12 +54,11 @@ except Exception as e:
     exit()
 
 # 3. 数据预处理
-densities = ["dens3", "dens6", "dens9", "dens12"]
+density_levels = ["dens6", "dens9", "dens12"]
 density_labels = {
-    "dens3": "障碍物密度 3",
-    "dens6": "障碍物密度 6",
-    "dens9": "障碍物密度 9",
-    "dens12": "障碍物密度 12"
+    "dens6": "障碍物密度 低",
+    "dens9": "障碍物密度 中",
+    "dens12": "障碍物密度 高",
 }
 
 # 按 Density 和 QuantBits 分组并取均值
@@ -75,11 +74,11 @@ metrics = [
 ]
 
 palette = sns.color_palette("colorblind")
-markers = ['o', 's', '^', 'D']
+markers = ['o', 's', '^']
 
 for i, (col, title) in enumerate(metrics):
     ax = axes[i]
-    for j, density in enumerate(densities):
+    for j, density in enumerate(density_levels):
         density_data = agg_df[agg_df['Density'] == density]
         ax.plot(
             density_data['QuantBits'], 

@@ -1,9 +1,13 @@
 import sys
+import os
 
 import numpy as np
 
 # import cv2
 import matplotlib.pyplot as plt
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "./")))
+from simulation_core.constants import DEFAULT_CYCLE_CHECK
 
 # import torch
 # import torch.nn as nn
@@ -97,7 +101,7 @@ fall_prediction = 0
 fall_oracle = 0
 qnoncoll_len = 56
 qcoll_len = 8
-cycle_check = 40
+cycle_check = DEFAULT_CYCLE_CHECK
 cycle_count = []
 comp_count = []
 edge_count = 0

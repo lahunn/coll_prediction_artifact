@@ -94,7 +94,7 @@ def plot_cht_conflicts():
 
     # 设置中文标签
     ax.set_ylabel('存储访问冲突总数')
-    ax.set_xlabel('基准测试场景')
+    ax.set_xlabel('运动规划任务分组(按碰撞检测请求总数)')
     ax.set_title('Sphere 场景下共享双端口架构的 CHT 访问冲突统计')
     ax.set_xticks(x)
     ax.set_xticklabels(scenes)

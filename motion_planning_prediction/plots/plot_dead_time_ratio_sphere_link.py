@@ -154,7 +154,7 @@ def main():
     annotate_dead(ax, x_link, link_effective, link_dead)
     annotate_dead(ax, x_sphere, sphere_effective, sphere_dead)
 
-    ax.set_xlabel("难度等级", fontproperties=cjk_font)
+    ax.set_xlabel("运动规划任务分组(按碰撞检测请求总数)", fontproperties=cjk_font)
     ax.set_ylabel("周期占比 (%)", fontproperties=cjk_font)
     ax.set_title("死区占比（上）与有效占比（下）", fontproperties=cjk_font)
     ax.set_xticks(x)

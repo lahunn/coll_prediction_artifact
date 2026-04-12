@@ -98,7 +98,7 @@ def plot_conflict_impact():
                     color=nc_color, edgecolor='black', alpha=0.85)
             
     ax.set_ylabel('总运行周期数')
-    ax.set_xlabel('基准测试场景')
+    ax.set_xlabel('运动规划任务分组(按碰撞检测请求总数)')
     ax.set_title('存储冲突的性能影响')
     ax.set_xticks(x)
     ax.set_xticklabels(scenes)

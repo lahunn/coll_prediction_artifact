@@ -326,6 +326,7 @@ class GlobalOOCDScheduler:
                 self.cht_scheduler,
                 self.qcoll_size,
                 self.qnoncoll_size,
+                copu_id=pred_id,
             )
 
     def _check_and_load_edges(self):

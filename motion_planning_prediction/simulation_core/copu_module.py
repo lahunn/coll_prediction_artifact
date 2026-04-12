@@ -8,6 +8,7 @@ from .constants import (
     DEFAULT_QCOLL_LEN,
     DEFAULT_QNONCOLL_LEN,
     DEFAULT_CYCLE_CHECK,
+    DEFAULT_NUM_DEDICATED_OOCDS,
 )
 from .oocd_processor import (
     process_oocd_completion,
@@ -150,6 +151,7 @@ class COPUModule:
                 self.cht_scheduler,
                 self.qcoll_size,
                 self.qnoncoll_size,
+                copu_id=self.copu_id,
             )
 
         # 4. 检查是否所有任务都完成

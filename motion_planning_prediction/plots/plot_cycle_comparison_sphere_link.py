@@ -204,7 +204,7 @@ def plot_total_prediction_cycles(difficulties, link_cycles, sphere_cycles, oracl
         linewidth=1.5,
     )
 
-    ax.set_xlabel("难度等级")
+    ax.set_xlabel("运动规划任务分组(按碰撞检测请求总数)")
     ax.set_ylabel("总预测周期 (对数尺度)")
     ax.set_xticks(x)
     ax.set_xticklabels(difficulties)
@@ -269,7 +269,7 @@ def plot_total_prediction_queries(
         rects = ax.bar(x + dx, safe_values, width, label=label, color=color, **kw)
         rects_map[label] = rects
 
-    ax.set_xlabel("难度等级")
+    ax.set_xlabel("运动规划任务分组(按碰撞检测请求总数)")
     ax.set_ylabel("总预测查询次数 (对数尺度)")
     ax.set_xticks(x)
     ax.set_xticklabels(difficulties)

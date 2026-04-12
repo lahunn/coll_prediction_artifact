@@ -165,7 +165,7 @@ def plot_rates(results, output_dir="figs"):
     rects2 = ax.bar(x, pose_rates, width, label='Pose Level', color=pose_color)
     rects3 = ax.bar(x + width, sphere_rates, width, label='Sphere Level', color=sphere_color)
 
-    ax.set_xlabel('Difficulty Level')
+    ax.set_xlabel('运动规划任务分组(按碰撞检测请求总数)')
     ax.set_ylabel('Collision Rate (%)')
     ax.set_title('Collision Rates at Different Granularity Levels')
     ax.set_xticks(x)
@@ -200,7 +200,7 @@ def plot_rates(results, output_dir="figs"):
     rects2_log = ax_log.bar(x, pose_rates, width, label='Pose Level', color=pose_color)
     rects3_log = ax_log.bar(x + width, sphere_rates, width, label='Sphere Level', color=sphere_color)
     
-    ax_log.set_xlabel('Difficulty Level')
+    ax_log.set_xlabel('运动规划任务分组(按碰撞检测请求总数)')
     ax_log.set_ylabel('Collision Rate (%) - Log Scale')
     ax_log.set_title('Collision Rates (Log Scale)')
     ax_log.set_xticks(x)

@@ -153,7 +153,7 @@ def plot_accuracy_recall_comparison():
     )
 
     plt.tight_layout(rect=(0, 0.03, 1, 0.95))
-    plt.savefig("figs/fig_obb_sphere_precision.pdf", dpi=300)
+    plt.savefig("figs/fig_obb_sphere_precision.pdf")
     print("✅ 图1-Precision已保存: figs/fig_obb_sphere_precision.pdf")
     plt.close()
 
@@ -207,7 +207,7 @@ def plot_accuracy_recall_comparison():
     )
 
     plt.tight_layout(rect=(0, 0.03, 1, 0.95))
-    plt.savefig("figs/fig_obb_sphere_recall.pdf", dpi=300)
+    plt.savefig("figs/fig_obb_sphere_recall.pdf")
     print("✅ 图1-Recall已保存: figs/fig_obb_sphere_recall.pdf")
     plt.close()
 
@@ -309,7 +309,7 @@ def plot_cost_comparison():
     fig.text(0.5, 0.01, "Obstacle Density", ha="center", fontsize=FONT_SIZE_LABEL - 2)
 
     plt.tight_layout(rect=(0, 0.03, 1, 0.93))
-    plt.savefig("figs/fig_obb_sphere_cost.pdf", dpi=300)
+    plt.savefig("figs/fig_obb_sphere_cost.pdf")
     print("✅ 图2已保存: figs/fig_obb_sphere_cost.pdf")
     plt.close()
 
@@ -408,7 +408,7 @@ def plot_threshold_comparison(density="dens6"):
         )
 
         plt.tight_layout()
-        plt.savefig(f"figs/fig_threshold_comparison_{density}_obb_q{qb}.pdf", dpi=300)
+        plt.savefig(f"figs/fig_threshold_comparison_{density}_obb_q{qb}.pdf")
         print(f"✅ 图3已保存: figs/fig_threshold_comparison_{density}_obb_q{qb}.pdf")
         plt.close()
 
@@ -491,7 +491,7 @@ def plot_threshold_comparison(density="dens6"):
 
         plt.tight_layout()
         plt.savefig(
-            f"figs/fig_threshold_comparison_{density}_sphere_c{cb}.pdf", dpi=300
+            f"figs/fig_threshold_comparison_{density}_sphere_c{cb}.pdf"
         )
         print(f"✅ 图3已保存: figs/fig_threshold_comparison_{density}_sphere_c{cb}.pdf")
         plt.close()
@@ -664,7 +664,7 @@ def plot_combined_threshold_comparison():
     fig.text(0.5, 0.01, "阈值 S", ha="center", fontsize=FONT_SIZE_LABEL)
 
     plt.tight_layout(rect=(0, 0.04, 1, 0.96))
-    plt.savefig("figs/fig_threshold_comparison_combined.pdf", dpi=300)
+    plt.savefig("figs/fig_threshold_comparison_combined.pdf")
     print("✅ 图3综合版已保存: figs/fig_threshold_comparison_combined.pdf")
     plt.close()
 
@@ -788,7 +788,7 @@ def plot_pr_curves():
     )
 
     plt.tight_layout(rect=(0, 0.03, 1, 0.96))
-    plt.savefig("figs/fig_obb_sphere_pr_curves.pdf", dpi=300)
+    plt.savefig("figs/fig_obb_sphere_pr_curves.pdf")
     print("✅ 图4已保存: figs/fig_obb_sphere_pr_curves.pdf")
     plt.close()
 
@@ -960,7 +960,7 @@ def plot_cost_vs_threshold():
     )
 
     plt.tight_layout(rect=(0, 0.03, 1, 0.96))
-    plt.savefig("figs/fig_cost_vs_threshold.pdf", dpi=300)
+    plt.savefig("figs/fig_cost_vs_threshold.pdf")
     print("✅ 图5已保存: figs/fig_cost_vs_threshold.pdf")
     plt.close()
 
@@ -1202,7 +1202,7 @@ def plot_threshold_metrics_by_density():
         )
 
         plt.tight_layout(rect=(0, 0.02, 1, 0.92))
-        plt.savefig(f"figs/fig_threshold_metrics_{density}_comparison.pdf", dpi=300)
+        plt.savefig(f"figs/fig_threshold_metrics_{density}_comparison.pdf")
         print(f"✅ 图已保存: figs/fig_threshold_metrics_{density}_comparison.pdf")
         plt.close()
 
@@ -1696,10 +1696,8 @@ def plot_metrics_at_fixed_S_U():
         outdir = "figs"
         os.makedirs(outdir, exist_ok=True)
         outpath = os.path.join(outdir, f"fig_fixed_S_U_{density}.pdf")
-        outpath_pdf = outpath.replace(".pdf", ".pdf")
-        plt.savefig(outpath_pdf, format="pdf")
-        plt.savefig(outpath, format="png")
-        print(f"✅ 图已保存: {outpath_pdf}")
+        plt.savefig(outpath, format="pdf")
+        print(f"✅ 图已保存: {outpath}")
         plt.close()
 
 
@@ -1864,7 +1862,11 @@ def plot_metric_vs_S_multi_density(
     sphere_data = pd.read_csv(Sphere_csv_path, header=0)
 
     densities = ["dens6", "dens9", "dens12"]
-    density_labels = {"dens3": "障碍物数量 3", "dens6": "障碍物数量 6", "dens9": "障碍物数量 9", "dens12": "障碍物数量 12"}
+    density_labels = {
+        "dens6": "障碍物密度 低",
+        "dens9": "障碍物密度 中",
+        "dens12": "障碍物密度 高",
+    }
     quant_bits = 4
     sample_rate = 0.125
     radius_bits = 0
@@ -1978,10 +1980,8 @@ def plot_metric_vs_S_multi_density(
     outdir = "figs"
     os.makedirs(outdir, exist_ok=True)
     outpath = os.path.join(outdir, filename)
-    outpath_pdf = outpath.replace(".pdf", ".pdf")
-    plt.savefig(outpath_pdf, format="pdf")
-    plt.savefig(outpath, format="png")
-    print(f"✅ {ylabel} 对比图已保存: {outpath_pdf}")
+    plt.savefig(outpath, format="pdf")
+    print(f"✅ {ylabel} 对比图已保存: {outpath}")
 
 
 # 便捷函数

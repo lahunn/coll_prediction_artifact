@@ -15,7 +15,8 @@ from .constants import MAX_COLLISION_COUNT, CHT_DEFAULT_SIZE, ONE_CYCLE_DELAY
 class ConfigurableCHT:
     """
     可配置的碰撞历史表 (CHT)
-    支持双端口SRAM (num_banks=1, ports_per_bank=2) 和多Bank单端口SRAM (num_banks>1, ports_per_bank=1)
+    支持双端口SRAM (num_banks=1, ports_per_bank=2)
+    和多Bank双端口SRAM (num_banks>1, ports_per_bank=2)
     """
 
     def __init__(
@@ -44,7 +45,6 @@ class ConfigurableCHT:
         self.read_count = 0
         self.write_count = 0
         self.conflicts = 0  # 冲突次数
-        self.bank_access_counts = [0] * num_banks
 
     def _get_bank_id(self, hash_key):
         """
@@ -62,13 +62,16 @@ class ConfigurableCHT:
 
         return bank_id % self.num_banks
 
-    def _calculate_completion_cycle(self, cycle, bank_id):
+    def _calculate_completion_cycle(self, cycle, bank_id, op_type=None):
         """计算操作完成周期，处理端口冲突
-        
-        统一使用 bank_pending_counts（即使对于 dual-port 也是如此）
-        确保 dual-port 和 multi-bank 的时序一致性
+
+        dual-port: 读写共享pending计数
+        multi-bank: 读写独立pending计数
         """
-        pending_for_bank = self.bank_pending_counts[bank_id]
+        if self.num_banks > 1:
+            pending_for_bank = self._count_pending_requests(bank_id, op_type)
+        else:
+            pending_for_bank = self.bank_pending_counts[bank_id]
         
         if not self.enable_conflict_check:
             return cycle + ONE_CYCLE_DELAY
@@ -78,6 +81,16 @@ class ConfigurableCHT:
             self.conflicts += 1
         return cycle + wait_cycles + ONE_CYCLE_DELAY
 
+    def _count_pending_requests(self, bank_id, op_type):
+        """统计指定bank、指定类型的pending请求数量。"""
+        count = 0
+        for access in self.pending_accesses:
+            if access["bank_id"] != bank_id:
+                continue
+            if access["op_type"] == op_type:
+                count += 1
+        return count
+
     def read_request(self, copu_id, hash_key, cycle):
         """
         提交读请求。
@@ -85,9 +98,7 @@ class ConfigurableCHT:
         """
         bank_id = self._get_bank_id(hash_key)
 
-        self.bank_access_counts[bank_id] += 1
-
-        completion_cycle = self._calculate_completion_cycle(cycle, bank_id)
+        completion_cycle = self._calculate_completion_cycle(cycle, bank_id, "read")
 
         self.pending_accesses.append(
             {
@@ -99,7 +110,8 @@ class ConfigurableCHT:
             }
         )
 
-        self.bank_pending_counts[bank_id] += 1
+        if self.num_banks == 1:
+            self.bank_pending_counts[bank_id] += 1
 
         self.read_count += 1
         return self.memory.get(hash_key, [0, 0]), completion_cycle
@@ -111,9 +123,7 @@ class ConfigurableCHT:
         """
         bank_id = self._get_bank_id(hash_key)
 
-        self.bank_access_counts[bank_id] += 1
-
-        completion_cycle = self._calculate_completion_cycle(cycle, bank_id)
+        completion_cycle = self._calculate_completion_cycle(cycle, bank_id, "write")
 
         self.pending_accesses.append(
             {
@@ -126,7 +136,8 @@ class ConfigurableCHT:
             }
         )
 
-        self.bank_pending_counts[bank_id] += 1
+        if self.num_banks == 1:
+            self.bank_pending_counts[bank_id] += 1
 
         self.write_count += 1
         return completion_cycle
@@ -163,8 +174,9 @@ class ConfigurableCHT:
                 )
 
             bank_id = access["bank_id"]
-            if self.bank_pending_counts[bank_id] > 0:
-                self.bank_pending_counts[bank_id] -= 1
+            if self.num_banks == 1:
+                if self.bank_pending_counts[bank_id] > 0:
+                    self.bank_pending_counts[bank_id] -= 1
 
         self.pending_accesses = remaining
         self.current_cycle += 1
@@ -176,19 +188,9 @@ class ConfigurableCHT:
         self.bank_pending_counts = [0] * self.num_banks
 
     def get_stats(self):
-        """返回CHT访问统计（统一格式：始终包含 bank_access_counts）"""
+        """返回CHT访问统计。"""
         total_accesses = self.read_count + self.write_count
         conflict_rate = self.conflicts / total_accesses if total_accesses > 0 else 0.0
-
-        # 计算负载均衡统计（对所有CHT类型适用）
-        avg_access = sum(self.bank_access_counts) / self.num_banks if self.num_banks > 0 else 0
-        variance = (
-            sum((x - avg_access) ** 2 for x in self.bank_access_counts)
-            / self.num_banks
-            if self.num_banks > 0
-            else 0
-        )
-        load_balance_std = variance**0.5
 
         stats = {
             "total_reads": self.read_count,
@@ -196,8 +198,6 @@ class ConfigurableCHT:
             "total_conflicts": self.conflicts,
             "conflict_rate": conflict_rate,
             "entries_used": len(self.memory),
-            "bank_access_counts": self.bank_access_counts,
-            "load_balance_std": load_balance_std,
         }
         
         # 对于 multi-bank CHT，还包含 bank_config

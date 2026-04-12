@@ -61,10 +61,8 @@ collision_spheres:
           "radius": 0.08
         - "center": [0., -0.04, 0.075]
           "radius": 0.06
-        - "center": [0., 0.08, 0.06]
+        - "center": [0., 0.085, 0.06]
           "radius": 0.065
-        - "center": [0., 0.16, 0.06]
-          "radius": 0.05
     palm_link:
         - "center": [0.0, 0.01, -0.04]
           "radius": 0.07

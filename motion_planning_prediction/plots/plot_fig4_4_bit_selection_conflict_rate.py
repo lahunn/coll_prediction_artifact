@@ -98,7 +98,7 @@ def plot_conflict_rate_comparison():
     plt.tight_layout()
 
     # 7. 保存
-    output_path = os.path.join(base_dir, 'plots/figs/fig4_4_bit_selection_conflict_rate.pdf')
+    output_path = os.path.join(base_dir, 'plots/figs/bit_selection_conflict_rate.pdf')
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     plt.savefig(output_path, dpi=300)
     print(f"Figure saved to {output_path}")

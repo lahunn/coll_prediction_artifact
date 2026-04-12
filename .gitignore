@@ -63,3 +63,4 @@ plot/figs/*
 motion_planning_prediction/tests/result_files/*
 figure_sources_report.md
 prediction_approaches/tests/*
+trace_files/cht_pre_load/*

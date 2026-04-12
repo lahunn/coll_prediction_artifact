@@ -20,13 +20,14 @@ from collections import deque, namedtuple
 # 添加上级目录到path以导入simulation_utils
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
 import simulation_utils as su
+from simulation_core.constants import DEFAULT_CYCLE_CHECK
 
 # Constants
 NUM_OOCDS = 7
 MAX_COLLISION_COUNT = 15
 DEFAULT_QNONCOLL_LEN = 56
 DEFAULT_QCOLL_LEN = 8
-DEFAULT_CYCLE_CHECK = 40
+DEFAULT_CYCLE_CHECK_VALUE = DEFAULT_CYCLE_CHECK
 
 # 扩展OOCDState以包含任务来源
 OOCDStateAnalysis = namedtuple(

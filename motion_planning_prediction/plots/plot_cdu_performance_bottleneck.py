@@ -6,6 +6,7 @@ import seaborn as sns
 import numpy as np
 import pandas as pd
 import matplotlib
+import os
 
 # --- 统一绘图风格配置 ---
 sns.set_theme(style="whitegrid")
@@ -19,14 +20,6 @@ Plot CDU performance bottleneck analysis.
 Displays the breakdown of CDU cycles into Processing and various Idle states across scenes.
 This naming convention (CDU) matches the terminology used in the thesis.
 """
-
-sns.set_theme(style="whitegrid")
-plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
-plt.rcParams['axes.unicode_minus'] = False
-plt.rcParams['font.size'] = 12
-colors = sns.color_palette("deep")
-.pyplot as plt
-import os
 sns.set_theme(style="whitegrid")
 plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
 plt.rcParams['axes.unicode_minus'] = False
@@ -95,7 +88,7 @@ def plot_cdu_performance_bottleneck():
 
     # 6. Aesthetics
     ax.set_ylabel('Cycle Distribution (%)', fontweight='bold')
-    ax.set_xlabel('Benchmark Scenario', fontweight='bold')
+    ax.set_xlabel('运动规划任务分组(按碰撞检测请求总数)', fontweight='bold')
     ax.set_title('CDU Performance Bottleneck Breakdown (G1-G5)', pad=20, fontsize=16, fontweight='bold')
     ax.set_xticks(x)
     ax.set_xticklabels(scenes)

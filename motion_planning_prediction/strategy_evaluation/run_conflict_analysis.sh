@@ -12,7 +12,7 @@ set -e  # 遇到错误立即退出
 BASENAME="iiwa_7"
 BENCHID="1-10"
 BASE_DATA_FOLDER="../../trace_files/scene_benchmarks/bit_collision_data"
-NUM_COPUS=8
+NUM_COPUS=16
 THRESHOLD=0.5
 COPUS_PER_EDGE=1
 NUM_OOCDS=8

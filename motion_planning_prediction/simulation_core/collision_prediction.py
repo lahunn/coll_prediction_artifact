@@ -295,6 +295,7 @@ def predict_next_config(
     cht_scheduler,
     qcoll_size,
     qnoncoll_size,
+    copu_id=0,
 ):
     """预测下一个配置并入队"""
     if len(linklist) > 0:
@@ -307,7 +308,7 @@ def predict_next_config(
         is_ready = False
         coll_count, noncoll_count = 0, 0
 
-        is_ready, data = cht_scheduler.get_read_result(keyy)
+        is_ready, data = cht_scheduler.get_read_result(keyy, copu_id=copu_id)
         if is_ready:
             coll_count, noncoll_count = data
 
