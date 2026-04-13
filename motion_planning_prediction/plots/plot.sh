@@ -1,0 +1,12 @@
+# chapter3
+python plot_cycle_comparison_sphere_link.py
+# chapter4
+python plot_fig4_1_cycle_breakdown.py 
+python plot_fig4_2_conflict_impact.py 
+python plot_fig4_3_hash_strategy_comparison.py 
+python plot_fig4_4_bit_selection_conflict_rate.py
+python plot_dead_time_ratio_sphere_link.py
+# chapter5
+python plot_cycle_comparison_strategies.py
+python plot_total_cycles_scalability.py
+python plot_copu_scalability_g5.py

@@ -1,6 +1,6 @@
 import math
 import sys
-
+import os
 import matplotlib.pylab as plt
 import seaborn as sns
 import numpy as np
@@ -8,18 +8,6 @@ import pandas as pd
 import matplotlib
 
 # --- 统一绘图风格配置 ---
-sns.set_theme(style="whitegrid")
-plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
-plt.rcParams['axes.unicode_minus'] = False
-plt.rcParams['font.size'] = 12
-colors = sns.color_palette("deep")
-sns.set_theme(style="whitegrid")
-plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
-plt.rcParams['axes.unicode_minus'] = False
-plt.rcParams['font.size'] = 12
-colors = sns.color_palette("deep")
-.pyplot as plt
-import os
 sns.set_theme(style="whitegrid")
 plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
 plt.rcParams['axes.unicode_minus'] = False
@@ -139,7 +127,6 @@ def plot_comparison(model_type):
     )
 
     ax1.set_ylabel("Total Prediction Queries")
-    ax1.set_title(f"Total Prediction Queries Comparison")
     ax1.set_xticks(x)
     ax1.set_xticklabels(scenes)
     ax1.legend()
@@ -167,7 +154,6 @@ def plot_comparison(model_type):
     )
 
     ax2.set_ylabel("Total Cycles")
-    ax2.set_title(f"Total Cycles Comparison")
     ax2.set_xticks(x)
     ax2.set_xticklabels(scenes)
     ax2.legend()

@@ -12,11 +12,17 @@ import seaborn as sns
 import matplotlib.font_manager as fm
 from matplotlib.ticker import FuncFormatter
 
+
+# --- 字体大小变量 ---
+FONT_SIZE = 16  # 其它字体大小（如标签、标题等）
+TICK_FONT_SIZE = 12  # 坐标轴刻度字体大小
+LEGEND_FONT_SIZE = 12  # legend字体大小
+
 # --- 1. 统一绘图风格配置 ---
 sns.set_theme(style="whitegrid")
-sns.set_style("ticks") 
+sns.set_style("ticks")
 sns.set_palette("colorblind")
-sns.set_context("paper", font_scale=1.5)
+sns.set_context("paper")
 
 # 字体加载与配置
 font_path = os.path.expanduser("~/.local/share/fonts/simsun.ttc")
@@ -26,9 +32,10 @@ if os.path.exists(font_path):
 plt.rcParams.update({
     'font.sans-serif': ['SimSun', 'NSimSun', 'Arial Unicode MS', 'sans-serif'],
     'axes.unicode_minus': False,
-    'font.size': 12,
+    'font.size': FONT_SIZE,
     'pdf.fonttype': 42,
-    'ps.fonttype': 42
+    'ps.fonttype': 42,
+    'legend.fontsize': LEGEND_FONT_SIZE,
 })
 
 def load_data(filepath):
@@ -62,7 +69,7 @@ def plot_cht_conflicts():
     
     x = np.arange(len(scenes))
     
-    fig, ax = plt.subplots(figsize=(10, 3))
+    fig, ax = plt.subplots(figsize=(9.8, 3.0))
     
     # 获取 Seaborn 调色板颜色 (使用红色系以警示“冲突”)
     palette = sns.color_palette()
@@ -88,25 +95,27 @@ def plot_cht_conflicts():
             f'{int(yi):,}',
             ha='center',
             va='bottom',
-            fontsize=12,
+            fontsize=FONT_SIZE,
             fontweight='bold',
         )
 
-    # 设置中文标签
-    ax.set_ylabel('存储访问冲突总数')
-    ax.set_xlabel('运动规划任务分组(按碰撞检测请求总数)')
-    ax.set_title('Sphere 场景下共享双端口架构的 CHT 访问冲突统计')
+    # 设置标签和刻度字体
+    ax.set_ylabel('存储访问冲突总数', fontsize=FONT_SIZE)
+    ax.set_xlabel('运动规划问题分组(按碰撞检测请求总数)', fontsize=FONT_SIZE)
     ax.set_xticks(x)
-    ax.set_xticklabels(scenes)
-    
+    ax.set_xticklabels(scenes, fontsize=TICK_FONT_SIZE)
+    ax.tick_params(axis='y', labelsize=TICK_FONT_SIZE)
+
     # 格式化 Y 轴
     ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{int(y):,}"))
-    
+
+    # legend（本图无legend，若后续添加可直接用LEGEND_FONT_SIZE）
+
     # 移除顶部和右侧边框
     sns.despine()
-    
+
     plt.tight_layout()
-    
+
     output_path = os.path.join(base_dir, "figs/fig_cht_conflicts.pdf")
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     plt.savefig(output_path, dpi=300)

@@ -156,14 +156,7 @@ def plot_global_oocd_cycle_comparison():
                 )
 
     ax.set_ylabel("Total Cycles", fontsize=14, fontweight="bold")
-    ax.set_xlabel("运动规划任务分组(按碰撞检测请求总数)", fontsize=14, fontweight="bold")
-    ax.set_title(
-        "Global OOCD Strategy Comparison: Cycle Count Across Scenes",
-        fontsize=16,
-        fontweight="bold",
-        pad=20,
-    )
-
+    ax.set_xlabel("运动规划问题分组(按碰撞检测请求总数)", fontsize=14, fontweight="bold")
     ax.set_xticks(x)
     ax.set_xticklabels(scenes, fontsize=12)
     ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{int(y):,}"))
@@ -263,14 +256,7 @@ def plot_global_oocd_utilization_comparison():
         )
 
     ax.set_ylabel("OOCD Utilization (%)", fontsize=14, fontweight="bold")
-    ax.set_xlabel("运动规划任务分组(按碰撞检测请求总数)", fontsize=14, fontweight="bold")
-    ax.set_title(
-        "Global OOCD Strategy Comparison: OOCD Utilization Across Scenes",
-        fontsize=16,
-        fontweight="bold",
-        pad=20,
-    )
-
+    ax.set_xlabel("运动规划问题分组(按碰撞检测请求总数)", fontsize=14, fontweight="bold")
     ax.set_xticks(x)
     ax.set_xticklabels(scenes, fontsize=12)
     ax.tick_params(axis="y", labelsize=11)
@@ -369,14 +355,7 @@ def plot_global_oocd_throughput_comparison():
     ax.axhline(y=1.0, color="red", linestyle="--", linewidth=1.5, alpha=0.7, label="Ideal (1.0)")
 
     ax.set_ylabel("Throughput (Queries/Cycle)", fontsize=14, fontweight="bold")
-    ax.set_xlabel("运动规划任务分组(按碰撞检测请求总数)", fontsize=14, fontweight="bold")
-    ax.set_title(
-        "Global OOCD Strategy Comparison: Throughput Across Scenes",
-        fontsize=16,
-        fontweight="bold",
-        pad=20,
-    )
-
+    ax.set_xlabel("运动规划问题分组(按碰撞检测请求总数)", fontsize=14, fontweight="bold")
     ax.set_xticks(x)
     ax.set_xticklabels(scenes, fontsize=12)
     ax.tick_params(axis="y", labelsize=11)
@@ -474,7 +453,6 @@ def plot_global_oocd_pred_impact():
             linewidth=1.2,
         )
         ax1.set_ylabel("Total Cycles", fontsize=12, fontweight="bold")
-        ax1.set_title("Dual Port: Total Cycles", fontsize=13, fontweight="bold")
         ax1.set_xticks(x)
         ax1.set_xticklabels(scenes, fontsize=11)
         ax1.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{int(y):,}"))
@@ -502,7 +480,6 @@ def plot_global_oocd_pred_impact():
             linewidth=1.2,
         )
         ax2.set_ylabel("Total Queries", fontsize=12, fontweight="bold")
-        ax2.set_title("Dual Port: Total Queries", fontsize=13, fontweight="bold")
         ax2.set_xticks(x)
         ax2.set_xticklabels(scenes, fontsize=11)
         ax2.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{int(y):,}"))
@@ -530,8 +507,7 @@ def plot_global_oocd_pred_impact():
             linewidth=1.2,
         )
         ax3.set_ylabel("Total Cycles", fontsize=12, fontweight="bold")
-        ax3.set_xlabel("运动规划任务分组(按碰撞检测请求总数)", fontsize=12, fontweight="bold")
-        ax3.set_title("Multi-Bank: Total Cycles", fontsize=13, fontweight="bold")
+        ax3.set_xlabel("运动规划问题分组(按碰撞检测请求总数)", fontsize=12, fontweight="bold")
         ax3.set_xticks(x)
         ax3.set_xticklabels(scenes, fontsize=11)
         ax3.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{int(y):,}"))
@@ -559,20 +535,12 @@ def plot_global_oocd_pred_impact():
             linewidth=1.2,
         )
         ax4.set_ylabel("Total Queries", fontsize=12, fontweight="bold")
-        ax4.set_xlabel("运动规划任务分组(按碰撞检测请求总数)", fontsize=12, fontweight="bold")
-        ax4.set_title("Multi-Bank: Total Queries", fontsize=13, fontweight="bold")
+        ax4.set_xlabel("运动规划问题分组(按碰撞检测请求总数)", fontsize=12, fontweight="bold")
         ax4.set_xticks(x)
         ax4.set_xticklabels(scenes, fontsize=11)
         ax4.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{int(y):,}"))
         # grid removed per project style
         ax4.legend()
-
-    fig.suptitle(
-        "Prediction Buffer Impact: Pred=8 vs Pred=16",
-        fontsize=15,
-        fontweight="bold",
-        y=0.995,
-    )
 
     plt.tight_layout()
 

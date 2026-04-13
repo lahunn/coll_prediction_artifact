@@ -73,7 +73,6 @@ def plot_obb_comparison():
                 f'{value:,}', ha='center', va='bottom', fontsize=10, fontweight='bold')
 
     # 设置标题和标签
-    ax.set_title('OBB Method Query Statistics Comparison', fontsize=16, fontweight='bold', pad=20)
     ax.set_ylabel('Number of Queries', fontsize=12)
     ax.set_xlabel('Statistics Type', fontsize=12)
 
@@ -125,7 +124,6 @@ def plot_sphere_comparison():
                 f'{value:,}', ha='center', va='bottom', fontsize=10, fontweight='bold')
 
     # 设置标题和标签
-    ax.set_title('Sphere Method Query Statistics Comparison', fontsize=16, fontweight='bold', pad=20)
     ax.set_ylabel('Number of Queries', fontsize=12)
     ax.set_xlabel('Statistics Type', fontsize=12)
 
@@ -184,7 +182,6 @@ def plot_methods_comparison():
                     f'{value:,}', ha='center', va='bottom', fontsize=9, fontweight='bold')
 
     # 设置标题和标签
-    ax.set_title('OBB vs Sphere Methods Query Statistics Comparison', fontsize=16, fontweight='bold', pad=20)
     ax.set_ylabel('Number of Queries', fontsize=12)
     ax.set_xlabel('Method', fontsize=12)
     ax.set_xticks(x)

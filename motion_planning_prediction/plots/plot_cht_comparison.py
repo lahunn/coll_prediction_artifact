@@ -39,7 +39,6 @@ df = pd.merge(df_dual, df_multi, on='Scene', suffixes=('_Dual', '_Multi'))
 # 绘图
 metrics = ['Total_Cycles', 'Throughput', 'Utilization', 'Conflicts']
 fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-fig.suptitle('Dual Port vs Multi Bank CHT Performance Comparison')
 
 for i, metric in enumerate(metrics):
     ax = axes[i//2, i%2]
@@ -52,7 +51,6 @@ for i, metric in enumerate(metrics):
         rot=0,
         color=[colors[0], "darkgreen"],
     )
-    ax.set_title(metric)
     ax.set_ylabel('Value' if metric != 'Utilization' else 'Percentage (%)')
     # grid removed per project style
 

@@ -37,14 +37,14 @@ RESULT_FILE="$RESULT_DIR/ablation_pred_sram_${COLLISION_TYPE}_results.csv"
 qnoncoll_multiplier=$((FIXED_QNONCOLL_LEN / BASE_NUM_OOCDS))
 
 cat > "$RESULT_FILE" << EOF
-Pred,CHT_Type,Num_COPUS,Num_OOCDS,Num_BANKS,Scene,Total_Cycles,Total_Queries,Throughput,Utilization,Conflicts,Avg_Wait_Cycles,DEAD_AVG_RATIO
+Pred,CHT_Type,Num_COPUS,Num_OOCDS,Num_BANKS,Scene,Total_Cycles,Oracle_Cycles,Naive_Cycles,Total_Queries,Total_Checks,Throughput,Utilization,Conflicts,Avg_Wait_Cycles,DEAD_AVG_RATIO
 EOF
 
 echo "=========================================="
 echo "开始执行消融实验（经典配置）..."
 echo "数据集: $BASENAME, Benchmark范围: $BENCHID"
 echo "固定场景: COPUS=$BASE_NUM_COPUS, OOCDS=$BASE_NUM_OOCDS, BANKS=$BASE_NUM_BANKS"
-echo "遍历维度: PRED={1,2}, CHT_TYPE={dual_port,multi_bank,distri_dual_port,distri_multi_bank}"
+echo "遍历维度: PRED={1,2}, CHT_TYPE={dual_port,distri_multi_bank}"
 echo "CHT_TYPE基准: $COLLISION_TYPE"
 echo "固定QNONCOLL_LEN: $FIXED_QNONCOLL_LEN"
 echo "=========================================="
@@ -89,8 +89,11 @@ for cht_type in "${SWEEP_CHT_TYPES[@]}"; do
                 exit 1
             fi
 
-            TOTAL_CYCLES=$(echo "$OUTPUT" | grep "总周期:" | tail -n 1 | awk -F': ' '{print $2}')
+            TOTAL_CYCLES=$(echo "$OUTPUT" | grep "总周期:" | head -n 1 | awk -F': ' '{print $2}')
+            ORACLE_CYCLES=$(echo "$OUTPUT" | grep "Oracle总周期:" | tail -n 1 | awk -F': ' '{print $2}')
+            NAIVE_CYCLES=$(echo "$OUTPUT" | grep "Naive总周期:" | tail -n 1 | awk -F': ' '{print $2}')
             TOTAL_QUERIES=$(echo "$OUTPUT" | grep "总查询数:" | tail -n 1 | awk -F': ' '{print $2}')
+            TOTAL_CHECKS=$(echo "$OUTPUT" | grep "总Checks数:" | tail -n 1 | awk -F': ' '{print $2}')
             THROUGHPUT=$(echo "$OUTPUT" | grep "系统吞吐量:" | tail -n 1 | awk -F': ' '{print $2}' | awk '{print $1}')
             UTILIZATION=$(echo "$OUTPUT" | grep "平均COPU占用率:" | tail -n 1 | awk -F': ' '{print $2}')
             CONFLICTS=$(echo "$OUTPUT" | grep "CHT冲突数:" | tail -n 1 | awk -F': ' '{print $2}')
@@ -104,8 +107,8 @@ for cht_type in "${SWEEP_CHT_TYPES[@]}"; do
                 DEAD_AVG_RATIO=0
             fi
 
-            echo "✓ (cycles=$TOTAL_CYCLES, throughput=$THROUGHPUT, utilization=$UTILIZATION, conflicts=$CONFLICTS, avg_wait=$AVG_WAIT_CYCLES, dead_avg_ratio=${DEAD_AVG_RATIO}%)"
-            echo "$num_pred,$cht_type,$BASE_NUM_COPUS,$BASE_NUM_OOCDS,$BASE_NUM_BANKS,$SCENE,$TOTAL_CYCLES,$TOTAL_QUERIES,$THROUGHPUT,$UTILIZATION,$CONFLICTS,$AVG_WAIT_CYCLES,$DEAD_AVG_RATIO" >> "$RESULT_FILE"
+            echo "✓ (cycles=$TOTAL_CYCLES, oracle=$ORACLE_CYCLES, throughput=$THROUGHPUT, utilization=$UTILIZATION, conflicts=$CONFLICTS, avg_wait=$AVG_WAIT_CYCLES, dead_avg_ratio=${DEAD_AVG_RATIO}%)"
+            echo "$num_pred,$cht_type,$BASE_NUM_COPUS,$BASE_NUM_OOCDS,$BASE_NUM_BANKS,$SCENE,$TOTAL_CYCLES,$ORACLE_CYCLES,$NAIVE_CYCLES,$TOTAL_QUERIES,$TOTAL_CHECKS,$THROUGHPUT,$UTILIZATION,$CONFLICTS,$AVG_WAIT_CYCLES,$DEAD_AVG_RATIO" >> "$RESULT_FILE"
         done
     done
 done

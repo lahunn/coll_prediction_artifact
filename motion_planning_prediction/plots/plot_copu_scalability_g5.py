@@ -9,6 +9,13 @@ import seaborn as sns
 from matplotlib.ticker import FuncFormatter
 
 
+# Font size variables
+FONT_SIZE = 16  # 其它字体大小（如标签、标题等）
+TICK_FONT_SIZE = 12  # 坐标轴刻度字体大小
+LEGEND_FONT_SIZE = 12  # legend字体大小
+LEGEND_TITLE_FONT_SIZE = 12  # legend标题字体大小
+
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 RESULT_DIR = os.path.join(BASE_DIR, "../result_files")
 OUTPUT_DIR = os.path.join(BASE_DIR, "figs")
@@ -45,6 +52,13 @@ plt.rcParams.update(
         "axes.unicode_minus": False,
         "pdf.fonttype": 42,
         "ps.fonttype": 42,
+        "font.size": FONT_SIZE,
+        "axes.labelsize": FONT_SIZE,
+        "axes.titlesize": FONT_SIZE,
+        "xtick.labelsize": TICK_FONT_SIZE,
+        "ytick.labelsize": TICK_FONT_SIZE,
+        "legend.fontsize": LEGEND_FONT_SIZE,
+        "legend.title_fontsize": LEGEND_TITLE_FONT_SIZE,
     }
 )
 
@@ -82,7 +96,7 @@ def _load_data(input_file: str) -> pd.DataFrame:
 
 def plot_copu_scalability(input_file: str, output_file: str) -> None:
     output_path = os.path.join(OUTPUT_DIR, output_file)
-    fig, ax = plt.subplots(figsize=(10.8, 5.6))
+    fig, ax = plt.subplots(figsize=(9.8, 4.5))
 
     try:
         df = _load_data(input_file)
@@ -155,15 +169,14 @@ def plot_copu_scalability(input_file: str, output_file: str) -> None:
             linewidth=0.7,
         )
 
-    ax.set_title("G5 场景下不同 COPU 数的总周期数对比")
-    ax.set_xlabel("COPU 数")
-    ax.set_ylabel("总周期数")
+    ax.set_xlabel("COPU 数", fontsize=FONT_SIZE)
+    ax.set_ylabel("总周期数", fontsize=FONT_SIZE)
     ax.set_xticks(x)
-    ax.set_xticklabels([str(value) for value in copu_values])
+    ax.set_xticklabels([str(value) for value in copu_values], fontsize=TICK_FONT_SIZE)
+    ax.tick_params(axis="y", labelsize=TICK_FONT_SIZE)
     ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{int(y):,}"))
-    ax.tick_params(axis="both", labelsize=12)
     ax.grid(True, axis="y", linestyle="--", alpha=0.25)
-    ax.legend(title="策略", ncol=2, frameon=True, fontsize=11, title_fontsize=11)
+    ax.legend(title="策略", ncol=2, frameon=True, fontsize=LEGEND_FONT_SIZE, title_fontsize=LEGEND_TITLE_FONT_SIZE)
 
     plt.tight_layout()
     os.makedirs(OUTPUT_DIR, exist_ok=True)

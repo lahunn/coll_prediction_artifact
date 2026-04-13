@@ -9,11 +9,18 @@ import matplotlib
 import os
 from matplotlib.ticker import PercentFormatter
 
+
+# --- 字体大小变量 ---
+FONT_SIZE = 16  # 其它字体大小（如标签、标题等）
+TICK_FONT_SIZE = 12  # 坐标轴刻度字体大小
+LEGEND_FONT_SIZE = 12  # legend字体大小
+
 # --- 统一绘图风格配置 ---
 sns.set_theme(style="whitegrid")
 plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
 plt.rcParams['axes.unicode_minus'] = False
-plt.rcParams['font.size'] = 12
+plt.rcParams['font.size'] = FONT_SIZE
+plt.rcParams['legend.fontsize'] = LEGEND_FONT_SIZE
 colors = sns.color_palette("deep")
 #!/usr/bin/env python3
 """
@@ -50,7 +57,7 @@ def plot_conflict_rate_comparison():
     df = df.sort_values("conflict_rate", ascending=True)
 
     # 4. 绘图
-    plt.figure(figsize=(10, 4.5))
+    plt.figure(figsize=(9.8, 4.5))
     
     # 使用 Seaborn 绘制水平条形图
     # 使用 'viridis_r' 颜色映射：数值越低(越好)颜色越亮/绿，数值越高(越差)颜色越深/紫
@@ -65,6 +72,9 @@ def plot_conflict_rate_comparison():
         alpha=0.9,
         legend=False
     )
+    # 设置刻度字体
+    ax.tick_params(axis='x', labelsize=TICK_FONT_SIZE)
+    ax.tick_params(axis='y', labelsize=TICK_FONT_SIZE)
 
     # 5. 添加数值标签
     for i, (idx, row) in enumerate(df.iterrows()):
@@ -74,15 +84,14 @@ def plot_conflict_rate_comparison():
             row["conflict_rate"] * 1.02, i, 
             f"{rate_pct:.2f}%", 
             va='center', 
-            fontsize=11, 
+            fontsize=FONT_SIZE, 
             fontweight='bold', 
             color='#333333'
         )
 
     # 6. 图表装饰
-    plt.title("位选择策略的冲突率对比", pad=20, fontweight='bold', fontsize=16)
-    plt.xlabel("冲突率（越低越好）", fontweight='bold')
-    plt.ylabel("位选择配置", fontweight='bold')
+    plt.xlabel("冲突率（越低越好）", fontsize=FONT_SIZE, fontweight='bold')
+    plt.ylabel("位选择配置", fontsize=FONT_SIZE, fontweight='bold')
     
     # X轴格式化为百分比
     ax.xaxis.set_major_formatter(PercentFormatter(1.0))

@@ -45,6 +45,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
 from simulation_core.multi_copu_scheduler import MultiCOPU_Scheduler
 from simulation_core.constants import NUM_OOCDS, DEFAULT_QCOLL_LEN, DEFAULT_QNONCOLL_LEN, DEFAULT_CYCLE_CHECK
 import simulation_utils as su
+from trace_generation.config.ana_parameters import get_robot_params
 
 # ============================================================================
 # 全局参数配置
@@ -94,8 +95,31 @@ def run_multi_copu_simulation(
     """
     # 从basename提取机器人名称（例如从"iiwa_7"提取"iiwa"）
     robot_name = "iiwa"
+    robot_params = get_robot_params(robot_name)
+    check_cost = robot_params.get("sphere_cost", 1)
+
     # 使用工具函数计算bins
     bins = su.calculate_bins_from_workspace(robot_name, quant_bits)
+
+    # 1. 统计 total_checks, oracle_cycles 和 naive_cycles
+    total_checks = 0
+    total_oracle_cycles = 0
+    for edge_coll in all_coll:
+        # 统计 total_checks (与 prediction_simulation_sphere_link.py 一致)
+        for pose_coll in edge_coll:
+            try:
+                first_collision_index = pose_coll.index(0)
+                total_checks += first_collision_index + 1
+            except ValueError:
+                total_checks += len(pose_coll)
+
+        # 统计 oracle_cycles
+        oracle_edge_cycles = su.calculate_oracle_cycles(
+            edge_coll, num_oocds, check_cost
+        )
+        total_oracle_cycles += oracle_edge_cycles
+
+    total_naive_cycles = total_checks * check_cost
 
     # 2. 创建调度器
     scheduler = MultiCOPU_Scheduler(
@@ -159,6 +183,9 @@ def run_multi_copu_simulation(
         "num_safe": num_safe,
         "copu_utilizations": copu_utilizations,
         "cht_stats": result["cht_stats"],
+        "total_checks": total_checks,
+        "total_oracle_cycles": total_oracle_cycles,
+        "total_naive_cycles": total_naive_cycles,
     }
 
     return aggregated_result
@@ -309,6 +336,9 @@ def run_benchmark_range_simulation(
     total_wait_samples_all = 0
     total_dead_ratio_sum_all = 0.0
     total_dead_ratio_samples_all = 0
+    total_checks_all = 0
+    total_oracle_cycles_all = 0
+    total_naive_cycles_all = 0
     all_copu_utils_all = []
     num_benchmarks_processed = 0
 
@@ -326,7 +356,7 @@ def run_benchmark_range_simulation(
             data_folder,
             num_copus,
             num_oocds=num_oocds,
-            quant_bits=quant_bits,
+            quant_bits=4,
             threshold=threshold,
             sample_rate=sample_rate,
             use_real_cycles=use_real_cycles,
@@ -357,6 +387,9 @@ def run_benchmark_range_simulation(
         total_wait_samples_all += result.get("total_wait_samples", 0)
         total_dead_ratio_sum_all += result.get("total_dead_ratio_sum", 0.0)
         total_dead_ratio_samples_all += result.get("total_dead_ratio_samples", 0)
+        total_checks_all += result.get("total_checks", 0)
+        total_oracle_cycles_all += result.get("total_oracle_cycles", 0)
+        total_naive_cycles_all += result.get("total_naive_cycles", 0)
 
         # 累计COPU占用率样本
         if "copu_utilizations" in result:
@@ -401,6 +434,9 @@ def run_benchmark_range_simulation(
         "total_dead_ratio_samples": total_dead_ratio_samples_all,
         "num_collisions": total_collisions_all,
         "num_safe": total_safe_all,
+        "total_checks": total_checks_all,
+        "total_oracle_cycles": total_oracle_cycles_all,
+        "total_naive_cycles": total_naive_cycles_all,
     }
 
     return batch_result
@@ -430,7 +466,10 @@ def print_results(results, is_range=False):
         print(f"  总Edge数: {results.get('num_edges', 'N/A')}")
 
     print(f"  总周期: {results['total_cycles']}")
+    print(f"  Oracle总周期: {results.get('total_oracle_cycles', 0)}")
+    print(f"  Naive总周期: {results.get('total_naive_cycles', 0)}")
     print(f"  总查询数: {results['total_queries']:.0f}")
+    print(f"  总Checks数: {results.get('total_checks', 0)}")
 
     if results["total_cycles"] > 0:
         print(

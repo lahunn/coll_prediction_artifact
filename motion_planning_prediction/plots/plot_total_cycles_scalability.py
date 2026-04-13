@@ -1,9 +1,17 @@
 import os
 
+
 import matplotlib.font_manager as fm
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
+
+
+# Font size variables
+FONT_SIZE = 16  # 其它字体大小（如标签、标题等）
+TICK_FONT_SIZE = 12  # 坐标轴刻度字体大小
+LEGEND_FONT_SIZE = 12  # legend字体大小
+LEGEND_TITLE_FONT_SIZE = 12  # legend标题字体大小
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -60,6 +68,13 @@ plt.rcParams.update(
         "axes.unicode_minus": False,
         "pdf.fonttype": 42,
         "ps.fonttype": 42,
+        "font.size": FONT_SIZE,
+        "axes.labelsize": FONT_SIZE,
+        "axes.titlesize": FONT_SIZE,
+        "xtick.labelsize": TICK_FONT_SIZE,
+        "ytick.labelsize": TICK_FONT_SIZE,
+        "legend.fontsize": LEGEND_FONT_SIZE,
+        "legend.title_fontsize": LEGEND_TITLE_FONT_SIZE,
     }
 )
 
@@ -150,7 +165,7 @@ def _plot_single_sweep(sweep_label: str, file_name: str) -> None:
     output_name = SWEEP_OUTPUTS[sweep_label]
     output_path = os.path.join(OUTPUT_DIR, output_name)
 
-    fig, ax = plt.subplots(figsize=(7, 3.5))
+    fig, ax = plt.subplots(figsize=(9.8, 4.5))
     try:
         df = _load_sweep(file_name)
     except (FileNotFoundError, ValueError) as exc:
@@ -193,13 +208,13 @@ def _plot_single_sweep(sweep_label: str, file_name: str) -> None:
             label=scene,
         )
 
-    ax.set_title(f"总周期数 vs {sweep_label}")
-    ax.set_xlabel(sweep_label)
-    ax.set_ylabel("总周期数")
+    ax.set_xlabel(sweep_label, fontsize=FONT_SIZE)
+    ax.set_ylabel("总周期数", fontsize=FONT_SIZE)
     # Keep y-axis auto-scaled; do not force starting from 0.
     ax.set_xticks(range(len(x_ticks)))
-    ax.set_xticklabels([str(int(v)) if float(v).is_integer() else str(v) for v in x_ticks])
-    ax.legend(title="场景", frameon=True, fontsize=9)
+    ax.set_xticklabels([str(int(v)) if float(v).is_integer() else str(v) for v in x_ticks], fontsize=TICK_FONT_SIZE)
+    ax.tick_params(axis="y", labelsize=TICK_FONT_SIZE)
+    ax.legend(title="运动规划问题分组", frameon=True, fontsize=LEGEND_FONT_SIZE, title_fontsize=LEGEND_TITLE_FONT_SIZE)
 
     plt.tight_layout()
     os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -210,7 +225,7 @@ def _plot_single_sweep(sweep_label: str, file_name: str) -> None:
 
 def plot_conflicts_vs_banks() -> None:
     output_path = os.path.join(OUTPUT_DIR, CONFLICT_BANK_OUTPUT)
-    fig, ax = plt.subplots(figsize=(7, 3.5))
+    fig, ax = plt.subplots(figsize=(9.8, 4.5))
 
     try:
         df = _load_conflict_sweep(CONFLICT_BANK_FILE)
@@ -254,12 +269,12 @@ def plot_conflicts_vs_banks() -> None:
             label=scene,
         )
 
-    ax.set_title("访存冲突数 vs Bank 数量")
-    ax.set_xlabel("Bank 数量")
-    ax.set_ylabel("访存冲突数")
+    ax.set_xlabel("Bank 数量", fontsize=FONT_SIZE)
+    ax.set_ylabel("访存冲突数", fontsize=FONT_SIZE)
     ax.set_xticks(range(len(x_ticks)))
-    ax.set_xticklabels([str(int(v)) if float(v).is_integer() else str(v) for v in x_ticks])
-    ax.legend(title="场景", frameon=True, fontsize=9)
+    ax.set_xticklabels([str(int(v)) if float(v).is_integer() else str(v) for v in x_ticks], fontsize=TICK_FONT_SIZE)
+    ax.tick_params(axis="y", labelsize=TICK_FONT_SIZE)
+    ax.legend(title="运动规划问题分组", frameon=True, fontsize=LEGEND_FONT_SIZE, title_fontsize=LEGEND_TITLE_FONT_SIZE)
 
     plt.tight_layout()
     os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -270,7 +285,7 @@ def plot_conflicts_vs_banks() -> None:
 
 def plot_cdu_utilization_vs_pred() -> None:
     output_path = os.path.join(OUTPUT_DIR, PRED_UTILIZATION_OUTPUT)
-    fig, ax = plt.subplots(figsize=(7, 3.5))
+    fig, ax = plt.subplots(figsize=(9.8, 4.5))
 
     try:
         df = _load_utilization_sweep(PRED_UTILIZATION_FILE)
@@ -314,12 +329,12 @@ def plot_cdu_utilization_vs_pred() -> None:
             label=scene,
         )
 
-    ax.set_title("CDU 利用率 vs 预测通道数")
-    ax.set_xlabel("预测通道数")
-    ax.set_ylabel("CDU 利用率 (%)")
+    ax.set_xlabel("预测通道数", fontsize=FONT_SIZE)
+    ax.set_ylabel("CDU 利用率 (%)", fontsize=FONT_SIZE)
     ax.set_xticks(range(len(x_ticks)))
-    ax.set_xticklabels([str(int(v)) if float(v).is_integer() else str(v) for v in x_ticks])
-    ax.legend(title="场景", frameon=True, fontsize=9)
+    ax.set_xticklabels([str(int(v)) if float(v).is_integer() else str(v) for v in x_ticks], fontsize=TICK_FONT_SIZE)
+    ax.tick_params(axis="y", labelsize=TICK_FONT_SIZE)
+    ax.legend(title="运动规划问题分组", frameon=True, fontsize=LEGEND_FONT_SIZE, title_fontsize=LEGEND_TITLE_FONT_SIZE)
 
     plt.tight_layout()
     os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -330,7 +345,7 @@ def plot_cdu_utilization_vs_pred() -> None:
 
 def plot_deadtime_ratio_vs_pred() -> None:
     output_path = os.path.join(OUTPUT_DIR, PRED_DEADTIME_OUTPUT)
-    fig, ax = plt.subplots(figsize=(7, 3.5))
+    fig, ax = plt.subplots(figsize=(9.8, 4.5))
 
     try:
         df = _load_deadtime_sweep(PRED_DEADTIME_FILE)
@@ -374,72 +389,12 @@ def plot_deadtime_ratio_vs_pred() -> None:
             label=scene,
         )
 
-    ax.set_title("Dead-Time Ratio vs Pred Count")
-    ax.set_xlabel("Pred Count")
-    ax.set_ylabel("Dead-Time Ratio (%)")
+    ax.set_xlabel("预测通道数", fontsize=FONT_SIZE)
+    ax.set_ylabel("死区时间占比(%)", fontsize=FONT_SIZE)
     ax.set_xticks(range(len(x_ticks)))
-    ax.set_xticklabels([str(int(v)) if float(v).is_integer() else str(v) for v in x_ticks])
-    ax.legend(title="Scene", frameon=True, fontsize=9)
-
-    plt.tight_layout()
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    plt.savefig(output_path, dpi=300, bbox_inches="tight")
-    plt.close(fig)
-    print(f"Plot saved to: {output_path}")
-
-
-def plot_throughput_vs_pred() -> None:
-    output_path = os.path.join(OUTPUT_DIR, PRED_THROUGHPUT_OUTPUT)
-    fig, ax = plt.subplots(figsize=(7, 3.5))
-
-    try:
-        df = _load_throughput_sweep(PRED_THROUGHPUT_FILE)
-    except (FileNotFoundError, ValueError) as exc:
-        ax.text(0.5, 0.5, str(exc), ha="center", va="center", fontsize=10)
-        ax.set_axis_off()
-        plt.tight_layout()
-        os.makedirs(OUTPUT_DIR, exist_ok=True)
-        plt.savefig(output_path, dpi=300, bbox_inches="tight")
-        plt.close(fig)
-        print(f"Plot saved to: {output_path}")
-        return
-
-    if df.empty:
-        ax.text(0.5, 0.5, "No valid data", ha="center", va="center", fontsize=11)
-        ax.set_axis_off()
-        plt.tight_layout()
-        os.makedirs(OUTPUT_DIR, exist_ok=True)
-        plt.savefig(output_path, dpi=300, bbox_inches="tight")
-        plt.close(fig)
-        print(f"Plot saved to: {output_path}")
-        return
-
-    scene_order = ["G1", "G2", "G3", "G4", "G5"]
-    palette = sns.color_palette("colorblind", len(scene_order))
-    x_ticks = sorted(df["Value"].dropna().unique())
-    x_pos_map = {v: i for i, v in enumerate(x_ticks)}
-
-    for i, scene in enumerate(scene_order):
-        scene_df = df[df["Scene"] == scene].copy()
-        if scene_df.empty:
-            continue
-        scene_df = scene_df.sort_values("Value")
-        x_pos = [x_pos_map[v] for v in scene_df["Value"].to_numpy()]
-        ax.plot(
-            x_pos,
-            scene_df["Throughput"].to_numpy(),
-            marker="o",
-            linewidth=2.0,
-            color=palette[i],
-            label=scene,
-        )
-
-    ax.set_title("Throughput vs Pred Count")
-    ax.set_xlabel("Pred Count")
-    ax.set_ylabel("Throughput")
-    ax.set_xticks(range(len(x_ticks)))
-    ax.set_xticklabels([str(int(v)) if float(v).is_integer() else str(v) for v in x_ticks])
-    ax.legend(title="Scene", frameon=True, fontsize=9)
+    ax.set_xticklabels([str(int(v)) if float(v).is_integer() else str(v) for v in x_ticks], fontsize=TICK_FONT_SIZE)
+    ax.tick_params(axis="y", labelsize=TICK_FONT_SIZE)
+    ax.legend(title="运动规划问题分组", frameon=True, fontsize=LEGEND_FONT_SIZE, title_fontsize=LEGEND_TITLE_FONT_SIZE)
 
     plt.tight_layout()
     os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -450,7 +405,7 @@ def plot_throughput_vs_pred() -> None:
 
 def plot_g5_total_cycles_vs_banks() -> None:
     output_path = os.path.join(OUTPUT_DIR, G5_BANK_CYCLES_OUTPUT)
-    fig, ax = plt.subplots(figsize=(7, 3.5))
+    fig, ax = plt.subplots(figsize=(9.8, 4.5))
 
     try:
         df = _load_sweep(G5_BANK_CYCLES_FILE)
@@ -489,12 +444,12 @@ def plot_g5_total_cycles_vs_banks() -> None:
         label="G5",
     )
 
-    ax.set_title("G5 Total Cycles vs Bank Count")
-    ax.set_xlabel("Bank Count")
-    ax.set_ylabel("Total Cycles")
+    ax.set_xlabel("Bank Count", fontsize=FONT_SIZE)
+    ax.set_ylabel("Total Cycles", fontsize=FONT_SIZE)
     ax.set_xticks(range(len(x_ticks)))
-    ax.set_xticklabels([str(int(v)) if float(v).is_integer() else str(v) for v in x_ticks])
-    ax.legend(frameon=True, fontsize=9)
+    ax.set_xticklabels([str(int(v)) if float(v).is_integer() else str(v) for v in x_ticks], fontsize=TICK_FONT_SIZE)
+    ax.tick_params(axis="y", labelsize=TICK_FONT_SIZE)
+    ax.legend(frameon=True, fontsize=LEGEND_FONT_SIZE)
 
     plt.tight_layout()
     os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -509,7 +464,6 @@ def plot_total_cycles_scalability() -> None:
     plot_conflicts_vs_banks()
     plot_cdu_utilization_vs_pred()
     plot_deadtime_ratio_vs_pred()
-    plot_throughput_vs_pred()
     plot_g5_total_cycles_vs_banks()
 
 

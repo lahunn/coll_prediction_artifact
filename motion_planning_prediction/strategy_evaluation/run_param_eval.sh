@@ -141,10 +141,10 @@ run_sweep() {
 }
 
 # 依次执行每个参数的遍历
-# run_sweep "NUM_PRED" "$RESULT_DIR/sweep_num_pred_${BASE_CHT_TYPE}_sphere_results.csv" SWEEP_NUM_PRED
+run_sweep "NUM_PRED" "$RESULT_DIR/sweep_num_pred_${BASE_CHT_TYPE}_sphere_results.csv" SWEEP_NUM_PRED
 # run_sweep "NUM_BANKS" "$RESULT_DIR/sweep_num_banks_${BASE_CHT_TYPE}_sphere_results.csv" SWEEP_NUM_BANKS
 # run_sweep "NUM_OOCDS" "$RESULT_DIR/sweep_num_oocds_${BASE_CHT_TYPE}_sphere_results.csv" SWEEP_NUM_OOCDS
-run_sweep "NUM_COPUS" "$RESULT_DIR/sweep_num_copus_${BASE_CHT_TYPE}_sphere_results.csv" SWEEP_NUM_COPUS
+# run_sweep "NUM_COPUS" "$RESULT_DIR/sweep_num_copus_${BASE_CHT_TYPE}_sphere_results.csv" SWEEP_NUM_COPUS
 
 echo ""
 echo "=========================================="

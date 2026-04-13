@@ -9,11 +9,18 @@ import matplotlib
 import os
 from matplotlib.ticker import FuncFormatter
 
+
+# --- 字体大小变量 ---
+FONT_SIZE = 16  # 其它字体大小（如标签、标题等）
+TICK_FONT_SIZE = 12  # 坐标轴刻度字体大小
+LEGEND_FONT_SIZE = 12  # legend字体大小
+
 # --- 统一绘图风格配置 ---
 sns.set_theme(style="whitegrid")
 plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
 plt.rcParams['axes.unicode_minus'] = False
-plt.rcParams['font.size'] = 16
+plt.rcParams['font.size'] = FONT_SIZE
+plt.rcParams['legend.fontsize'] = LEGEND_FONT_SIZE
 colors = sns.color_palette("deep")
 #!/usr/bin/env python3
 """
@@ -43,7 +50,7 @@ def plot_hash_strategy_comparison():
     best_configs = best_configs.sort_values("StdDev")
 
     # 4. 绘图
-    plt.figure(figsize=(10, 2.8))
+    plt.figure(figsize=(9.8, 3.0))
     
     # 使用 Seaborn 绘制条形图
     ax = sns.barplot(
@@ -56,18 +63,20 @@ def plot_hash_strategy_comparison():
         edgecolor="black",   # 添加边框
         alpha=0.85
     )
+    # 设置刻度字体
+    ax.tick_params(axis='x', labelsize=TICK_FONT_SIZE)
+    ax.tick_params(axis='y', labelsize=TICK_FONT_SIZE)
 
     # 5. 添加数值标签
     for i, (idx, row) in enumerate(best_configs.iterrows()):
         # 在柱子末尾标注数值
         ax.text(row["StdDev"] * 1.02, i, 
                 f"{int(row['StdDev']):,}", 
-                va='center', fontsize=16, fontweight='bold', color='#333333')
+                va='center', fontsize=FONT_SIZE, fontweight='bold', color='#333333')
 
     # 6. 图表装饰
-    plt.title("负载均衡对比：每种策略的最佳配置", pad=20, fontweight='bold')
-    plt.xlabel("标准差（越低越好）")
-    plt.ylabel("地址划分策略")
+    plt.xlabel("标准差（越低越好）", fontsize=FONT_SIZE)
+    plt.ylabel("地址划分策略", fontsize=FONT_SIZE)
     
     # 移除多余的图例（因为Y轴已经是标签了）
     if ax.legend_:

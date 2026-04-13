@@ -105,11 +105,6 @@ for i, (link_c, sphere_c) in enumerate(zip(link_cycles, sphere_cycles)):
             bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor=color, alpha=0.7)
         )
 
-plt.title(
-    "Total Cycles Comparison: LINK vs Sphere Across Difficulty Levels",
-    fontsize=14,
-    fontweight="bold",
-)
 plt.ylabel("Total Cycles", fontsize=12)
 plt.xlabel("Difficulty Level", fontsize=12)
 plt.xticks(x, difficulty_levels)

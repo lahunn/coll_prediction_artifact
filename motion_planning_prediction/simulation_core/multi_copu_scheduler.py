@@ -76,6 +76,7 @@ class MultiCOPU_Scheduler:
                     "edge_idx": -1,
                     "finished": [False] * (self.copus_per_edge),
                     "assign_cycle": 0,
+                    "active_cycle": None,
                     "first_dispatch_cycle": None,
                 }
                 for _ in range(num_predictions)
@@ -115,6 +116,7 @@ class MultiCOPU_Scheduler:
                     "edge_idx": -1,
                     "finished": [False] * self.copus_per_edge,
                     "assign_cycle": 0,
+                    "active_cycle": None,
                     "first_dispatch_cycle": None,
                 }
                 for _ in range(self.num_predictions)
@@ -236,6 +238,9 @@ class MultiCOPU_Scheduler:
         )
 
         start_copu = group_id * self.copus_per_edge
+        # 获取组内COPU的当前active_idx (假设组内所有COPU同步)
+        current_active_idx = self.copus[start_copu].active_idx
+
         for i in range(self.copus_per_edge):
             copu_id = start_copu + i
             self.copus[copu_id].load_data(
@@ -246,23 +251,28 @@ class MultiCOPU_Scheduler:
             "edge_idx": edge_idx,
             "finished": [False] * self.copus_per_edge,
             "assign_cycle": self.cycle,
+            "active_cycle": self.cycle if prediction_idx == current_active_idx else None,
             "first_dispatch_cycle": None,
         }
 
     def _finish_task(self, group_id, prediction_idx, group_copus):
         """完成一个任务的处理：重置状态、停止COPU任务、重置OOCD、加载新任务"""
         task_state = self.group_status[group_id][prediction_idx]
-        assign_cycle = task_state.get("assign_cycle", self.cycle)
+        # 使用 active_cycle 代替 assign_cycle 进行统计，更准确反映活跃时的等待情况
+        active_cycle = task_state.get("active_cycle")
+        if active_cycle is None:
+            active_cycle = task_state.get("assign_cycle", self.cycle)
+
         first_dispatch_cycle = task_state.get("first_dispatch_cycle")
         if first_dispatch_cycle is None:
             wait_cycles = 0
         else:
-            wait_cycles = max(0, first_dispatch_cycle - assign_cycle)
+            wait_cycles = max(0, first_dispatch_cycle - active_cycle)
         self.total_wait_cycles += wait_cycles
         self.total_wait_samples += 1
 
-        # 真实 per-edge dead ratio：按任务周期归一化
-        task_cycles = max(1, self.cycle - assign_cycle + 1)
+        # 真实 per-edge dead ratio：按任务从激活到完成的周期归一化
+        task_cycles = max(1, self.cycle - active_cycle + 1)
         dead_ratio = wait_cycles / task_cycles
         self.total_dead_ratio_sum += dead_ratio
         self.total_dead_ratio_samples += 1
@@ -272,6 +282,7 @@ class MultiCOPU_Scheduler:
             "edge_idx": -1,
             "finished": [False] * self.copus_per_edge,
             "assign_cycle": 0,
+            "active_cycle": None,
             "first_dispatch_cycle": None,
         }
 
@@ -288,9 +299,15 @@ class MultiCOPU_Scheduler:
         if self.edge_queue:
             new_edge_idx = self.edge_queue.popleft()
             self._assign_edge_to_group(group_id, new_edge_idx, prediction_idx)
+
         # 切换该组所有COPU到下一个prediction
+        new_active_idx = (prediction_idx + 1) % self.num_predictions
         for c in group_copus:
-            c.active_idx = (c.active_idx + 1) % self.num_predictions
+            c.active_idx = new_active_idx
+
+        # 标记新切换到的任务为 active (开始记录其活跃时间)
+        if self.group_status[group_id][new_active_idx]["edge_idx"] != -1:
+            self.group_status[group_id][new_active_idx]["active_cycle"] = self.cycle
 
     def _update_first_dispatch_cycles(self):
         """记录每个活跃edge首次有CDU开始执行的周期。"""

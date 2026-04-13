@@ -11,7 +11,7 @@ import matplotlib.font_manager as fm
 from matplotlib.ticker import LogLocator, ScalarFormatter
 
 # --- 统一绘图风格配置 ---
-sns.set_theme(style="whitegrid")
+sns.set_theme(style="white")
 sns.set_style("white")
 sns.set_palette("colorblind")
 
@@ -20,12 +20,20 @@ font_path = os.path.expanduser("~/.local/share/fonts/simsun.ttc")
 if os.path.exists(font_path):
     fm.fontManager.addfont(font_path)
 
+
+
+# 字体大小变量
+FONT_SIZE = 16  # 其它字体大小（如标签、标题等）
+TICK_FONT_SIZE = 12  # 坐标轴刻度字体大小
+LEGEND_FONT_SIZE = 12  # legend字体大小
+
 plt.rcParams.update({
     'font.sans-serif': ['SimSun', 'NSimSun', 'STSong', 'Songti SC', 'Noto Sans CJK SC', 'WenQuanYi Micro Hei', 'Droid Sans Fallback', 'Arial Unicode MS', 'sans-serif'],
     'axes.unicode_minus': False,
-    'font.size': 12,
+    'font.size': FONT_SIZE,
     'pdf.fonttype': 42,
-    'ps.fonttype': 42
+    'ps.fonttype': 42,
+    'legend.fontsize': LEGEND_FONT_SIZE,
 })
 
 # 统一配色方案（使用 seaborn colorblind 调色板）
@@ -175,7 +183,7 @@ def plot_total_prediction_cycles(difficulties, link_cycles, sphere_cycles, oracl
     x = np.arange(len(difficulties))
     width = 0.2
 
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(9.8, 3.7))
     
     # 在对数坐标系下无法显示0，给极小值添加轻微抬升避免警告
     min_positive = 1.0
@@ -204,10 +212,11 @@ def plot_total_prediction_cycles(difficulties, link_cycles, sphere_cycles, oracl
         linewidth=1.5,
     )
 
-    ax.set_xlabel("运动规划任务分组(按碰撞检测请求总数)")
-    ax.set_ylabel("总预测周期 (对数尺度)")
+    ax.set_xlabel("运动规划问题分组(按碰撞检测请求总数)", fontsize=FONT_SIZE)
+    ax.set_ylabel("总周期(对数尺度)", fontsize=FONT_SIZE)
     ax.set_xticks(x)
-    ax.set_xticklabels(difficulties)
+    ax.set_xticklabels(difficulties, fontsize=TICK_FONT_SIZE)
+    ax.tick_params(axis="y", labelsize=TICK_FONT_SIZE)
     ax.set_yscale("log")
     
     # 增加主次刻度，提升读数可读性
@@ -216,7 +225,7 @@ def plot_total_prediction_cycles(difficulties, link_cycles, sphere_cycles, oracl
     ax.yaxis.set_major_formatter(ScalarFormatter())
     ax.tick_params(axis="y", which="major", length=6)
     ax.tick_params(axis="y", which="minor", length=3)
-    ax.legend()
+    ax.legend(fontsize=LEGEND_FONT_SIZE)
 
     plt.tight_layout()
     output_path = os.path.join(output_dir, f"cycle_comparison_sphere_link{algorithm_tag}.pdf")
@@ -257,7 +266,7 @@ def plot_total_prediction_queries(
     else:
         width = 0.35
 
-    fig, ax = plt.subplots(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(9.8, 3.7))
 
     # 以顺序居中排列，保证左到右顺序即 series 顺序
     offsets = [(i - (bars_count - 1) / 2) * width for i in range(bars_count)]
@@ -269,10 +278,11 @@ def plot_total_prediction_queries(
         rects = ax.bar(x + dx, safe_values, width, label=label, color=color, **kw)
         rects_map[label] = rects
 
-    ax.set_xlabel("运动规划任务分组(按碰撞检测请求总数)")
-    ax.set_ylabel("总预测查询次数 (对数尺度)")
+    ax.set_xlabel("运动规划问题分组(按碰撞检测请求总数)", fontsize=FONT_SIZE)
+    ax.set_ylabel("碰撞检测执行次数(对数尺度)", fontsize=FONT_SIZE)
     ax.set_xticks(x)
-    ax.set_xticklabels(difficulties)
+    ax.set_xticklabels(difficulties, fontsize=TICK_FONT_SIZE)
+    ax.tick_params(axis="y", labelsize=TICK_FONT_SIZE)
     ax.set_yscale("log")
     # 增加主次刻度，提升读数可读性
     ax.yaxis.set_major_locator(LogLocator(base=10.0))
@@ -280,7 +290,7 @@ def plot_total_prediction_queries(
     ax.yaxis.set_major_formatter(ScalarFormatter())
     ax.tick_params(axis="y", which="major", length=6)
     ax.tick_params(axis="y", which="minor", length=3)
-    ax.legend()
+    ax.legend(fontsize=LEGEND_FONT_SIZE)
     # grid removed per project style
 
     plt.tight_layout()

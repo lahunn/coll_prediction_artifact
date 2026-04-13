@@ -8,11 +8,18 @@ import pandas as pd
 import matplotlib
 from matplotlib.ticker import FuncFormatter
 
+
+# --- 字体大小变量 ---
+FONT_SIZE = 16  # 其它字体大小（如标签、标题等）
+TICK_FONT_SIZE = 12  # 坐标轴刻度字体大小
+LEGEND_FONT_SIZE = 12  # legend字体大小
+
 # --- 统一绘图风格配置 ---
 sns.set_theme(style="whitegrid")
 plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unicode MS', 'sans-serif']
 plt.rcParams['axes.unicode_minus'] = False
-plt.rcParams['font.size'] = 12
+plt.rcParams['font.size'] = FONT_SIZE
+plt.rcParams['legend.fontsize'] = LEGEND_FONT_SIZE
 colors = sns.color_palette("deep")
 #!/usr/bin/env python3
 """
@@ -82,7 +89,7 @@ def plot_conflict_impact():
     x = np.arange(len(scenes))
     width = 0.35
     
-    fig, ax = plt.subplots(figsize=(10, 3))
+    fig, ax = plt.subplots(figsize=(9.8, 4.5))
     
     # 从 Seaborn 调色板获取颜色
     colors = sns.color_palette()
@@ -97,11 +104,11 @@ def plot_conflict_impact():
     rects2 = ax.bar(x + width/2, cycles_nc, width, label='理想无冲突情况', 
                     color=nc_color, edgecolor='black', alpha=0.85)
             
-    ax.set_ylabel('总运行周期数')
-    ax.set_xlabel('运动规划任务分组(按碰撞检测请求总数)')
-    ax.set_title('存储冲突的性能影响')
+    ax.set_ylabel('总运行周期数', fontsize=FONT_SIZE)
+    ax.set_xlabel('运动规划问题分组(按碰撞检测请求总数)', fontsize=FONT_SIZE)
     ax.set_xticks(x)
-    ax.set_xticklabels(scenes)
+    ax.set_xticklabels(scenes, fontsize=TICK_FONT_SIZE)
+    ax.tick_params(axis='y', labelsize=TICK_FONT_SIZE)
     ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{int(y):,}"))
     
     # grid removed per project style
@@ -109,7 +116,7 @@ def plot_conflict_impact():
     # 移除顶部和右侧边框
     sns.despine()
     
-    ax.legend()
+    ax.legend(fontsize=LEGEND_FONT_SIZE)
     
     plt.tight_layout()
     

@@ -45,6 +45,7 @@ SCENE_ORDER = ["G1", "G2", "G3", "G4", "G5"]
 
 TARGET_STRATEGIES = ["dual_port", "distri_multi_bank"]
 PINGPONG_OUTPUT = "figs/ablation_pingpong_effect_comparison.pdf"
+SINGLE_DUAL_OUTPUT = "figs/ablation_single_dual_comparison.pdf"
 COMBINED_CYCLE_OUTPUT = "figs/ablation_cycle_combined_comparison.pdf"
 THROUGHPUT_UTIL_OUTPUT = "figs/ablation_throughput_utilization_comparison.pdf"
 WAIT_DEAD_OUTPUT = "figs/ablation_wait_dead_mechanism_comparison.pdf"
@@ -100,13 +101,14 @@ QUERY_STRATEGIES = [
     "distri_multi_bank",
 ]
 
+
 # 统一字体大小控制
-FONT_SIZE_TITLE = 14
-FONT_SIZE_SUPTITLE = 14
-FONT_SIZE_LABEL = 14
-FONT_SIZE_LEGEND = 14
-FONT_SIZE_TICK = 14
-MARKER_SIZE = 14
+FONT_SIZE_LABEL = 16  # 其它字体大小（如标签、标题等）
+TICK_FONT_SIZE = 12   # 坐标轴刻度字体大小
+LEGEND_FONT_SIZE = 12 # legend字体大小
+FONT_SIZE_TITLE = 16
+FONT_SIZE_SUPTITLE = 16
+MARKER_SIZE = 16
 LINE_WIDTH = 2.0
 
 
@@ -181,19 +183,18 @@ def _plot_single_strategy_on_ax(
         )
 
     ax.set_xticks(x)
-    ax.set_xticklabels(SCENE_ORDER, fontsize=FONT_SIZE_TICK)
-    ax.set_xlabel("运动规划任务分组(按碰撞检测请求总数)", fontsize=FONT_SIZE_LABEL)
+    ax.set_xticklabels(SCENE_ORDER, fontsize=TICK_FONT_SIZE)
+    ax.set_xlabel("运动规划问题分组(按碰撞检测请求总数)", fontsize=FONT_SIZE_LABEL)
     ax.set_ylabel("总周期数" if show_ylabel else "", fontsize=FONT_SIZE_LABEL)
-    ax.set_title(f"{CHT_TITLE_MAP.get(cht_type, cht_type)}下不同预测流水线的周期对比", fontsize=FONT_SIZE_TITLE)
-    ax.tick_params(axis="y", labelsize=FONT_SIZE_TICK)
+    ax.tick_params(axis="y", labelsize=TICK_FONT_SIZE)
     ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{int(y):,}"))
-    ax.legend(title="流水线配置", ncol=2, frameon=True, fontsize=FONT_SIZE_LEGEND, title_fontsize=FONT_SIZE_LEGEND)
+    ax.legend(title="流水线配置", ncol=2, frameon=True, fontsize=LEGEND_FONT_SIZE, title_fontsize=LEGEND_FONT_SIZE)
 
     return True
 
 
 def plot_pingpong_effect_comparison(df: pd.DataFrame, output_file: str) -> None:
-    fig, axes = plt.subplots(1, 2, figsize=(13.5, 5.4), sharex=True, sharey=True)
+    fig, axes = plt.subplots(1, 2, figsize=(9.8, 4.5), sharex=True, sharey=True)
 
     left_ok = _plot_single_strategy_on_ax(axes[0], df, "dual_port", show_ylabel=True)
     right_ok = _plot_single_strategy_on_ax(axes[1], df, "distri_multi_bank", show_ylabel=False)
@@ -203,7 +204,6 @@ def plot_pingpong_effect_comparison(df: pd.DataFrame, output_file: str) -> None:
         print("No valid data found for pingpong effect comparison.")
         return
 
-    fig.suptitle("双通道乒乓预测流水线影响对比", y=1.02, fontsize=FONT_SIZE_SUPTITLE)
 
     plt.tight_layout()
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
@@ -237,10 +237,9 @@ def plot_throughput_utilization_comparison(df: pd.DataFrame, output_file: str) -
         return
 
     fig, ax = plt.subplots(figsize=(9.8, 4.5))
-    metric_col, y_label, title = (
+    metric_col, y_label = (
         "Utilization",
         "平均CDU占用率（%）",
-        "平均CDU占用率对比",
     )
 
     pred_style_map = {
@@ -278,23 +277,22 @@ def plot_throughput_utilization_comparison(df: pd.DataFrame, output_file: str) -
                 **style,
             )
 
-    ax.set_title(title, fontsize=FONT_SIZE_TITLE)
-    ax.set_xlabel("运动规划任务分组(按碰撞检测请求总数)", fontsize=FONT_SIZE_LABEL)
+    ax.set_xlabel("运动规划问题分组(按碰撞检测请求总数)", fontsize=FONT_SIZE_LABEL)
     ax.set_ylabel(y_label, fontsize=FONT_SIZE_LABEL)
-    ax.tick_params(axis="x", labelsize=FONT_SIZE_TICK)
-    ax.tick_params(axis="y", labelsize=FONT_SIZE_TICK)
+    ax.tick_params(axis="x", labelsize=TICK_FONT_SIZE)
+    ax.tick_params(axis="y", labelsize=TICK_FONT_SIZE)
     ax.grid(True, axis="y", linestyle="--", alpha=0.25)
 
     handles, labels = ax.get_legend_handles_labels()
     fig.legend(
         handles,
         labels,
-        loc="lower center",
+        loc="upper center",
         ncol=2,
         frameon=True,
-        fontsize=FONT_SIZE_LEGEND,
-        title_fontsize=FONT_SIZE_LEGEND,
-        bbox_to_anchor=(0.5, -0.12),
+        fontsize=LEGEND_FONT_SIZE,
+        title_fontsize=LEGEND_FONT_SIZE,
+        bbox_to_anchor=(0.5, 1.10),
     )
 
     plt.tight_layout()
@@ -326,10 +324,9 @@ def plot_wait_dead_mechanism_comparison(df: pd.DataFrame, output_file: str) -> N
         return
 
     fig, ax = plt.subplots(figsize=(9.8, 4.5))
-    metric_col, y_label, title = (
+    metric_col, y_label = (
         "DEAD_AVG_RATIO",
         "死区时间占比（%）",
-        "死区时间占比对比",
     )
 
     pred_style_map = {
@@ -368,22 +365,21 @@ def plot_wait_dead_mechanism_comparison(df: pd.DataFrame, output_file: str) -> N
                 **style,
             )
 
-    ax.set_title(title, fontsize=FONT_SIZE_TITLE)
-    ax.set_xlabel("运动规划任务分组(按碰撞检测请求总数)", fontsize=FONT_SIZE_LABEL)
+    ax.set_xlabel("运动规划问题分组(按碰撞检测请求总数)", fontsize=FONT_SIZE_LABEL)
     ax.set_ylabel(y_label, fontsize=FONT_SIZE_LABEL)
-    ax.tick_params(axis="x", labelsize=FONT_SIZE_TICK)
-    ax.tick_params(axis="y", labelsize=FONT_SIZE_TICK)
+    ax.tick_params(axis="x", labelsize=TICK_FONT_SIZE)
+    ax.tick_params(axis="y", labelsize=TICK_FONT_SIZE)
     ax.grid(True, axis="y", linestyle="--", alpha=0.25)
     handles, labels = ax.get_legend_handles_labels()
     fig.legend(
         handles,
         labels,
-        loc="lower center",
+        loc="upper center",
         ncol=2,
         frameon=True,
-        fontsize=FONT_SIZE_LEGEND,
-        title_fontsize=FONT_SIZE_LEGEND,
-        bbox_to_anchor=(0.5, -0.12),
+        fontsize=LEGEND_FONT_SIZE,
+        title_fontsize=LEGEND_FONT_SIZE,
+        bbox_to_anchor=(0.5, 1.10),
     )
 
     plt.tight_layout()
@@ -449,23 +445,23 @@ def _plot_conflict_subplot(
 
     ax.set_yscale("log")
     ax.set_xticks(x)
-    ax.set_xticklabels(SCENE_ORDER, fontsize=FONT_SIZE_TICK)
-    ax.set_xlabel("运动规划任务分组(按碰撞检测请求总数)", fontsize=FONT_SIZE_LABEL)
+    ax.set_xticklabels(SCENE_ORDER, fontsize=TICK_FONT_SIZE)
+    ax.set_xlabel("运动规划问题分组(按碰撞检测请求总数)", fontsize=FONT_SIZE_LABEL)
     ax.set_ylabel("冲突数" if show_ylabel else "", fontsize=FONT_SIZE_LABEL)
     ax.set_title(title, fontsize=FONT_SIZE_TITLE)
-    ax.tick_params(axis="y", labelsize=FONT_SIZE_TICK)
-    ax.legend(title="CHT 架构", ncol=2, frameon=True, fontsize=FONT_SIZE_LEGEND, title_fontsize=FONT_SIZE_LEGEND)
+    ax.tick_params(axis="y", labelsize=TICK_FONT_SIZE)
+    ax.legend(title="CHT 架构", ncol=2, frameon=True, fontsize=LEGEND_FONT_SIZE, title_fontsize=LEGEND_FONT_SIZE)
 
 
 def plot_conflict_comparison(df: pd.DataFrame, output_file: str) -> None:
-    fig, axes = plt.subplots(1, 2, figsize=(13.5, 5.4), sharex=True, sharey=True)
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.5), sharex=True, sharey=True)
     palette = sns.color_palette("colorblind", len(CONFLICT_STRATEGIES))
 
     _plot_conflict_subplot(
         axes[0],
         df,
         pred_value=1,
-        title="Pred=1 下不同 CHT 架构的冲突数量对比",
+        title="单通道下两类 CHT 架构的访存冲突数",
         palette=palette,
         show_ylabel=True,
     )
@@ -473,13 +469,10 @@ def plot_conflict_comparison(df: pd.DataFrame, output_file: str) -> None:
         axes[1],
         df,
         pred_value=2,
-        title="Pred=2 下不同 CHT 架构的冲突数量对比",
+        title="双通道下两类 CHT 架构的访存冲突数",
         palette=palette,
         show_ylabel=False,
     )
-
-    fig.suptitle("不同 Pred 下存储架构冲突对比", y=1.02, fontsize=FONT_SIZE_SUPTITLE)
-
     plt.tight_layout()
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
     plt.savefig(output_file, dpi=300, bbox_inches="tight")
@@ -506,10 +499,10 @@ def plot_total_cycles_pred_comparison(df: pd.DataFrame, output_file: str) -> Non
         print("No valid Pred=1/2 Total_Cycles data.")
         return
 
-    fig, axes = plt.subplots(1, 2, figsize=(13.5, 5.4), sharex=True, sharey=True)
+    fig, axes = plt.subplots(1, 2, figsize=(9.8, 4.5), sharex=True, sharey=True)
     pred_panels = [
-        (1, "Pred=1 下总周期对比"),
-        (2, "Pred=2 下总周期对比"),
+        (1, "单通道架构总周期"),
+        (2, "双通道架构总周期"),
     ]
     palette = sns.color_palette("colorblind", len(PERFORMANCE_STRATEGIES))
 
@@ -550,15 +543,13 @@ def plot_total_cycles_pred_comparison(df: pd.DataFrame, output_file: str) -> Non
             )
 
         ax.set_xticks(x)
-        ax.set_xticklabels(SCENE_ORDER, fontsize=FONT_SIZE_TICK)
-        ax.set_xlabel("运动规划任务分组(按碰撞检测请求总数)", fontsize=FONT_SIZE_LABEL)
+        ax.set_xticklabels(SCENE_ORDER, fontsize=TICK_FONT_SIZE)
+        ax.set_xlabel("运动规划问题分组(按碰撞检测请求总数)", fontsize=FONT_SIZE_LABEL)
         ax.set_ylabel("总周期数" if pred_value == 1 else "", fontsize=FONT_SIZE_LABEL)
-        ax.set_title(title, fontsize=FONT_SIZE_TITLE)
-        ax.tick_params(axis="y", labelsize=FONT_SIZE_TICK)
+        ax.tick_params(axis="y", labelsize=TICK_FONT_SIZE)
         ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{int(y):,}"))
-        ax.legend(title="CHT 架构", ncol=2, frameon=True, fontsize=FONT_SIZE_LEGEND, title_fontsize=FONT_SIZE_LEGEND)
+        ax.legend(title="CHT 架构", ncol=2, frameon=True, fontsize=LEGEND_FONT_SIZE, title_fontsize=LEGEND_FONT_SIZE)
 
-    fig.suptitle("系统性能对比（仅双端口与分布式多Bank）", y=1.02, fontsize=FONT_SIZE_SUPTITLE)
 
     plt.tight_layout()
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
@@ -608,7 +599,7 @@ def plot_cycle_combined_comparison(df: pd.DataFrame, output_file: str) -> None:
         print("No valid Total_Cycles data available for combined cycle plot.")
         return
 
-    fig, ax = plt.subplots(figsize=(10.8, 5.6))
+    fig, ax = plt.subplots(figsize=(9.8, 4.5))
 
     x = np.arange(len(SCENE_ORDER))
     n = len(valid_keys)
@@ -629,13 +620,12 @@ def plot_cycle_combined_comparison(df: pd.DataFrame, output_file: str) -> None:
         )
 
     ax.set_xticks(x)
-    ax.set_xticklabels(SCENE_ORDER, fontsize=FONT_SIZE_TICK)
-    ax.set_xlabel("运动规划任务分组(按碰撞检测请求总数)", fontsize=FONT_SIZE_LABEL)
+    ax.set_xticklabels(SCENE_ORDER, fontsize=TICK_FONT_SIZE)
+    ax.set_xlabel("运动规划问题分组(按碰撞检测请求总数)", fontsize=FONT_SIZE_LABEL)
     ax.set_ylabel("总周期数", fontsize=FONT_SIZE_LABEL)
-    ax.set_title("总周期数对比", fontsize=FONT_SIZE_TITLE)
-    ax.tick_params(axis="y", labelsize=FONT_SIZE_TICK)
+    ax.tick_params(axis="y", labelsize=TICK_FONT_SIZE)
     ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{int(y):,}"))
-    ax.legend(title="策略", ncol=2, frameon=True, fontsize=FONT_SIZE_LEGEND, title_fontsize=FONT_SIZE_LEGEND)
+    ax.legend(title="策略", ncol=2, frameon=True, fontsize=LEGEND_FONT_SIZE, title_fontsize=LEGEND_FONT_SIZE)
 
     plt.tight_layout()
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
@@ -643,6 +633,69 @@ def plot_cycle_combined_comparison(df: pd.DataFrame, output_file: str) -> None:
     plt.close(fig)
     print(f"Plot saved to: {output_file}")
 
+# 新增：只比较单通道+双口SRAM 与 双通道+分布式多bank SRAM
+def plot_single_dual_comparison(df: pd.DataFrame, output_file: str) -> None:
+    """
+    只比较：
+      - 单通道 + 共享双端口（dual_port, Pred=1）
+      - 双通道 + 分布式多Bank（distri_multi_bank, Pred=2）
+    """
+    # 选择数据
+    subset = df[((df["CHT_Type"] == "dual_port") & (df["Pred"] == 1)) |
+                ((df["CHT_Type"] == "distri_multi_bank") & (df["Pred"] == 2))].copy()
+    subset = subset[subset["Scene"].isin(SCENE_ORDER)]
+    if subset.empty:
+        print("No valid data for single-dual comparison plot.")
+        return
+
+    # 构建pivot
+    subset["Pred"] = pd.to_numeric(subset["Pred"], errors="coerce").astype("Int64")
+    subset["Total_Cycles"] = pd.to_numeric(subset["Total_Cycles"], errors="coerce")
+    label_map = {
+        ("dual_port", 1): "现有方案",
+        ("distri_multi_bank", 2): "本研究"
+    }
+    subset["GroupLabel"] = subset.apply(lambda r: label_map.get((r["CHT_Type"], r["Pred"]), ""), axis=1)
+    pivot = subset.pivot_table(index="Scene", columns="GroupLabel", values="Total_Cycles", aggfunc="mean")
+    # 保证列顺序：现有方案在左，本研究在右
+    pivot = pivot.reindex(index=SCENE_ORDER, columns=["现有方案", "本研究"])
+
+    valid_labels = [col for col in pivot.columns if not pivot[col].isna().all()]
+    if len(valid_labels) < 2:
+        print("Not enough valid data for both groups.")
+        return
+
+    x = np.arange(len(SCENE_ORDER))
+    width = 0.35
+    fig, ax = plt.subplots(figsize=(9.8, 4.5))
+
+    colors = [PRED1_COLOR, PRED2_COLOR]
+    for i, label in enumerate(valid_labels):
+        values = pivot[label].to_numpy(dtype=float)
+        offset = (i - 0.5) * width
+        ax.bar(
+            x + offset,
+            values,
+            width=width,
+            label=label,
+            color=colors[i % len(colors)],
+            edgecolor="black",
+            linewidth=0.7,
+        )
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(SCENE_ORDER, fontsize=TICK_FONT_SIZE)
+    ax.set_xlabel("运动规划问题分组(按碰撞检测请求总数)", fontsize=FONT_SIZE_LABEL)
+    ax.set_ylabel("总周期数", fontsize=FONT_SIZE_LABEL)
+    ax.tick_params(axis="y", labelsize=TICK_FONT_SIZE)
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{int(y):,}"))
+    ax.legend(frameon=True, fontsize=LEGEND_FONT_SIZE)
+
+    plt.tight_layout()
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
+    plt.savefig(output_file, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Plot saved to: {output_file}")
 
 def plot_query_strategy_comparison(df: pd.DataFrame, output_file: str) -> None:
     required_columns = {"Scene", "CHT_Type", "Pred", "Total_Queries"}
@@ -678,7 +731,7 @@ def plot_query_strategy_comparison(df: pd.DataFrame, output_file: str) -> None:
         print("No query data available for plotting.")
         return
 
-    fig, ax = plt.subplots(figsize=(10.5, 5.4))
+    fig, ax = plt.subplots(figsize=(9.8, 4.5))
     x = np.arange(len(SCENE_ORDER))
     n = len(valid_columns)
     width = 0.8 / n
@@ -698,13 +751,12 @@ def plot_query_strategy_comparison(df: pd.DataFrame, output_file: str) -> None:
         )
 
     ax.set_xticks(x)
-    ax.set_xticklabels(SCENE_ORDER, fontsize=FONT_SIZE_TICK)
-    ax.set_xlabel("运动规划任务分组(按碰撞检测请求总数)", fontsize=FONT_SIZE_LABEL)
+    ax.set_xticklabels(SCENE_ORDER, fontsize=TICK_FONT_SIZE)
+    ax.set_xlabel("运动规划问题分组(按碰撞检测请求总数)", fontsize=FONT_SIZE_LABEL)
     ax.set_ylabel("总查询数", fontsize=FONT_SIZE_LABEL)
-    ax.set_title("查询量差异对比（两种颜色区分架构，斜线区分双通道）", fontsize=FONT_SIZE_TITLE)
-    ax.tick_params(axis="y", labelsize=FONT_SIZE_TICK)
+    ax.tick_params(axis="y", labelsize=TICK_FONT_SIZE)
     ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{int(y):,}"))
-    ax.legend(title="CHT 架构", ncol=2, frameon=True, fontsize=FONT_SIZE_LEGEND, title_fontsize=FONT_SIZE_LEGEND)
+    ax.legend(title="CHT 架构", ncol=2, frameon=True, fontsize=LEGEND_FONT_SIZE, title_fontsize=LEGEND_FONT_SIZE)
 
     plt.tight_layout()
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
@@ -738,6 +790,9 @@ def plot_ablation_cycle_comparison() -> None:
     combined_cycle_output = os.path.join(current_dir, COMBINED_CYCLE_OUTPUT)
     plot_cycle_combined_comparison(df, combined_cycle_output)
 
+    single_dual_output = os.path.join(current_dir, SINGLE_DUAL_OUTPUT)
+    plot_single_dual_comparison(df, single_dual_output)
+
     throughput_util_output = os.path.join(current_dir, THROUGHPUT_UTIL_OUTPUT)
     plot_throughput_utilization_comparison(df, throughput_util_output)
 
@@ -749,6 +804,7 @@ def plot_ablation_cycle_comparison() -> None:
 
     query_output = os.path.join(current_dir, QUERY_OUTPUT)
     plot_query_strategy_comparison(df, query_output)
+    
 
 
 if __name__ == "__main__":

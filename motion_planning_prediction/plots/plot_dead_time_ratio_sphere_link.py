@@ -11,9 +11,21 @@ import pandas as pd
 import seaborn as sns
 from matplotlib.patches import Patch
 from matplotlib import font_manager as fm
+# --- 统一绘图风格配置 ---
+sns.set_theme(style="white")
+sns.set_style("white")
+sns.set_palette("colorblind")
 
+# 字体加载与配置
+font_path = os.path.expanduser("~/.local/share/fonts/simsun.ttc")
+if os.path.exists(font_path):
+    fm.fontManager.addfont(font_path)
 
-sns.set_theme(style="whitegrid")
+# 字体大小变量
+FONT_SIZE = 16  # 其它字体大小（如标签、标题等）
+TICK_FONT_SIZE = 12  # 坐标轴刻度字体大小
+LEGEND_FONT_SIZE = 12  # legend字体大小
+
 plt.rcParams["font.sans-serif"] = [
     "Noto Sans CJK SC",
     "SimSun",
@@ -25,11 +37,10 @@ plt.rcParams["font.sans-serif"] = [
 ]
 plt.rcParams["font.family"] = "sans-serif"
 plt.rcParams["axes.unicode_minus"] = False
-plt.rcParams["font.size"] = 12
+plt.rcParams["font.size"] = FONT_SIZE
+plt.rcParams["legend.fontsize"] = LEGEND_FONT_SIZE
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
-sns.set_style("white")
-sns.set_palette("colorblind")
 
 palette = sns.color_palette("colorblind")
 LINK_COLOR = palette[0]
@@ -128,7 +139,7 @@ def main():
     x = np.arange(len(difficulties))
     width = 0.35
 
-    fig, ax = plt.subplots(figsize=(10, 4.6))
+    fig, ax = plt.subplots(figsize=(9.8, 4.5))
     x_link = x - width / 2
     x_sphere = x + width / 2
 
@@ -154,20 +165,17 @@ def main():
     annotate_dead(ax, x_link, link_effective, link_dead)
     annotate_dead(ax, x_sphere, sphere_effective, sphere_dead)
 
-    ax.set_xlabel("运动规划任务分组(按碰撞检测请求总数)", fontproperties=cjk_font)
-    ax.set_ylabel("周期占比 (%)", fontproperties=cjk_font)
-    ax.set_title("死区占比（上）与有效占比（下）", fontproperties=cjk_font)
+    ax.set_xlabel("运动规划问题分组(按碰撞检测请求总数)", fontsize=FONT_SIZE)
+    ax.set_ylabel("周期占比 (%)", fontsize=FONT_SIZE)
     ax.set_xticks(x)
-    ax.set_xticklabels(difficulties, fontproperties=cjk_font)
+    ax.set_xticklabels(difficulties, fontsize=TICK_FONT_SIZE)
+    ax.tick_params(axis="y", labelsize=TICK_FONT_SIZE)
     legend_handles = [
         Patch(facecolor=LINK_COLOR, label="连杆级推测调度"),
         Patch(facecolor=SPHERE_COLOR, label="球体级推测调度"),
         Patch(facecolor=DEAD_COLOR, alpha=0.8, label="死区占比"),
     ]
-    legend = ax.legend(handles=legend_handles)
-    if cjk_font is not None:
-        for text in legend.get_texts():
-            text.set_fontproperties(cjk_font)
+    legend = ax.legend(handles=legend_handles, fontsize=LEGEND_FONT_SIZE)
     ax.set_ylim(0, 108)
 
     for xi in x:
