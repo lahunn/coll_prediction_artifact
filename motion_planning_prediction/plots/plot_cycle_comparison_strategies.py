@@ -1,11 +1,12 @@
 import os
 
 import matplotlib.pyplot as plt
+import matplotlib.axes
 import matplotlib.font_manager as fm
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from matplotlib.ticker import FuncFormatter
+from matplotlib.ticker import FuncFormatter, LogLocator, ScalarFormatter
 
 
 # Match color/style settings with plot_cycle_comparison_sphere_link.py
@@ -15,6 +16,8 @@ sns.set_palette("colorblind")
 PALETTE = sns.color_palette("colorblind")
 PRED1_COLOR = PALETTE[0]
 PRED2_COLOR = PALETTE[1]
+BASELINE_COLOR = PALETTE[7]
+ORACLE_COLOR = PALETTE[2]
 
 font_path = os.path.expanduser("~/.local/share/fonts/simsun.ttc")
 if os.path.exists(font_path):
@@ -128,7 +131,7 @@ def _color_by_arch_pred(cht_type: str, pred: int) -> tuple:
 
 
 def _plot_single_strategy_on_ax(
-    ax: plt.Axes,
+    ax: 'matplotlib.axes.Axes',
     df: pd.DataFrame,
     cht_type: str,
     show_ylabel: bool,
@@ -184,7 +187,7 @@ def _plot_single_strategy_on_ax(
 
     ax.set_xticks(x)
     ax.set_xticklabels(SCENE_ORDER, fontsize=TICK_FONT_SIZE)
-    ax.set_xlabel("运动规划问题分组(按碰撞检测请求总数)", fontsize=FONT_SIZE_LABEL)
+    ax.set_xlabel("运动规划问题分组(按任务复杂度划分)", fontsize=FONT_SIZE_LABEL)
     ax.set_ylabel("总周期数" if show_ylabel else "", fontsize=FONT_SIZE_LABEL)
     ax.tick_params(axis="y", labelsize=TICK_FONT_SIZE)
     ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{int(y):,}"))
@@ -277,7 +280,7 @@ def plot_throughput_utilization_comparison(df: pd.DataFrame, output_file: str) -
                 **style,
             )
 
-    ax.set_xlabel("运动规划问题分组(按碰撞检测请求总数)", fontsize=FONT_SIZE_LABEL)
+    ax.set_xlabel("运动规划问题分组(按任务复杂度划分)", fontsize=FONT_SIZE_LABEL)
     ax.set_ylabel(y_label, fontsize=FONT_SIZE_LABEL)
     ax.tick_params(axis="x", labelsize=TICK_FONT_SIZE)
     ax.tick_params(axis="y", labelsize=TICK_FONT_SIZE)
@@ -365,7 +368,7 @@ def plot_wait_dead_mechanism_comparison(df: pd.DataFrame, output_file: str) -> N
                 **style,
             )
 
-    ax.set_xlabel("运动规划问题分组(按碰撞检测请求总数)", fontsize=FONT_SIZE_LABEL)
+    ax.set_xlabel("运动规划问题分组(按任务复杂度划分)", fontsize=FONT_SIZE_LABEL)
     ax.set_ylabel(y_label, fontsize=FONT_SIZE_LABEL)
     ax.tick_params(axis="x", labelsize=TICK_FONT_SIZE)
     ax.tick_params(axis="y", labelsize=TICK_FONT_SIZE)
@@ -390,7 +393,7 @@ def plot_wait_dead_mechanism_comparison(df: pd.DataFrame, output_file: str) -> N
 
 
 def _plot_conflict_subplot(
-    ax: plt.Axes,
+    ax: 'matplotlib.axes.Axes',
     df: pd.DataFrame,
     pred_value: int,
     title: str,
@@ -446,7 +449,7 @@ def _plot_conflict_subplot(
     ax.set_yscale("log")
     ax.set_xticks(x)
     ax.set_xticklabels(SCENE_ORDER, fontsize=TICK_FONT_SIZE)
-    ax.set_xlabel("运动规划问题分组(按碰撞检测请求总数)", fontsize=FONT_SIZE_LABEL)
+    ax.set_xlabel("运动规划问题分组(按任务复杂度划分)", fontsize=FONT_SIZE_LABEL)
     ax.set_ylabel("冲突数" if show_ylabel else "", fontsize=FONT_SIZE_LABEL)
     ax.set_title(title, fontsize=FONT_SIZE_TITLE)
     ax.tick_params(axis="y", labelsize=TICK_FONT_SIZE)
@@ -544,7 +547,7 @@ def plot_total_cycles_pred_comparison(df: pd.DataFrame, output_file: str) -> Non
 
         ax.set_xticks(x)
         ax.set_xticklabels(SCENE_ORDER, fontsize=TICK_FONT_SIZE)
-        ax.set_xlabel("运动规划问题分组(按碰撞检测请求总数)", fontsize=FONT_SIZE_LABEL)
+        ax.set_xlabel("运动规划问题分组(按任务复杂度划分)", fontsize=FONT_SIZE_LABEL)
         ax.set_ylabel("总周期数" if pred_value == 1 else "", fontsize=FONT_SIZE_LABEL)
         ax.tick_params(axis="y", labelsize=TICK_FONT_SIZE)
         ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{int(y):,}"))
@@ -621,7 +624,7 @@ def plot_cycle_combined_comparison(df: pd.DataFrame, output_file: str) -> None:
 
     ax.set_xticks(x)
     ax.set_xticklabels(SCENE_ORDER, fontsize=TICK_FONT_SIZE)
-    ax.set_xlabel("运动规划问题分组(按碰撞检测请求总数)", fontsize=FONT_SIZE_LABEL)
+    ax.set_xlabel("运动规划问题分组(按任务复杂度划分)", fontsize=FONT_SIZE_LABEL)
     ax.set_ylabel("总周期数", fontsize=FONT_SIZE_LABEL)
     ax.tick_params(axis="y", labelsize=TICK_FONT_SIZE)
     ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{int(y):,}"))
@@ -636,11 +639,13 @@ def plot_cycle_combined_comparison(df: pd.DataFrame, output_file: str) -> None:
 # 新增：只比较单通道+双口SRAM 与 双通道+分布式多bank SRAM
 def plot_single_dual_comparison(df: pd.DataFrame, output_file: str) -> None:
     """
-    只比较：
-      - 单通道 + 共享双端口（dual_port, Pred=1）
-      - 双通道 + 分布式多Bank（distri_multi_bank, Pred=2）
+    比较四个系列：
+      1. 基准检测周期 (Naive_Cycles)
+      2. 现有方案 (dual_port, Pred=1)
+      3. 本研究 (distri_multi_bank, Pred=2)
+      4. 理想情况 (Oracle_Cycles)
     """
-    # 选择数据
+    # 提取现有方案和本研究的数据
     subset = df[((df["CHT_Type"] == "dual_port") & (df["Pred"] == 1)) |
                 ((df["CHT_Type"] == "distri_multi_bank") & (df["Pred"] == 2))].copy()
     subset = subset[subset["Scene"].isin(SCENE_ORDER)]
@@ -648,48 +653,90 @@ def plot_single_dual_comparison(df: pd.DataFrame, output_file: str) -> None:
         print("No valid data for single-dual comparison plot.")
         return
 
-    # 构建pivot
     subset["Pred"] = pd.to_numeric(subset["Pred"], errors="coerce").astype("Int64")
     subset["Total_Cycles"] = pd.to_numeric(subset["Total_Cycles"], errors="coerce")
+
+    # 获取每个场景的 Naive 和 Oracle 周期 (通常同一场景下这些值是相同的)
+    scene_stats = subset.groupby("Scene").agg({
+        "Naive_Cycles": "mean",
+        "Oracle_Cycles": "mean"
+    }).reindex(SCENE_ORDER)
+
+    # 提取现有方案和本研究的周期
     label_map = {
         ("dual_port", 1): "现有方案",
         ("distri_multi_bank", 2): "本研究"
     }
     subset["GroupLabel"] = subset.apply(lambda r: label_map.get((r["CHT_Type"], r["Pred"]), ""), axis=1)
     pivot = subset.pivot_table(index="Scene", columns="GroupLabel", values="Total_Cycles", aggfunc="mean")
-    # 保证列顺序：现有方案在左，本研究在右
     pivot = pivot.reindex(index=SCENE_ORDER, columns=["现有方案", "本研究"])
 
-    valid_labels = [col for col in pivot.columns if not pivot[col].isna().all()]
-    if len(valid_labels) < 2:
-        print("Not enough valid data for both groups.")
-        return
-
     x = np.arange(len(SCENE_ORDER))
-    width = 0.35
+    width = 0.2  # 每个柱子的宽度
     fig, ax = plt.subplots(figsize=(9.8, 4.5))
 
-    colors = [PRED1_COLOR, PRED2_COLOR]
-    for i, label in enumerate(valid_labels):
-        values = pivot[label].to_numpy(dtype=float)
-        offset = (i - 0.5) * width
-        ax.bar(
-            x + offset,
-            values,
-            width=width,
-            label=label,
-            color=colors[i % len(colors)],
-            edgecolor="black",
-            linewidth=0.7,
-        )
+    # 柱子顺序：Naive (-1.5w), Existing (-0.5w), Ours (+0.5w), Oracle (+1.5w)
+    
+    # 1. 基准检测周期
+    ax.bar(
+        x - 1.5 * width,
+        scene_stats["Naive_Cycles"],
+        width=width,
+        label="基准情况",
+        color=BASELINE_COLOR,
+        edgecolor="black",
+        linewidth=0.7,
+    )
+
+    # 2. 现有方案
+    ax.bar(
+        x - 0.5 * width,
+        pivot["现有方案"],
+        width=width,
+        label="现有方案",
+        color=PRED1_COLOR,
+        edgecolor="black",
+        linewidth=0.7,
+    )
+
+    # 3. 本研究
+    ax.bar(
+        x + 0.5 * width,
+        pivot["本研究"],
+        width=width,
+        label="本研究",
+        color=PRED2_COLOR,
+        edgecolor="black",
+        linewidth=0.7,
+    )
+
+    # 4. 理想情况
+    ax.bar(
+        x + 1.5 * width,
+        scene_stats["Oracle_Cycles"],
+        width=width,
+        label="理想情况",
+        color="none",
+        edgecolor=ORACLE_COLOR,
+        hatch="//",
+        linewidth=1.5,
+    )
 
     ax.set_xticks(x)
     ax.set_xticklabels(SCENE_ORDER, fontsize=TICK_FONT_SIZE)
-    ax.set_xlabel("运动规划问题分组(按碰撞检测请求总数)", fontsize=FONT_SIZE_LABEL)
-    ax.set_ylabel("总周期数", fontsize=FONT_SIZE_LABEL)
-    ax.tick_params(axis="y", labelsize=TICK_FONT_SIZE)
-    ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{int(y):,}"))
-    ax.legend(frameon=True, fontsize=LEGEND_FONT_SIZE)
+    ax.set_xlabel("运动规划问题分组(按任务复杂度划分)", fontsize=FONT_SIZE_LABEL)
+    ax.set_ylabel("总周期数 (对数尺度)", fontsize=FONT_SIZE_LABEL)
+
+    # 设置对数坐标轴及格式
+    ax.set_yscale("log")
+    ax.yaxis.set_major_locator(LogLocator(base=10.0))
+    ax.yaxis.set_minor_locator(LogLocator(base=10.0, subs=(np.arange(2, 10) * 0.1).tolist()))
+    ax.yaxis.set_major_formatter(ScalarFormatter())
+
+    ax.tick_params(axis="y", which="major", labelsize=TICK_FONT_SIZE, length=6)
+    ax.tick_params(axis="y", which="minor", length=3)
+
+    ax.legend(frameon=True, fontsize=LEGEND_FONT_SIZE, loc='upper left')
 
     plt.tight_layout()
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
@@ -752,7 +799,7 @@ def plot_query_strategy_comparison(df: pd.DataFrame, output_file: str) -> None:
 
     ax.set_xticks(x)
     ax.set_xticklabels(SCENE_ORDER, fontsize=TICK_FONT_SIZE)
-    ax.set_xlabel("运动规划问题分组(按碰撞检测请求总数)", fontsize=FONT_SIZE_LABEL)
+    ax.set_xlabel("运动规划问题分组(按任务复杂度划分)", fontsize=FONT_SIZE_LABEL)
     ax.set_ylabel("总查询数", fontsize=FONT_SIZE_LABEL)
     ax.tick_params(axis="y", labelsize=TICK_FONT_SIZE)
     ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{int(y):,}"))

@@ -57,7 +57,7 @@ run_sweep() {
     echo "输出文件: $csv_file"
     echo "=========================================="
 
-    echo "Sweep,Value,Scene,Total_Cycles,Total_Queries,Throughput,Utilization,Conflicts,Avg_Wait_Cycles,DEAD_AVG_RATIO" > "$csv_file"
+    echo "Sweep,Value,Scene,Total_Cycles,Oracle_Cycles,Naive_Cycles,Total_Queries,Throughput,Utilization,Conflicts,Avg_Wait_Cycles,DEAD_AVG_RATIO" > "$csv_file"
 
     local -n values_ref="$values_name"
     for value in "${values_ref[@]}"; do
@@ -119,10 +119,12 @@ run_sweep() {
                 exit 1
             fi
 
-            TOTAL_CYCLES=$(echo "$OUTPUT" | grep "总周期:" | tail -n 1 | awk -F': ' '{print $2}')
+            TOTAL_CYCLES=$(echo "$OUTPUT" | grep "  总周期:" | head -n 1 | awk -F': ' '{print $2}')
+            ORACLE_CYCLES=$(echo "$OUTPUT" | grep "Oracle总周期:" | tail -n 1 | awk -F': ' '{print $2}')
+            NAIVE_CYCLES=$(echo "$OUTPUT" | grep "Naive总周期:" | tail -n 1 | awk -F': ' '{print $2}')
             TOTAL_QUERIES=$(echo "$OUTPUT" | grep "总查询数:" | tail -n 1 | awk -F': ' '{print $2}')
             THROUGHPUT=$(echo "$OUTPUT" | grep "系统吞吐量:" | tail -n 1 | awk -F': ' '{print $2}' | awk '{print $1}')
-            UTILIZATION=$(echo "$OUTPUT" | grep "平均COPU占用率:" | tail -n 1 | awk -F': ' '{print $2}')
+            UTILIZATION=$(echo "$OUTPUT" | grep "平均COPU占用率:" | tail -n 1 | awk -F': ' '{print $2}' | sed 's/%//')
             CONFLICTS=$(echo "$OUTPUT" | grep "CHT冲突数:" | tail -n 1 | awk -F': ' '{print $2}')
             AVG_WAIT_CYCLES=$(echo "$OUTPUT" | grep "平均等待周期:" | tail -n 1 | awk -F': ' '{print $2}')
             DEAD_AVG_RATIO=$(echo "$OUTPUT" | grep "Dead Time Avg Ratio Per Edge:" | tail -n 1 | awk -F': ' '{print $2}' | sed 's/%//')
@@ -134,17 +136,17 @@ run_sweep() {
                 DEAD_AVG_RATIO=0
             fi
 
-            echo "✓ (cycles=$TOTAL_CYCLES, throughput=$THROUGHPUT, utilization=$UTILIZATION, conflicts=$CONFLICTS, avg_wait=$AVG_WAIT_CYCLES, dead_avg_ratio=${DEAD_AVG_RATIO}%)"
-            echo "$sweep_name,$value,$SCENE,$TOTAL_CYCLES,$TOTAL_QUERIES,$THROUGHPUT,$UTILIZATION,$CONFLICTS,$AVG_WAIT_CYCLES,$DEAD_AVG_RATIO" >> "$csv_file"
+            echo "✓ (cycles=$TOTAL_CYCLES, oracle=$ORACLE_CYCLES, naive=$NAIVE_CYCLES, throughput=$THROUGHPUT, utilization=$UTILIZATION, conflicts=$CONFLICTS, avg_wait=$AVG_WAIT_CYCLES, dead_avg_ratio=${DEAD_AVG_RATIO}%)"
+            echo "$sweep_name,$value,$SCENE,$TOTAL_CYCLES,$ORACLE_CYCLES,$NAIVE_CYCLES,$TOTAL_QUERIES,$THROUGHPUT,$UTILIZATION,$CONFLICTS,$AVG_WAIT_CYCLES,$DEAD_AVG_RATIO" >> "$csv_file"
         done
     done
 }
 
 # 依次执行每个参数的遍历
 run_sweep "NUM_PRED" "$RESULT_DIR/sweep_num_pred_${BASE_CHT_TYPE}_sphere_results.csv" SWEEP_NUM_PRED
-# run_sweep "NUM_BANKS" "$RESULT_DIR/sweep_num_banks_${BASE_CHT_TYPE}_sphere_results.csv" SWEEP_NUM_BANKS
-# run_sweep "NUM_OOCDS" "$RESULT_DIR/sweep_num_oocds_${BASE_CHT_TYPE}_sphere_results.csv" SWEEP_NUM_OOCDS
-# run_sweep "NUM_COPUS" "$RESULT_DIR/sweep_num_copus_${BASE_CHT_TYPE}_sphere_results.csv" SWEEP_NUM_COPUS
+run_sweep "NUM_BANKS" "$RESULT_DIR/sweep_num_banks_${BASE_CHT_TYPE}_sphere_results.csv" SWEEP_NUM_BANKS
+run_sweep "NUM_OOCDS" "$RESULT_DIR/sweep_num_oocds_${BASE_CHT_TYPE}_sphere_results.csv" SWEEP_NUM_OOCDS
+run_sweep "NUM_COPUS" "$RESULT_DIR/sweep_num_copus_${BASE_CHT_TYPE}_sphere_results.csv" SWEEP_NUM_COPUS
 
 echo ""
 echo "=========================================="

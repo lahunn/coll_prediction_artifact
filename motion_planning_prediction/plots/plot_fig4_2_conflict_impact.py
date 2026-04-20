@@ -105,7 +105,7 @@ def plot_conflict_impact():
                     color=nc_color, edgecolor='black', alpha=0.85)
             
     ax.set_ylabel('总运行周期数', fontsize=FONT_SIZE)
-    ax.set_xlabel('运动规划问题分组(按碰撞检测请求总数)', fontsize=FONT_SIZE)
+    ax.set_xlabel('运动规划问题分组(按任务复杂度划分)', fontsize=FONT_SIZE)
     ax.set_xticks(x)
     ax.set_xticklabels(scenes, fontsize=TICK_FONT_SIZE)
     ax.tick_params(axis='y', labelsize=TICK_FONT_SIZE)

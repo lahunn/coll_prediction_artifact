@@ -88,7 +88,7 @@ def plot_cdu_performance_bottleneck():
 
     # 6. Aesthetics
     ax.set_ylabel('Cycle Distribution (%)', fontweight='bold')
-    ax.set_xlabel('运动规划问题分组(按碰撞检测请求总数)', fontweight='bold')
+    ax.set_xlabel('运动规划问题分组(按任务复杂度划分)', fontweight='bold')
     ax.set_xticks(x)
     ax.set_xticklabels(scenes)
     ax.set_ylim(0, 100)

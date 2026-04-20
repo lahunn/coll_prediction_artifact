@@ -24,7 +24,7 @@ class BITStar:
         maxIter=5,
         plot_flag=False,
         batch_size=200,
-        T=1000,
+        T=2000,
         sampling=None,
         timer=None,
     ):
@@ -97,9 +97,6 @@ class BITStar:
 
         # Computing the sampling space
         self.informed_sample_init()
-        radius_constant = self.radius_init()
-
-        return radius_constant
 
     def radius_init(self):
         from scipy import special
@@ -351,15 +348,14 @@ class BITStar:
             refine_time_budget = 10
         print("Before planning setup")
         self.setup_planning()
+        actual_limit = pathLengthLimit * self.c_min
         init_time = time()
         deadline = None if time_budget == INF else init_time + time_budget
         timed_out = False
         edge_info_full = []
         edge_infocoll_full = []
 
-        while self.T < self.T_max and (
-            deadline is None or time() < deadline
-        ):
+        while self.T < self.T_max and (deadline is None or time() < deadline):
             if not self.vertex_queue and not self.edge_queue:
                 c_best = self.g_scores[self.goal]
                 self.prune(c_best)
@@ -373,6 +369,7 @@ class BITStar:
                     break
                 self.samples.extend(sample_temp)
                 self.T += self.batch_size
+                print(f"[DEBUG] T updated to {self.T}. Added {len(sample_temp)} samples.")
 
                 self.timer.start()
                 self.old_vertices = set(self.vertices)
@@ -381,8 +378,9 @@ class BITStar:
                 ]
                 heapq.heapify(self.vertex_queue)  # change to op priority queue
                 q = len(self.vertices) + len(self.samples)
+                exponent = 1.0 / self.dimension
                 self.r = self.radius_init() * (
-                    (math.log(q) / q) ** (1.0 / self.dimension)
+                    (math.log(q) / q) ** exponent
                 )
                 self.timer.finish(Timer.HEAP)
 
@@ -420,18 +418,22 @@ class BITStar:
                 edge_info_full.append(edgeinfo)
                 edge_infocoll_full.append(edgeinfo_coll)
                 self.timer.start()
-                actual_f_edge = (
-                    self.heuristic_cost(self.start, bestEdge[0])
-                    + actual_cost_of_edge
-                    + self.heuristic_cost(bestEdge[1], self.goal)
-                )
-                if actual_f_edge < self.g_scores[self.goal]:
+                # Reverted to standard BIT* pruning: use actual g_score instead of heuristic distance from start
+                if self.get_g_score(bestEdge[0]) + actual_cost_of_edge + self.heuristic_cost(bestEdge[1], self.goal) < self.g_scores[self.goal]:
                     actual_g_score_of_point = (
                         self.get_g_score(bestEdge[0]) + actual_cost_of_edge
                     )
                     if actual_g_score_of_point < self.get_g_score(bestEdge[1]):
+                        old_goal_cost = self.g_scores[self.goal]
                         self.g_scores[bestEdge[1]] = actual_g_score_of_point
                         self.edges[bestEdge[1]] = bestEdge[0]
+                        
+                        if self.g_scores[self.goal] < old_goal_cost:
+                            status = "Initial" if old_goal_cost == float("inf") else "Improved"
+                            collision_checks = self.env.collision_check_count()
+                            ratio = (self.g_scores[self.goal] / self.c_min) if self.c_min > 0 else 1.0
+                            print(f"[PLANNER] {status} path found! Cost: {self.g_scores[self.goal]:.4f} ({ratio:.2%} of min), Collision Checks: {collision_checks}")
+
                         if bestEdge[1] not in self.vertices:
                             self.samples.remove(bestEdge[1])
                             self.vertices.append(bestEdge[1])
@@ -457,10 +459,17 @@ class BITStar:
             else:
                 self.vertex_queue = []
                 self.edge_queue = []
-            if self.g_scores[self.goal] < pathLengthLimit and (
+            if self.g_scores[self.goal] <= actual_limit or (
                 time() - init_time > refine_time_budget
             ):
+                print(f"[PLANNER] Exiting: Path length {self.g_scores[self.goal]:.4f} <= {actual_limit:.4f} ({pathLengthLimit:.2%} of min) or refinement time exceeded.")
                 break
+
+        if self.T >= self.T_max:
+            print(f"[PLANNER] Exiting: Sample limit reached ({self.T}/{self.T_max}).")
+        elif deadline is not None and time() >= deadline:
+            print(f"[PLANNER] Exiting: Time budget reached ({time() - init_time:.2f}s).")
+
         if dump_log and not timed_out:
             os.makedirs("logfiles_BIT_link", exist_ok=True)
             f = open("logfiles_BIT_link/link_info_" + str(problemindex) + ".pkl", "wb")

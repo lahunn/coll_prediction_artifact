@@ -156,7 +156,7 @@ def plot_global_oocd_cycle_comparison():
                 )
 
     ax.set_ylabel("Total Cycles", fontsize=14, fontweight="bold")
-    ax.set_xlabel("运动规划问题分组(按碰撞检测请求总数)", fontsize=14, fontweight="bold")
+    ax.set_xlabel("运动规划问题分组(按任务复杂度划分)", fontsize=14, fontweight="bold")
     ax.set_xticks(x)
     ax.set_xticklabels(scenes, fontsize=12)
     ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{int(y):,}"))
@@ -256,7 +256,7 @@ def plot_global_oocd_utilization_comparison():
         )
 
     ax.set_ylabel("OOCD Utilization (%)", fontsize=14, fontweight="bold")
-    ax.set_xlabel("运动规划问题分组(按碰撞检测请求总数)", fontsize=14, fontweight="bold")
+    ax.set_xlabel("运动规划问题分组(按任务复杂度划分)", fontsize=14, fontweight="bold")
     ax.set_xticks(x)
     ax.set_xticklabels(scenes, fontsize=12)
     ax.tick_params(axis="y", labelsize=11)
@@ -355,7 +355,7 @@ def plot_global_oocd_throughput_comparison():
     ax.axhline(y=1.0, color="red", linestyle="--", linewidth=1.5, alpha=0.7, label="Ideal (1.0)")
 
     ax.set_ylabel("Throughput (Queries/Cycle)", fontsize=14, fontweight="bold")
-    ax.set_xlabel("运动规划问题分组(按碰撞检测请求总数)", fontsize=14, fontweight="bold")
+    ax.set_xlabel("运动规划问题分组(按任务复杂度划分)", fontsize=14, fontweight="bold")
     ax.set_xticks(x)
     ax.set_xticklabels(scenes, fontsize=12)
     ax.tick_params(axis="y", labelsize=11)
@@ -507,7 +507,7 @@ def plot_global_oocd_pred_impact():
             linewidth=1.2,
         )
         ax3.set_ylabel("Total Cycles", fontsize=12, fontweight="bold")
-        ax3.set_xlabel("运动规划问题分组(按碰撞检测请求总数)", fontsize=12, fontweight="bold")
+        ax3.set_xlabel("运动规划问题分组(按任务复杂度划分)", fontsize=12, fontweight="bold")
         ax3.set_xticks(x)
         ax3.set_xticklabels(scenes, fontsize=11)
         ax3.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{int(y):,}"))
@@ -535,7 +535,7 @@ def plot_global_oocd_pred_impact():
             linewidth=1.2,
         )
         ax4.set_ylabel("Total Queries", fontsize=12, fontweight="bold")
-        ax4.set_xlabel("运动规划问题分组(按碰撞检测请求总数)", fontsize=12, fontweight="bold")
+        ax4.set_xlabel("运动规划问题分组(按任务复杂度划分)", fontsize=12, fontweight="bold")
         ax4.set_xticks(x)
         ax4.set_xticklabels(scenes, fontsize=11)
         ax4.yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{int(y):,}"))

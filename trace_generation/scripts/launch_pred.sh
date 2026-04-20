@@ -5,8 +5,8 @@ echo "Starting data generation pipeline..."
 # 生成场景文件
 echo "Step 1: Generating scene files..."
 ROBOT_NAME="iiwa" # 可替换为 "iiwa" 或 "franka"
-NUM_PROBLEMS=100
-NUM_SAMPLES=1000
+NUM_PROBLEMS=10
+NUM_SAMPLES=2000
 BASE_SEED=0
 DENSITIES=("dens3" "dens6" "dens9" "dens12")
 

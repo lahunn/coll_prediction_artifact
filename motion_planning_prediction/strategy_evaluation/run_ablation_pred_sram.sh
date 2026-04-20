@@ -22,12 +22,14 @@ BASE_NUM_OOCDS=8
 BASE_NUM_PRED=2
 BASE_NUM_BANKS=8
 COLLISION_TYPE="sphere"
-COPUS_PER_EDGE=4 # 最好不要让COPUS_PER_EDGE过小，否则在 pred=2 时可能出现大量 edge 被预分配到 COPU 的情况，导致部分copu执行完任务后没有下一个任务,进入空转，从而影响吞吐量和利用率的评估(会导致pred = 2 劣于 pred = 1)
-FIXED_QNONCOLL_LEN=128
+# COPUS_PER_EDGE 默认值与按场景的映射
+DEFAULT_COPUS_PER_EDGE=2
+declare -A COPUS_PER_EDGE_MAP=( ["G1"]=4 ["G2"]=4 ["G3"]=2 ["G4"]=1 ["G5"]=1 )
 
+FIXED_QNONCOLL_LEN=128
 # === 消融维度 ===
 SWEEP_NUM_PRED=(1 2)
-SWEEP_CHT_TYPES=("distri_multi_bank" "dual_port" "multi_bank" "distri_dual_port")
+SWEEP_CHT_TYPES=("distri_multi_bank" "dual_port")
 
 # 结果文件路径
 RESULT_DIR="../result_files"
@@ -58,10 +60,20 @@ for cht_type in "${SWEEP_CHT_TYPES[@]}"; do
         echo "输出文件: $RESULT_FILE"
         echo "=========================================="
 
+        # 确定 dedicated OOCD 数量：双通道预测(Pred=2)配置为2，单通道(Pred=1)配置为全部(BASE_NUM_OOCDS)
+        if [ "$num_pred" -eq 2 ]; then
+            num_dedicated_oocds=2
+        else
+            num_dedicated_oocds="$BASE_NUM_OOCDS"
+        fi
+
         for SCENE in G1 G2 G3 G4 G5; do
             DATA_FOLDER="$BASE_DATA_FOLDER/$SCENE"
             WARMSTART_DIR="$WARMSTART_BASE_FOLDER/$SCENE"
             echo -n "  场景 $SCENE: "
+
+            # 根据场景选择 COPUS_PER_EDGE（若无映射则使用默认）
+            COPUS_PER_EDGE="${COPUS_PER_EDGE_MAP[$SCENE]:-$DEFAULT_COPUS_PER_EDGE}"
 
             cht_args=(--cht-type "$cht_type")
             if [ "$cht_type" = "multi_bank" ] || [ "$cht_type" = "distri_multi_bank" ]; then
@@ -80,8 +92,8 @@ for cht_type in "${SWEEP_CHT_TYPES[@]}"; do
                 --copus-per-edge "$COPUS_PER_EDGE" \
                 "${cht_args[@]}" \
                 --collision-type "$COLLISION_TYPE" \
-                --cht-warmstart-dir "$WARMSTART_DIR" \
-                --qnoncoll-multiplier "$qnoncoll_multiplier" 2>&1)
+                --qnoncoll-multiplier "$qnoncoll_multiplier" \
+                --num-dedicated-oocds "$num_dedicated_oocds" 2>&1)
 
             if [ $? -ne 0 ]; then
                 echo "✗ 失败"

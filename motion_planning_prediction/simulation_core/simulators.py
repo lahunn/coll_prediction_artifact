@@ -293,9 +293,9 @@ def simulate_parallel_collision_detection_link(
 
         cycle += 1
 
-    # for oocd in oocds:
-    #     if oocd.free_cycle > cycle:
-    #         query_count += (cycle_check - oocd.free_cycle + cycle) / cycle_check
+    for oocd in oocds:
+        if oocd.free_cycle > cycle:
+            query_count += (cycle_check - oocd.free_cycle + cycle) / cycle_check
 
     oocd_utilization = (
         1.0 - (total_idle_cycles / (cycle * num_oocds)) if cycle > 0 else 0.0

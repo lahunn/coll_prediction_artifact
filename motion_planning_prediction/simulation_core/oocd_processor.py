@@ -18,6 +18,8 @@ def check_completion(oocd, cycle, query_count, coll_found, colldict, sample_rate
         colldict = update_collision_dict(
             colldict, oocd.hash_key, oocd.result, sample_rate
         )
+        # 修正：任务完成统计后，必须重置忙碌状态，防止重复计数
+        oocd.reset()
     return query_count, coll_found, colldict
 
 
@@ -46,6 +48,9 @@ def process_oocd_completion(
                 submit_cht_write(
                     cht_scheduler, copu_id, oocd.hash_key, oocd.result, sample_rate
                 )
+                
+                # 修正：任务完成统计后，必须重置忙碌状态，防止重复计数
+                oocd.reset()
 
     return oocd_cycles_delta, query_count, coll_found
 
@@ -67,7 +72,8 @@ def attempt_standard_allocation(
     allocated = False
     if len(qcoll) > 0:
         task = qcoll[0]
-        task_cycle = task[2] if len(task) > 2 else cycle_check
+        # task_cycle = task[2] if len(task) > 2 else cycle_check
+        task_cycle = cycle_check  # 固定周期，简化调度
 
         oocds[oocd_id] = OOCDState(
             hash_key=task[0],
@@ -327,6 +333,18 @@ def process_oocds_link(
     qcoll/qnoncoll entries: [hash_key, [sphere_results], [optional cycles]].
     pending_spheres holds per-sphere tasks not yet dispatched.
     """
+
+
+    def assign_task(oocd_idx, task):
+        # task_cycle = task[2] if len(task) > 2 else cycle_check
+        task_cycle = cycle_check  # 固定周期，简化调度
+        oocds[oocd_idx] = OOCDState(
+            hash_key=task[0],
+            result=task[1],
+            busy=1,
+            free_cycle=cycle + task_cycle,
+        )
+    
     for oocd_id in range(num_oocds):
         oocd = oocds[oocd_id]
         total_query_count, coll_found, colldict = check_completion(
@@ -334,15 +352,6 @@ def process_oocds_link(
         )
 
     free_ids = [idx for idx, oocd in enumerate(oocds) if oocd.free_cycle <= cycle]
-
-    def assign_task(oocd_idx, task):
-        task_cycle = task[2] if len(task) > 2 else cycle_check
-        oocds[oocd_idx] = OOCDState(
-            hash_key=task[0],
-            result=task[1],
-            busy=1,
-            free_cycle=cycle + task_cycle,
-        )
 
     while free_ids:
         if pending_spheres:

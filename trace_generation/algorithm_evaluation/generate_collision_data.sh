@@ -20,7 +20,7 @@ TIME_BUDGET=100
 # SEED: 随机数种子，用于可重复的随机抽样/排序（确保试验可复现）
 SEED=1234
 # COLLISION_MODEL: 使用的碰撞检测模式，可选值示例："link"（逐连杆检测）、"sphere"（球元近似）
-COLLISION_MODEL="link"
+COLLISION_MODEL="sphere"
 # PLANNER: 要评估的规划器/追踪器，脚本在不同 planner 值下选择不同的 trace/collision 目录
 PLANNER="bit_star"
 # 可选: PLANNER="gnnmp"

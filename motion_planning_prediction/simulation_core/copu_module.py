@@ -33,6 +33,7 @@ class COPUModule:
         cycle_check=DEFAULT_CYCLE_CHECK,
         cht_scheduler=None,
         num_predictions=1,
+        num_dedicated_oocds=DEFAULT_NUM_DEDICATED_OOCDS,
     ):
         self.copu_id = copu_id
         self.num_oocds = num_oocds
@@ -41,6 +42,7 @@ class COPUModule:
         self.cycle_check = cycle_check
         self.cht_scheduler = cht_scheduler
         self.num_predictions = num_predictions
+        self.num_dedicated_oocds = num_dedicated_oocds
 
         self.oocds = [OOCDState() for _ in range(num_oocds)]
 
@@ -137,6 +139,7 @@ class COPUModule:
             self.cycle_check,
             self.num_oocds,
             self.qnoncoll_size,
+            num_dedicated_oocds=self.num_dedicated_oocds,
         )
 
         # 3. 预测新配置

@@ -35,7 +35,7 @@ palette = sns.color_palette("colorblind")
 Sphere_csv_path = "../result_files/sphere_hashing_cost_results.csv"
 Coord_csv_path = "../result_files/coord_hashing_cost_results.csv"
 # ===== 全局配色方案 =====
-LINK_COLOR = palette[0]  # 连杆级预测 方法主色
+LINK_COLOR = palette[0]  # 现有预测方法 方法主色
 SPHERE_COLOR = palette[1]  # 球体级预测 方法主色
 # 供多曲线使用的渐变色（由深到浅）
 LINK_COLOR_SET = [palette[0], palette[4], palette[9]]
@@ -113,7 +113,7 @@ def plot_accuracy_recall_comparison():
         x - width / 2,
         obb_precision,
         width,
-        label="连杆级预测",
+        label="现有预测方法",
         color=LINK_COLOR,
     )
     bars2 = ax_prec.bar(
@@ -167,7 +167,7 @@ def plot_accuracy_recall_comparison():
         x - width / 2,
         obb_recall,
         width,
-        label="连杆级预测",
+        label="现有预测方法",
         color=LINK_COLOR,
     )
     bars4 = ax_rec.bar(
@@ -257,7 +257,7 @@ def plot_cost_comparison():
         x - width / 2,
         obb_speedups,
         width,
-        label="连杆级预测",
+        label="现有预测方法",
         color=LINK_COLOR,
     )
     bars2 = ax.bar(
@@ -363,7 +363,7 @@ def plot_threshold_comparison(density="dens6"):
         )
         axes[0].set_ylabel("精确率 %", fontsize=FONT_SIZE_LABEL)
         axes[0].set_title(
-            f"连杆级预测 (Q={qb}) - {density.upper()}", fontsize=FONT_SIZE_TITLE
+            f"现有预测方法 (Q={qb}) - {density.upper()}", fontsize=FONT_SIZE_TITLE
         )
         axes[0].set_xticks(x)
         axes[0].set_xticklabels(
@@ -385,7 +385,7 @@ def plot_threshold_comparison(density="dens6"):
         )
         axes[1].set_ylabel("召回率 %", fontsize=FONT_SIZE_LABEL)
         axes[1].set_title(
-            f"连杆级预测 (Q={qb}) - {density.upper()}", fontsize=FONT_SIZE_TITLE
+            f"现有预测方法 (Q={qb}) - {density.upper()}", fontsize=FONT_SIZE_TITLE
         )
         axes[1].set_xticks(x)
         axes[1].set_xticklabels(
@@ -552,7 +552,7 @@ def plot_combined_threshold_comparison():
                 linewidth=2.5,
                 markersize=7,
                 color=obb_colors[qb_idx],
-                label=f"连杆级预测 (Q={qb})",
+                label=f"现有预测方法 (Q={qb})",
                 alpha=0.8,
             )
 
@@ -603,7 +603,7 @@ def plot_combined_threshold_comparison():
                 linewidth=2.5,
                 markersize=7,
                 color=obb_colors[qb_idx],
-                label=f"连杆级预测 (Q={qb})",
+                label=f"现有预测方法 (Q={qb})",
                 alpha=0.8,
             )
 
@@ -704,7 +704,7 @@ def plot_pr_curves():
         obb_density = obb_density.sort_values("ElemRecall")
         sphere_density = sphere_density.sort_values("ElemRecall")
 
-        # 绘制连杆级预测的P-R曲线
+        # 绘制现有预测方法的P-R曲线
         ax.plot(
             obb_density["ElemRecall"].values,
             obb_density["ElemPrecision"].values,
@@ -712,7 +712,7 @@ def plot_pr_curves():
             linewidth=3,
             markersize=8,
             color=LINK_COLOR,
-            label="连杆级预测",
+            label="现有预测方法",
             alpha=0.8,
         )
 
@@ -849,7 +849,7 @@ def plot_cost_vs_threshold():
         # 先设置对数坐标
         ax.set_xscale("log")
 
-        # 绘制连杆级预测成本曲线
+        # 绘制现有预测方法成本曲线
         ax.plot(
             obb_x_positions,
             obb_costs,
@@ -857,7 +857,7 @@ def plot_cost_vs_threshold():
             linewidth=3,
             markersize=8,
             color=LINK_COLOR,
-            label="连杆级预测",
+            label="现有预测方法",
             alpha=0.8,
         )
 
@@ -1025,7 +1025,7 @@ def plot_cost_vs_quantbits():
 
     ax.set_xlabel("量化位数", fontsize=28)
     ax.set_ylabel("最小预测开销", fontsize=FONT_SIZE_LABEL)
-    ax.set_title("连杆级预测: 开销 vs 量化位数", fontsize=FONT_SIZE_TITLE)
+    ax.set_title("现有预测方法: 开销 vs 量化位数", fontsize=FONT_SIZE_TITLE)
     ax.set_xticks(quant_bits)
     ax.set_xticklabels([str(qb) for qb in quant_bits], fontsize=FONT_SIZE_TICK)
     ax.tick_params(axis="y", labelsize=FONT_SIZE_TICK)
@@ -1142,7 +1142,7 @@ def plot_threshold_metrics_by_density():
                 x - width / 2,
                 metrics_obb[i],
                 width,
-                label="连杆级预测",
+                label="现有预测方法",
                 color=LINK_COLOR,
                 alpha=0.8,
             )
@@ -1313,7 +1313,7 @@ def plot_precision_recall_by_density():
         # 子图1: Precision（grouped bar）
         ax0 = axes[0]
         ax0.bar(
-            x - width / 2, obb_prec, width, label="连杆级预测 (avg)", color=LINK_COLOR
+            x - width / 2, obb_prec, width, label="现有预测方法 (avg)", color=LINK_COLOR
         )
         ax0.bar(
             x + width / 2,
@@ -1340,7 +1340,7 @@ def plot_precision_recall_by_density():
         # 子图2: Recall（grouped bar）
         ax1 = axes[1]
         ax1.bar(
-            x - width / 2, obb_rec, width, label="连杆级预测 (avg)", color=LINK_COLOR
+            x - width / 2, obb_rec, width, label="现有预测方法 (avg)", color=LINK_COLOR
         )
         ax1.bar(
             x + width / 2,
@@ -1659,7 +1659,7 @@ def plot_metrics_at_fixed_S_U():
             ax.plot(
                 x, link_vals, 
                 marker='o', linestyle='-', linewidth=3, markersize=10,
-                label="连杆级预测", color=LINK_COLOR
+                label="现有预测方法", color=LINK_COLOR
             )
             ax.plot(
                 x, sphere_vals, 
@@ -1868,7 +1868,7 @@ def plot_metric_vs_S_multi_density(
         "dens12": "障碍物密度 高",
     }
     quant_bits = 4
-    sample_rate = 0.125
+    sample_rate = 1
     radius_bits = 0
 
     # 仅保留S=0~S=2的阈值
@@ -1908,7 +1908,7 @@ def plot_metric_vs_S_multi_density(
     ]
     threshold_labels = [frac_map.get(round(t, 5), f"S={t:.3f}") for t in thresholds]
 
-    fig, axes = plt.subplots(1, 3, figsize=(18, 4), sharey=True)
+    fig, axes = plt.subplots(1, 3, figsize=(18, 4), sharey=False)
     
     fig.patch.set_facecolor("white")
     for ax in axes:
@@ -1944,7 +1944,7 @@ def plot_metric_vs_S_multi_density(
         ax.plot(
             x, obb_vals, 
             marker='o', linestyle='-', linewidth=3, markersize=10,
-            label="连杆级预测", color=LINK_COLOR
+            label="现有预测方法", color=LINK_COLOR
         )
         ax.plot(
             x, sphere_vals, 

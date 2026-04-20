@@ -13,9 +13,9 @@ cd trace_generation/scripts
 
 2) 运行哈希策略评估（生成 CSV）
 ```bash
-cd prediction_approaches
-./bash_script/run_coord_cost_analysis.sh    # 生成 OBB 的评估 CSV
-./bash_script/run_sphere_cost_analysis.sh   # 生成 Sphere 的评估 CSV
+cd prediction_approaches/bash_script
+./run_coord_cost_analysis.sh    # 生成 OBB 的评估 CSV
+./run_sphere_cost_analysis.sh   # 生成 Sphere 的评估 CSV
 ```
 - 输出：`result_files/coord_hashing_cost_results.csv` 与 `result_files/sphere_hashing_cost_results.csv`
 

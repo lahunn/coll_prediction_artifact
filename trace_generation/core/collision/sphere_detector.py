@@ -90,6 +90,22 @@ class SphereEnvGeometric:
         self.sphere_link_ids.clear()
         self.adjacent_sphere_pairs.clear()
 
+    def reset(self):
+        """
+        重置环境统计数据和内部缓存
+        """
+        # 重置统计数据
+        self.collision_check_count = 0
+        self.collision_time = 0.0
+
+        # 清理已存储的数据缓存
+        self.link_data = []
+        self.link_coll_data = []
+        self.link_coll_cycles = []
+
+        # 障碍物不需要在此重置，因为它们是由 load_obstacles 管理的
+        # sphere_link_ids 和 adjacent_sphere_pairs 也不需要重置，因为它们是机器人模型属性
+
     def load_obstacles(self, obstacles: List[Tuple]) -> List[int]:
         """
         加载并初始化AABB障碍物

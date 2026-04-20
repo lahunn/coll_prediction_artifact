@@ -101,7 +101,7 @@ def plot_cht_conflicts():
 
     # 设置标签和刻度字体
     ax.set_ylabel('存储访问冲突总数', fontsize=FONT_SIZE)
-    ax.set_xlabel('运动规划问题分组(按碰撞检测请求总数)', fontsize=FONT_SIZE)
+    ax.set_xlabel('运动规划问题分组(按任务复杂度划分)', fontsize=FONT_SIZE)
     ax.set_xticks(x)
     ax.set_xticklabels(scenes, fontsize=TICK_FONT_SIZE)
     ax.tick_params(axis='y', labelsize=TICK_FONT_SIZE)

@@ -43,7 +43,13 @@ import pickle
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
 from simulation_core.multi_copu_scheduler import MultiCOPU_Scheduler
-from simulation_core.constants import NUM_OOCDS, DEFAULT_QCOLL_LEN, DEFAULT_QNONCOLL_LEN, DEFAULT_CYCLE_CHECK
+from simulation_core.constants import (
+    NUM_OOCDS,
+    DEFAULT_QCOLL_LEN,
+    DEFAULT_QNONCOLL_LEN,
+    DEFAULT_CYCLE_CHECK,
+    DEFAULT_NUM_DEDICATED_OOCDS,
+)
 import simulation_utils as su
 from trace_generation.config.ana_parameters import get_robot_params
 
@@ -69,6 +75,7 @@ def run_multi_copu_simulation(
     num_predictions=1,
     qcoll_size=DEFAULT_QCOLL_LEN,
     qnoncoll_size=DEFAULT_QNONCOLL_LEN,
+    num_dedicated_oocds=DEFAULT_NUM_DEDICATED_OOCDS,
     warmstart_package=None,
     **cht_kwargs,
 ):
@@ -88,6 +95,7 @@ def run_multi_copu_simulation(
         copus_per_edge: 每个edge分配的COPU数量
         qcoll_size: 碰撞队列长度
         qnoncoll_size: 非碰撞队列长度
+        num_dedicated_oocds: 专用OOCD数量
         **cht_kwargs: CHT类的额外参数
 
     Returns:
@@ -95,8 +103,7 @@ def run_multi_copu_simulation(
     """
     # 从basename提取机器人名称（例如从"iiwa_7"提取"iiwa"）
     robot_name = "iiwa"
-    robot_params = get_robot_params(robot_name)
-    check_cost = robot_params.get("sphere_cost", 1)
+    check_cost = DEFAULT_CYCLE_CHECK
 
     # 使用工具函数计算bins
     bins = su.calculate_bins_from_workspace(robot_name, quant_bits)
@@ -105,21 +112,24 @@ def run_multi_copu_simulation(
     total_checks = 0
     total_oracle_cycles = 0
     for edge_coll in all_coll:
-        # 统计 total_checks (与 prediction_simulation_sphere_link.py 一致)
+        # 统计 total_checks (修正逻辑：一旦 Edge 发现碰撞，立即停止该 Edge 的后续 Pose 检测)
         for pose_coll in edge_coll:
             try:
                 first_collision_index = pose_coll.index(0)
                 total_checks += first_collision_index + 1
+                # 发现碰撞，该 Edge 已确定无效，跳出 Pose 循环
+                # break
             except ValueError:
+                # 该 Pose 安全，继续检测下一个 Pose
                 total_checks += len(pose_coll)
 
         # 统计 oracle_cycles
         oracle_edge_cycles = su.calculate_oracle_cycles(
             edge_coll, num_oocds, check_cost
         )
-        total_oracle_cycles += oracle_edge_cycles
+        total_oracle_cycles += oracle_edge_cycles / num_copus
 
-    total_naive_cycles = total_checks * check_cost
+    total_naive_cycles = (total_checks * check_cost) / (num_copus * num_oocds)
 
     # 2. 创建调度器
     scheduler = MultiCOPU_Scheduler(
@@ -132,6 +142,7 @@ def run_multi_copu_simulation(
         num_predictions=num_predictions,
         qcoll_size=qcoll_size,
         qnoncoll_size=qnoncoll_size,
+        num_dedicated_oocds=num_dedicated_oocds,
         **cht_kwargs,
     )
 
@@ -209,6 +220,7 @@ def simulate_single_benchmark(
     qnoncoll_size=DEFAULT_QNONCOLL_LEN,
     collision_type="link",
     warmstart_dir=None,
+    num_dedicated_oocds=DEFAULT_NUM_DEDICATED_OOCDS,
     **cht_kwargs,
 ):
     """
@@ -229,6 +241,7 @@ def simulate_single_benchmark(
         qcoll_size: 碰撞队列长度
         qnoncoll_size: 非碰撞队列长度
         collision_type: 碰撞模型类型（link/sphere）
+        num_dedicated_oocds: 专用OOCD数量
         **cht_kwargs: CHT类的额外参数
 
     Returns:
@@ -275,6 +288,7 @@ def simulate_single_benchmark(
         num_predictions=num_predictions,
         qcoll_size=qcoll_size,
         qnoncoll_size=qnoncoll_size,
+        num_dedicated_oocds=num_dedicated_oocds,
         warmstart_package=warmstart_package,
         **cht_kwargs,
     )
@@ -301,6 +315,7 @@ def run_benchmark_range_simulation(
     qnoncoll_size=DEFAULT_QNONCOLL_LEN,
     collision_type="link",
     warmstart_dir=None,
+    num_dedicated_oocds=DEFAULT_NUM_DEDICATED_OOCDS,
     **cht_kwargs,
 ):
     """
@@ -322,6 +337,7 @@ def run_benchmark_range_simulation(
         qcoll_size: 碰撞队列长度
         qnoncoll_size: 非碰撞队列长度
         collision_type: 碰撞模型类型（link/sphere）
+        num_dedicated_oocds: 专用OOCD数量
         **cht_kwargs: CHT类的额外参数
 
     Returns:
@@ -368,6 +384,7 @@ def run_benchmark_range_simulation(
             qnoncoll_size=qnoncoll_size,
             collision_type=collision_type,
             warmstart_dir=warmstart_dir,
+            num_dedicated_oocds=num_dedicated_oocds,
             **cht_kwargs,
         )
 
@@ -591,6 +608,12 @@ def main():
         default=None,
         help="directory containing warm-start packages named <basename>_<benchid>_warmstart.pkl",
     )
+    parser.add_argument(
+        "--num-dedicated-oocds",
+        type=int,
+        default=DEFAULT_NUM_DEDICATED_OOCDS,
+        help="number of dedicated OOCDs per COPU",
+    )
 
     args = parser.parse_args()
 
@@ -611,6 +634,7 @@ def main():
     qnoncoll_multiplier = args.qnoncoll_multiplier
     collision_type = args.collision_type
     warmstart_dir = args.cht_warmstart_dir
+    num_dedicated_oocds = args.num_dedicated_oocds
 
     is_range_mode = "-" in benchid_arg
 
@@ -643,6 +667,7 @@ def main():
     print(f"  CDU数量(OOCD): {num_oocds}")
     print(f"  采样率: {sample_rate}")
     print(f"  Prediction数量: {num_predictions}")
+    print(f"  专用OOCD数量: {num_dedicated_oocds}")
     print(f"  使用真实周期: {use_real_cycles}")
     print(f"  CHT冲突检测: {enable_conflict_check}")
     print(f"  CHT类型: {cht_type}")
@@ -676,6 +701,7 @@ def main():
             qnoncoll_size=qnoncoll_size,
             collision_type=collision_type,
             warmstart_dir=warmstart_dir,
+            num_dedicated_oocds=num_dedicated_oocds,
             **cht_kwargs,
         )
     else:
@@ -697,6 +723,7 @@ def main():
             qnoncoll_size=qnoncoll_size,
             collision_type=collision_type,
             warmstart_dir=warmstart_dir,
+            num_dedicated_oocds=num_dedicated_oocds,
             **cht_kwargs,
         )
 

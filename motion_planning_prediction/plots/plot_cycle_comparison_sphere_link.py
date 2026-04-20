@@ -21,20 +21,31 @@ if os.path.exists(font_path):
     fm.fontManager.addfont(font_path)
 
 
-
 # 字体大小变量
 FONT_SIZE = 16  # 其它字体大小（如标签、标题等）
 TICK_FONT_SIZE = 12  # 坐标轴刻度字体大小
 LEGEND_FONT_SIZE = 12  # legend字体大小
 
-plt.rcParams.update({
-    'font.sans-serif': ['SimSun', 'NSimSun', 'STSong', 'Songti SC', 'Noto Sans CJK SC', 'WenQuanYi Micro Hei', 'Droid Sans Fallback', 'Arial Unicode MS', 'sans-serif'],
-    'axes.unicode_minus': False,
-    'font.size': FONT_SIZE,
-    'pdf.fonttype': 42,
-    'ps.fonttype': 42,
-    'legend.fontsize': LEGEND_FONT_SIZE,
-})
+plt.rcParams.update(
+    {
+        "font.sans-serif": [
+            "SimSun",
+            "NSimSun",
+            "STSong",
+            "Songti SC",
+            "Noto Sans CJK SC",
+            "WenQuanYi Micro Hei",
+            "Droid Sans Fallback",
+            "Arial Unicode MS",
+            "sans-serif",
+        ],
+        "axes.unicode_minus": False,
+        "font.size": FONT_SIZE,
+        "pdf.fonttype": 42,
+        "ps.fonttype": 42,
+        "legend.fontsize": LEGEND_FONT_SIZE,
+    }
+)
 
 # 统一配色方案（使用 seaborn colorblind 调色板）
 palette = sns.color_palette("colorblind")
@@ -130,10 +141,16 @@ def extract_metrics(df, difficulties):
                 current_checks = s_row["Total_Checks"].values[0]
             elif not l_row.empty and "Total_Checks" in l_row.columns:
                 current_checks = l_row["Total_Checks"].values[0]
-        
         total_checks.append(current_checks)
-        # 估算基准周期: (Checks * Cost) / Num_OOCDs = (Checks * 15) / 8
-        baseline_cycles.append((current_checks * 15) / 8)
+
+        # 直接读取 Total_Naive_Cycles 作为 baseline_cycles
+        naive_cycle = 0
+        if "Total_Naive_Cycles" in df.columns:
+            if not s_row.empty and "Total_Naive_Cycles" in s_row.columns:
+                naive_cycle = s_row["Total_Naive_Cycles"].values[0]
+            elif not l_row.empty and "Total_Naive_Cycles" in l_row.columns:
+                naive_cycle = l_row["Total_Naive_Cycles"].values[0]
+        baseline_cycles.append(naive_cycle)
 
     return (
         sphere_cycles,
@@ -179,12 +196,14 @@ def autolabel(rects, labels=None):
         )
 
 
-def plot_total_prediction_cycles(difficulties, link_cycles, sphere_cycles, oracle_cycles, baseline_cycles):
+def plot_total_prediction_cycles(
+    difficulties, link_cycles, sphere_cycles, oracle_cycles, baseline_cycles
+):
     x = np.arange(len(difficulties))
     width = 0.2
 
     fig, ax = plt.subplots(figsize=(9.8, 3.7))
-    
+
     # 在对数坐标系下无法显示0，给极小值添加轻微抬升避免警告
     min_positive = 1.0
     safe_baseline = [max(v, min_positive) for v in baseline_cycles]
@@ -193,13 +212,28 @@ def plot_total_prediction_cycles(difficulties, link_cycles, sphere_cycles, oracl
     safe_oracle = [max(v, min_positive) for v in oracle_cycles]
 
     rects0 = ax.bar(
-        x - 1.5 * width, safe_baseline, width, label="基准检测周期", color=BASELINE_COLOR
+        x - 1.5 * width,
+        safe_baseline,
+        width,
+        label="基准检测周期",
+        color=BASELINE_COLOR,
+        edgecolor="black",
     )
     rects1 = ax.bar(
-        x - 0.5 * width, safe_link, width, label="连杆级", color=LINK_COLOR
+        x - 0.5 * width,
+        safe_link,
+        width,
+        label="连杆级",
+        color=LINK_COLOR,
+        edgecolor="black",
     )
     rects2 = ax.bar(
-        x + 0.5 * width, safe_sphere, width, label="球体级", color=SPHERE_COLOR
+        x + 0.5 * width,
+        safe_sphere,
+        width,
+        label="球体级",
+        color=SPHERE_COLOR,
+        edgecolor="black",
     )
     rects3 = ax.bar(
         x + 1.5 * width,
@@ -212,25 +246,95 @@ def plot_total_prediction_cycles(difficulties, link_cycles, sphere_cycles, oracl
         linewidth=1.5,
     )
 
-    ax.set_xlabel("运动规划问题分组(按碰撞检测请求总数)", fontsize=FONT_SIZE)
+    ax.set_xlabel("运动规划问题分组(按任务复杂度划分)", fontsize=FONT_SIZE)
     ax.set_ylabel("总周期(对数尺度)", fontsize=FONT_SIZE)
     ax.set_xticks(x)
     ax.set_xticklabels(difficulties, fontsize=TICK_FONT_SIZE)
     ax.tick_params(axis="y", labelsize=TICK_FONT_SIZE)
     ax.set_yscale("log")
-    
+
     # 增加主次刻度，提升读数可读性
     ax.yaxis.set_major_locator(LogLocator(base=10.0))
-    ax.yaxis.set_minor_locator(LogLocator(base=10.0, subs=(np.arange(2, 10) * 0.1).tolist()))
+    ax.yaxis.set_minor_locator(
+        LogLocator(base=10.0, subs=(np.arange(2, 10) * 0.1).tolist())
+    )
     ax.yaxis.set_major_formatter(ScalarFormatter())
     ax.tick_params(axis="y", which="major", length=6)
     ax.tick_params(axis="y", which="minor", length=3)
     ax.legend(fontsize=LEGEND_FONT_SIZE)
 
     plt.tight_layout()
-    output_path = os.path.join(output_dir, f"cycle_comparison_sphere_link{algorithm_tag}.pdf")
+    output_path = os.path.join(
+        output_dir, f"cycle_comparison_sphere_link{algorithm_tag}.pdf"
+    )
     plt.savefig(output_path)
     print(f"Plot saved to {output_path}")
+
+
+def plot_total_prediction_cycles_linear(
+    difficulties, link_cycles, sphere_cycles, oracle_cycles=None
+):
+    """Plot prediction cycles on a linear (normal) scale without the baseline series.
+
+    Parameters:
+    - difficulties: list of difficulty labels
+    - link_cycles: list of total cycles for link-level strategy
+    - sphere_cycles: list of total cycles for sphere-level strategy
+    - oracle_cycles: optional list of oracle cycles (can be None)
+    """
+    x = np.arange(len(difficulties))
+    width = 0.3
+
+    fig, ax = plt.subplots(figsize=(9.8, 3.7))
+
+    # 绘制连杆级和球体级（不包含基准周期）
+    rects_link = ax.bar(
+        x - width,
+        link_cycles,
+        width,
+        label="连杆级",
+        color=LINK_COLOR,
+        edgecolor="black",
+    )
+    rects_sphere = ax.bar(
+        x,
+        sphere_cycles,
+        width,
+        label="球体级",
+        color=SPHERE_COLOR,
+        edgecolor="black",
+    )
+
+    rects_oracle = None
+    if oracle_cycles is not None and any(v > 0 for v in oracle_cycles):
+        # 若存在理想情况数据，则以空心带斜纹的样式绘制
+        rects_oracle = ax.bar(
+            x + width,
+            oracle_cycles,
+            width,
+            label="理想情况",
+            color="none",
+            edgecolor=ORACLE_COLOR,
+            hatch="//",
+            linewidth=1.5,
+        )
+
+    ax.set_xlabel("运动规划问题分组(按任务复杂度划分)", fontsize=FONT_SIZE)
+    ax.set_ylabel("总周期", fontsize=FONT_SIZE)
+    ax.set_xticks(x)
+    ax.set_xticklabels(difficulties, fontsize=TICK_FONT_SIZE)
+    ax.tick_params(axis="y", labelsize=TICK_FONT_SIZE)
+
+    # 增强可读性：网格与图例
+    ax.yaxis.get_major_locator()
+    ax.legend(fontsize=LEGEND_FONT_SIZE)
+
+    plt.tight_layout()
+    output_path = os.path.join(
+        output_dir, f"cycle_comparison_sphere_link_linear{algorithm_tag}.pdf"
+    )
+    plt.savefig(output_path)
+    print(f"Linear plot saved to {output_path}")
 
 
 def plot_total_prediction_queries(
@@ -245,9 +349,11 @@ def plot_total_prediction_queries(
     # 构建按顺序的系列：[Baseline, Link, Sphere, Oracle]
     series = []
     if baseline_available:
-        series.append(("基准检测次数", total_checks, BASELINE_COLOR, {}))
-    series.append(("连杆级", link_queries, LINK_COLOR, {}))
-    series.append(("球体级", sphere_queries, SPHERE_COLOR, {}))
+        series.append(
+            ("基准检测次数", total_checks, BASELINE_COLOR, {"edgecolor": "black"})
+        )
+    series.append(("连杆级", link_queries, LINK_COLOR, {"edgecolor": "black"}))
+    series.append(("球体级", sphere_queries, SPHERE_COLOR, {"edgecolor": "black"}))
     if oracle_available:
         series.append(
             (
@@ -278,7 +384,7 @@ def plot_total_prediction_queries(
         rects = ax.bar(x + dx, safe_values, width, label=label, color=color, **kw)
         rects_map[label] = rects
 
-    ax.set_xlabel("运动规划问题分组(按碰撞检测请求总数)", fontsize=FONT_SIZE)
+    ax.set_xlabel("运动规划问题分组(按任务复杂度划分)", fontsize=FONT_SIZE)
     ax.set_ylabel("碰撞检测执行次数(对数尺度)", fontsize=FONT_SIZE)
     ax.set_xticks(x)
     ax.set_xticklabels(difficulties, fontsize=TICK_FONT_SIZE)
@@ -286,7 +392,9 @@ def plot_total_prediction_queries(
     ax.set_yscale("log")
     # 增加主次刻度，提升读数可读性
     ax.yaxis.set_major_locator(LogLocator(base=10.0))
-    ax.yaxis.set_minor_locator(LogLocator(base=10.0, subs=(np.arange(2, 10) * 0.1).tolist()))
+    ax.yaxis.set_minor_locator(
+        LogLocator(base=10.0, subs=(np.arange(2, 10) * 0.1).tolist())
+    )
     ax.yaxis.set_major_formatter(ScalarFormatter())
     ax.tick_params(axis="y", which="major", length=6)
     ax.tick_params(axis="y", which="minor", length=3)
@@ -294,7 +402,9 @@ def plot_total_prediction_queries(
     # grid removed per project style
 
     plt.tight_layout()
-    output_path = os.path.join(output_dir, f"query_comparison_sphere_link{algorithm_tag}.pdf")
+    output_path = os.path.join(
+        output_dir, f"query_comparison_sphere_link{algorithm_tag}.pdf"
+    )
     plt.savefig(output_path)
     print(f"Plot saved to {output_path}")
 
@@ -321,7 +431,9 @@ def plot_oocd_utilization(difficulties, link_utilization, sphere_utilization):
     plt.legend()
 
     plt.tight_layout()
-    output_path = os.path.join(output_dir, f"utilization_comparison_sphere_link{algorithm_tag}.pdf")
+    output_path = os.path.join(
+        output_dir, f"utilization_comparison_sphere_link{algorithm_tag}.pdf"
+    )
     plt.savefig(output_path)
     print(f"Plot saved to {output_path}")
 
@@ -347,7 +459,12 @@ def main():
         baseline_cycles,
     ) = extract_metrics(df, difficulties)
 
-    plot_total_prediction_cycles(difficulties, link_cycles, sphere_cycles, oracle_cycles, baseline_cycles)
+    plot_total_prediction_cycles(
+        difficulties, link_cycles, sphere_cycles, oracle_cycles, baseline_cycles
+    )
+    plot_total_prediction_cycles_linear(
+        difficulties, link_cycles, sphere_cycles, oracle_cycles
+    )
     plot_total_prediction_queries(
         difficulties, link_queries, sphere_queries, total_checks, oracle_queries
     )

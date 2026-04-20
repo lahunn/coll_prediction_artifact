@@ -84,7 +84,7 @@ def setup_planner(
     """
     # 构造数据集路径并创建 env（支持选择碰撞模型）
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    data_path = os.path.join(base_dir, "maze_files", "kukas_7_4000.pkl")
+    data_path = os.path.join(base_dir, "maze_files", "kukas_7_3000.pkl")
 
     # 延迟导入以避免循环依赖
     from trace_generation.core.robot.modular_env import ModularEnv
@@ -191,8 +191,6 @@ def evaluate_problems(
     records = []
     is_bit_star = planner.__class__.__name__ == "BITStar"
     # 提前保存构造参数，避免在循环内持有旧实例引用
-    bit_batch = planner.batch_size if is_bit_star else None
-    bit_t_max = planner.T_max if is_bit_star else None
     for idx in it:
         try:
             env.init_new_problem(idx)
@@ -216,12 +214,10 @@ def evaluate_problems(
             # 每个问题用局部变量新建实例，使旧实例在本轮结束后能被 GC 回收。
             bit_planner = BITStar(
                 environment=env,
-                batch_size=bit_batch,
-                T=bit_t_max,
                 plot_flag=False,
             )
             res = bit_planner.plan(
-                float("INF"), time_budget=bit_time_budget, refine_time_budget=10
+                pathLengthLimit=1.2, time_budget=bit_time_budget, refine_time_budget=200
             )
             del bit_planner
 

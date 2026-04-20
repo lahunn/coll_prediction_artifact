@@ -69,6 +69,7 @@ def generate_single_problem(
     voxel_size_range,
     safe_zone_center,
     safe_zone_radius,
+    path_length_limit=1.2,
     max_planning_time=60.0,
     max_sample_attempts=100,
     visualize=False,
@@ -111,7 +112,7 @@ def generate_single_problem(
         planner = BITStar(modular_env)
 
         result = planner.plan(
-            pathLengthLimit=float("inf"),
+            pathLengthLimit=path_length_limit,
             time_budget=max_planning_time,
             dump_log=False,
         )
@@ -205,7 +206,7 @@ def redistribute_problems_by_difficulty(
 
     for coll_filename_link, edge_count in filename_to_edge_count.items():
         # 从文件名中提取问题索引
-        # 文件名格式: {robot_name}_{config_dim}_{num_obstacles:02d}obs_{index:04d}_link.pkl
+        # 文件名格式: {robot_name}_{config_dim}_{index:04d}_link.pkl
         parts = coll_filename_link.split("_")
         if len(parts) >= 4:
             try:
@@ -311,6 +312,7 @@ def generate_problem_dataset(
     num_problems=3000,
     num_obstacles=10,
     output_file=None,
+    path_length_limit=1.2,
     max_planning_time=10.0,
     workspace_range=(-1.0, 1.0),
     voxel_size_range=(0.12, 0.20),
@@ -370,6 +372,7 @@ def generate_problem_dataset(
             voxel_size_range,
             safe_zone_center=(0.0, 0.0, 0.0),
             safe_zone_radius=safe_zone_radius,
+            path_length_limit=path_length_limit,
             max_planning_time=max_planning_time,
             visualize=visualize,
         )
@@ -402,7 +405,7 @@ def generate_problem_dataset(
         modular_env_sphere.goal_state = goal
         planner_sphere = BITStar(modular_env_sphere)
         result_sphere = planner_sphere.plan(
-            pathLengthLimit=float("inf"),
+            pathLengthLimit=path_length_limit,
             time_budget=max_planning_time,
             dump_log=False,
         )
@@ -443,7 +446,7 @@ def generate_problem_dataset(
 
         # 保存link碰撞检测数据
         coll_filename_link = (
-            f"{base_filename}_{num_obstacles:02d}obs_{success_count:04d}_link.pkl"
+            f"{base_filename}_{success_count:04d}_link.pkl"
         )
         coll_filepath_link = os.path.join(collision_data_dir, coll_filename_link)
         modular_env_link.collision_env.data_manager.save_collision_data(
@@ -455,7 +458,7 @@ def generate_problem_dataset(
 
         # 保存sphere碰撞检测数据
         coll_filename_sphere = (
-            f"{base_filename}_{num_obstacles:02d}obs_{success_count:04d}_sphere.pkl"
+            f"{base_filename}_{success_count:04d}_sphere.pkl"
         )
         coll_filepath_sphere = os.path.join(collision_data_dir, coll_filename_sphere)
         modular_env_sphere.collision_env.data_manager.save_collision_data(
@@ -489,8 +492,8 @@ def generate_problem_dataset(
     print(f"  文件数量: {success_count}")
     print(f"  文件命名格式: {base_filename}_XXXX.pkl (例: {base_filename}_0001.pkl)")
     print(f"碰撞检测数据保存到: {collision_data_dir}/")
-    print(f"  Link文件格式: {base_filename}_{num_obstacles:02d}obs_XXXX_link.pkl")
-    print(f"  Sphere文件格式: {base_filename}_{num_obstacles:02d}obs_XXXX_sphere.pkl")
+    print(f"  Link文件格式: {base_filename}_XXXX_link.pkl")
+    print(f"  Sphere文件格式: {base_filename}_XXXX_sphere.pkl")
     print(
         f"路径长度 - 平均: {np.mean(path_lengths):.2f}, 最小: {np.min(path_lengths)}, 最大: {np.max(path_lengths)}"
     )
@@ -513,6 +516,7 @@ def main():
     parser.add_argument("--num-problems", type=int, default=3000)
     parser.add_argument("--num-obstacles", type=int, default=10)
     parser.add_argument("--output-file", type=str, default=None)
+    parser.add_argument("--path-length-limit", type=float, default=1.2, help="Path length limit for BIT*")
     parser.add_argument("--max-time", type=float, default=60.0)
     parser.add_argument("--workspace-min", type=float, default=-0.8)
     parser.add_argument("--workspace-max", type=float, default=0.8)
@@ -534,6 +538,7 @@ def main():
         num_problems=args.num_problems,
         num_obstacles=args.num_obstacles,
         output_file=args.output_file,
+        path_length_limit=args.path_length_limit,
         max_planning_time=args.max_time,
         workspace_range=(args.workspace_min, args.workspace_max),
         voxel_size_range=(args.voxel_size_min, args.voxel_size_max),
