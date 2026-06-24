@@ -21,7 +21,7 @@ plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unico
 plt.rcParams['axes.unicode_minus'] = False
 plt.rcParams['font.size'] = FONT_SIZE
 plt.rcParams['legend.fontsize'] = LEGEND_FONT_SIZE
-colors = sns.color_palette("deep")
+colors = sns.color_palette("colorblind")
 #!/usr/bin/env python3
 """
 Plot Bit Selection Strategy Comparison (Conflict Rate)
@@ -67,7 +67,7 @@ def plot_conflict_rate_comparison():
         x="conflict_rate",
         y="config",
         hue="conflict_rate", 
-        palette="viridis", 
+        palette="colorblind", 
         edgecolor="black",
         alpha=0.9,
         legend=False

@@ -5,8 +5,9 @@
 
 RESULT_FILE="result_files/adaptive_evaluation.csv"
 
-# 清理之前的结果
-rm -f $RESULT_FILE
+# 确保结果目录存在并创建结果文件（含表头）
+mkdir -p "$(dirname "$RESULT_FILE")"
+echo "timestamp,script,params,output" > "$RESULT_FILE"
 
 echo "Starting evaluation for changing environments..."
 

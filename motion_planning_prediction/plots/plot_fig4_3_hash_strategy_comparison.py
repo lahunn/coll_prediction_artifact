@@ -21,7 +21,7 @@ plt.rcParams['font.sans-serif'] = ['SimSun', 'STSong', 'Songti SC', 'Arial Unico
 plt.rcParams['axes.unicode_minus'] = False
 plt.rcParams['font.size'] = FONT_SIZE
 plt.rcParams['legend.fontsize'] = LEGEND_FONT_SIZE
-colors = sns.color_palette("deep")
+colors = sns.color_palette("colorblind")
 #!/usr/bin/env python3
 """
 Plot Hash Strategy Comparison (StdDev)
@@ -58,7 +58,7 @@ def plot_hash_strategy_comparison():
         x="StdDev",
         y="Strategy",
         hue="Strategy",      # 使用 Strategy 着色
-        palette="viridis",   # 选择美观的渐变色板
+        palette="colorblind",   # 选择美观的渐变色板
         dodge=False,         # 不需要分组偏移
         edgecolor="black",   # 添加边框
         alpha=0.85
